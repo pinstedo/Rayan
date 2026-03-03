@@ -20,6 +20,7 @@ async function initDb() {
       role TEXT DEFAULT 'admin',
       is_deleted BOOLEAN DEFAULT 0,
       deleted_at DATETIME DEFAULT NULL,
+      status TEXT DEFAULT 'approved',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -47,6 +48,12 @@ async function initDb() {
   // Add deleted_at column if it doesn't exist
   try {
     await db.exec(`ALTER TABLE users ADD COLUMN deleted_at DATETIME DEFAULT NULL`);
+  } catch (e) {
+    // Column probably already exists, ignore error
+  }
+  // Add status column if it doesn't exist
+  try {
+    await db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'`);
   } catch (e) {
     // Column probably already exists, ignore error
   }
@@ -229,6 +236,31 @@ async function initDb() {
       status TEXT DEFAULT 'unread',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Salary Payments table
+    CREATE TABLE IF NOT EXISTS salary_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      labour_id INTEGER NOT NULL REFERENCES labours(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      month_reference TEXT NOT NULL,
+      payment_method TEXT,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Search Indexes
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_labours_name ON labours(name);
+    CREATE INDEX IF NOT EXISTS idx_labours_phone ON labours(phone);
+    CREATE INDEX IF NOT EXISTS idx_labours_trade ON labours(trade);
+    
+    CREATE INDEX IF NOT EXISTS idx_users_name ON users(name);
+    CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+    
+    CREATE INDEX IF NOT EXISTS idx_sites_name ON sites(name);
   `);
 
   console.log('Database initialized.');

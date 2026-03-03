@@ -22,7 +22,7 @@ interface Labour {
 interface OvertimeRecord {
 	id?: number;
 	labour_id: number;
-	hours: number;
+	hours: number | string;
 	amount: number;
 	notes?: string;
 }
@@ -131,8 +131,8 @@ export default function OvertimeScreen() {
 	};
 
 	const handleHoursChange = (labour: Labour, text: string) => {
-		const hours = parseFloat(text);
-		if (isNaN(hours) && text !== "") return;
+		// Allow empty string or valid decimal numbers (e.g., "0", "0.", "0.5")
+		if (text !== "" && !/^\d*\.?\d*$/.test(text)) return;
 
 		setOvertimeData(prev => {
 			const newMap = new Map(prev);
@@ -146,10 +146,11 @@ export default function OvertimeScreen() {
 				});
 			} else {
 				const rate = labour.rate || 0;
+				const parsedHours = parseFloat(text) || 0;
 				newMap.set(labour.id, {
 					...current,
-					hours: hours,
-					amount: hours * rate
+					hours: text, // Store exact text to preserve trailing dot
+					amount: parsedHours * rate
 				});
 			}
 			return newMap;
@@ -182,11 +183,12 @@ export default function OvertimeScreen() {
 				}
 
 				// Send all records, even if hours is 0 (to allow updates/clearing)
+				const parsedHours = typeof record.hours === 'string' ? parseFloat(record.hours) || 0 : record.hours;
 				bulkData.push({
 					labour_id: labourId,
 					site_id: recordSiteId,
 					date: formatDate(date),
-					hours: record.hours,
+					hours: parsedHours,
 					amount: record.amount,
 					notes: record.notes,
 					created_by: userData.id
@@ -217,7 +219,8 @@ export default function OvertimeScreen() {
 
 	const renderItem = ({ item }: { item: Labour }) => {
 		const record = overtimeData.get(item.id);
-		const hours = record ? record.hours.toString() : "0";
+		// If hours is string, keep it (e.g., "0."), otherwise convert number to string
+		const hours = record ? (typeof record.hours === 'string' ? record.hours : record.hours.toString()) : "0";
 		const amount = record ? record.amount.toFixed(2) : "0.00";
 		const rate = item.rate || 0;
 

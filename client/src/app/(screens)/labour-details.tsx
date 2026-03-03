@@ -121,7 +121,7 @@ export default function LabourDetailsScreen() {
 
     if (!labour) return null;
 
-    const DetailItem = ({ label, value, icon, isEditable = false, field, keyboardType = 'default' }: any) => (
+    const renderDetailItem = ({ label, value, icon, isEditable = false, field, keyboardType = 'default' }: any) => (
         <View style={local.inputGroup}>
             <Text style={local.label}>{label}</Text>
             <View style={[local.inputContainer, !isEditing && local.readOnlyContainer]}>
@@ -192,30 +192,30 @@ export default function LabourDetailsScreen() {
                 <View style={local.formContainer}>
                     <Text style={local.sectionTitle}>Personal Information</Text>
 
-                    <DetailItem
-                        label="Full Name"
-                        value={labour.name}
-                        field="name"
-                        icon="person-outline"
-                        isEditable={true}
-                    />
+                    {renderDetailItem({
+                        label: "Full Name",
+                        value: labour.name,
+                        field: "name",
+                        icon: "person-outline",
+                        isEditable: true
+                    })}
 
-                    <DetailItem
-                        label="Phone Number"
-                        value={labour.phone}
-                        field="phone"
-                        icon="call-outline"
-                        isEditable={true}
-                        keyboardType="phone-pad"
-                    />
+                    {renderDetailItem({
+                        label: "Phone Number",
+                        value: labour.phone,
+                        field: "phone",
+                        icon: "call-outline",
+                        isEditable: true,
+                        keyboardType: "phone-pad"
+                    })}
 
-                    <DetailItem
-                        label="Date of Birth (YYYY-MM-DD)"
-                        value={labour.date_of_birth}
-                        field="date_of_birth"
-                        icon="calendar-outline"
-                        isEditable={true}
-                    />
+                    {renderDetailItem({
+                        label: "Date of Birth (YYYY-MM-DD)",
+                        value: labour.date_of_birth,
+                        field: "date_of_birth",
+                        icon: "calendar-outline",
+                        isEditable: true
+                    })}
 
                     {labour.date_of_birth && (
                         <View style={local.inputGroup}>
@@ -227,67 +227,67 @@ export default function LabourDetailsScreen() {
                         </View>
                     )}
 
-                    <DetailItem
-                        label="Aadhaar Number"
-                        value={labour.aadhaar}
-                        field="aadhaar"
-                        icon="card-outline"
-                        isEditable={true}
-                        keyboardType="numeric"
-                    />
+                    {renderDetailItem({
+                        label: "Aadhaar Number",
+                        value: labour.aadhaar,
+                        field: "aadhaar",
+                        icon: "card-outline",
+                        isEditable: true,
+                        keyboardType: "numeric"
+                    })}
 
-                    <DetailItem
-                        label="Emergency Contact"
-                        value={labour.emergency_phone}
-                        field="emergency_phone"
-                        icon="medical-outline"
-                        isEditable={true}
-                        keyboardType="phone-pad"
-                    />
+                    {renderDetailItem({
+                        label: "Emergency Contact",
+                        value: labour.emergency_phone,
+                        field: "emergency_phone",
+                        icon: "medical-outline",
+                        isEditable: true,
+                        keyboardType: "phone-pad"
+                    })}
 
                     <View style={local.divider} />
                     <Text style={local.sectionTitle}>Work Details</Text>
 
-                    <DetailItem
-                        label="Trade / Role"
-                        value={labour.trade}
-                        field="trade"
-                        icon="briefcase-outline"
-                        isEditable={true}
-                    />
+                    {renderDetailItem({
+                        label: "Trade / Role",
+                        value: labour.trade,
+                        field: "trade",
+                        icon: "briefcase-outline",
+                        isEditable: true
+                    })}
 
-                    <DetailItem
-                        label="Daily Rate (₹)"
-                        value={String(labour.rate || 0)}
-                        field="rate"
-                        icon="cash-outline"
-                        isEditable={true}
-                        keyboardType="numeric"
-                    />
+                    {renderDetailItem({
+                        label: "Daily Rate (₹)",
+                        value: String(labour.rate || 0),
+                        field: "rate",
+                        icon: "cash-outline",
+                        isEditable: true,
+                        keyboardType: "numeric"
+                    })}
 
-                    <DetailItem
-                        label="Current Site"
-                        value={labour.site}
-                        field="site"
-                        icon="location-outline"
-                        isEditable={true}
-                    />
+                    {renderDetailItem({
+                        label: "Current Site",
+                        value: labour.site,
+                        field: "site",
+                        icon: "location-outline",
+                        isEditable: true
+                    })}
 
-                    <DetailItem
-                        label="Status"
-                        value={labour.status}
-                        icon="flag-outline"
-                        isEditable={false}
-                    />
+                    {renderDetailItem({
+                        label: "Status",
+                        value: labour.status,
+                        icon: "flag-outline",
+                        isEditable: false
+                    })}
 
                     <View style={local.divider} />
-                    <DetailItem
-                        label="Notes"
-                        value={labour.notes}
-                        field="notes"
-                        icon="document-text-outline"
-                        isEditable={true}
-                    />
+                    {renderDetailItem({
+                        label: "Notes",
+                        value: labour.notes,
+                        field: "notes",
+                        icon: "document-text-outline",
+                        isEditable: true
+                    })}
 
                     {isEditing && (
                         <TouchableOpacity

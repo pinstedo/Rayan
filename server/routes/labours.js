@@ -25,6 +25,8 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             conditions.push("status = 'active'");
         } else if (status === 'inactive') {
             conditions.push("status IN ('terminated', 'blacklisted')");
+        } else if (status === 'pending') {
+            conditions.push("status = 'pending'");
         } else {
             // Default behavior: if no status provided, maybe return all? 
             // Or typically default to active if not specified? 
@@ -131,9 +133,12 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
         const password_hash = await bcrypt.hash(password, 10);
 
+        // If supervisor is creating, status is pending
+        const initialStatus = req.user && req.user.role === 'supervisor' ? 'pending' : 'active';
+
         const result = await db.run(
-            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth]
+            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, initialStatus]
         );
 
         const newLabour = await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]);
@@ -239,7 +244,7 @@ router.delete('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) =
 // Update labour status
 router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     const { status } = req.body;
-    const allowedStatuses = ['active', 'terminated', 'blacklisted'];
+    const allowedStatuses = ['active', 'terminated', 'blacklisted', 'pending'];
 
     if (!allowedStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });

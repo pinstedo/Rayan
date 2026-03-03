@@ -58,13 +58,21 @@ export default function SignUpScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        await AsyncStorage.setItem("userData", JSON.stringify(data.user));
-        await AsyncStorage.setItem("token", data.accessToken);
-        await AsyncStorage.setItem("refreshToken", data.refreshToken);
+        if (data.pending) {
+          Alert.alert(
+            "Approval Required",
+            "Your admin account request has been sent to existing administrators for approval. You will be able to log in once they grant you access.",
+            [{ text: "OK", onPress: () => router.push("/auth/authentication2" as any) }]
+          );
+        } else {
+          await AsyncStorage.setItem("userData", JSON.stringify(data.user));
+          await AsyncStorage.setItem("token", data.accessToken);
+          await AsyncStorage.setItem("refreshToken", data.refreshToken);
 
-        Alert.alert("Success", "Account created successfully!", [
-          { text: "OK", onPress: () => router.replace("/(tabs)/home") },
-        ]);
+          Alert.alert("Success", "Account created successfully!", [
+            { text: "OK", onPress: () => router.replace("/(tabs)/home") },
+          ]);
+        }
       } else {
         Alert.alert("Sign Up Failed", data.error || "Failed to create account");
       }

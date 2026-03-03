@@ -20,16 +20,17 @@ export default function AttendanceScreen() {
 	const router = useRouter();
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
-	const { siteId, siteName } = useLocalSearchParams();
+	const { siteId, siteName, dateStr } = useLocalSearchParams();
 	const [labours, setLabours] = useState<Labour[]>([]);
 	const [attendance, setAttendance] = useState<Map<number, 'full' | 'half' | 'absent'>>(new Map());
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
-	const [date, setDate] = useState(new Date());
+	const [date, setDate] = useState(dateStr && typeof dateStr === 'string' ? new Date(dateStr) : new Date());
 	const [locked, setLocked] = useState(false);
 	const [foodProvided, setFoodProvided] = useState(false);
 	const [filter, setFilter] = useState<'all' | 'full' | 'half' | 'absent'>('all');
 	const [refreshing, setRefreshing] = useState(false);
+	const [isAdmin, setIsAdmin] = useState(false);
 
 	// State for calendar summary
 	const [markedDates, setMarkedDates] = useState<string[]>([]);
@@ -53,6 +54,19 @@ export default function AttendanceScreen() {
 	};
 
 	const isGlobalView = !siteId;
+	const isToday = date.toDateString() === new Date().toDateString();
+	const canEdit = !isGlobalView && (!locked || (isAdmin && isToday));
+
+	useEffect(() => {
+		const checkAdmin = async () => {
+			const userDataStr = await AsyncStorage.getItem("userData");
+			if (userDataStr) {
+				const userData = JSON.parse(userDataStr);
+				setIsAdmin(userData.role === 'admin');
+			}
+		};
+		checkAdmin();
+	}, []);
 
 	useEffect(() => {
 		fetchLabours();
@@ -248,7 +262,7 @@ export default function AttendanceScreen() {
 
 	const renderItem = ({ item }: { item: Labour }) => {
 		const status = attendance.get(item.id);
-		const itemLocked = locked || isGlobalView;
+		const itemLocked = !canEdit;
 
 		return (
 			<View style={local.card}>
@@ -327,8 +341,8 @@ export default function AttendanceScreen() {
 						<Text style={local.foodToggleText}>Food Provided by Supervisor</Text>
 						<Switch
 							value={foodProvided}
-							onValueChange={(val) => { if (!locked) setFoodProvided(val); }}
-							disabled={locked}
+							onValueChange={(val) => { if (canEdit) setFoodProvided(val); }}
+							disabled={!canEdit}
 							trackColor={{ false: isDark ? "#444" : "#767577", true: isDark ? "#64b5f6" : "#81b0ff" }}
 							thumbColor={foodProvided ? (isDark ? "#4da6ff" : "#0a84ff") : (isDark ? "#ccc" : "#f4f3f4")}
 						/>
@@ -393,12 +407,12 @@ export default function AttendanceScreen() {
 			{!isGlobalView && (
 				<View style={local.footer}>
 					<Pressable
-						style={[local.submitBtn, (submitting || locked) && local.submitBtnDisabled]}
+						style={[local.submitBtn, (submitting || !canEdit) && local.submitBtnDisabled]}
 						onPress={handleSubmit}
-						disabled={submitting || locked}
+						disabled={submitting || !canEdit}
 					>
 						<Text style={local.submitBtnText}>
-							{submitting ? "Submitting..." : locked ? "Attendance Locked" : "Submit Attendance"}
+							{submitting ? "Submitting..." : !canEdit ? "Attendance Locked" : "Submit Attendance"}
 						</Text>
 					</Pressable>
 				</View>

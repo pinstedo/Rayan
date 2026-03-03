@@ -3,10 +3,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { JSX, useCallback, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import GlobalSearch from "../../../components/GlobalSearch";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
-import { getStyles } from "../../style/stylesheet1";
 
 interface Site {
     id: number;
@@ -25,11 +25,12 @@ const options = [
 export default function SupervisorHome(): JSX.Element {
     const router = useRouter();
     const { isDark } = useTheme();
-    const styles = getStyles(isDark);
+    const styles = getLocalStyles(isDark);
     const [assignedSites, setAssignedSites] = useState<Site[]>([]);
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [userName, setUserName] = useState("Supervisor");
 
     const fetchAssignedSites = async (isRefresh = false) => {
         try {
@@ -46,6 +47,8 @@ export default function SupervisorHome(): JSX.Element {
             }
 
             const userData = JSON.parse(userDataStr);
+            setUserName(userData.name || "Supervisor");
+
             const response = await api.get(`/sites/supervisor/${userData.id}`);
             const data = await response.json();
 
@@ -110,94 +113,46 @@ export default function SupervisorHome(): JSX.Element {
         router.push(`/manage/${key}` as any);
     };
 
-    const localStyles = {
-        siteSection: {
-            marginBottom: 20,
-            backgroundColor: isDark ? "#1e1e1e" : "#fff",
-            padding: 16,
-            borderRadius: 12,
-        } as const,
-        siteLabel: {
-            fontSize: 14,
-            fontWeight: "600" as const,
-            color: isDark ? "#fff" : "#333",
-            marginBottom: 12,
-        },
-        siteScroll: {
-            flexDirection: "row" as const,
-        },
-        siteChip: {
-            flexDirection: "row" as const,
-            alignItems: "center" as const,
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            backgroundColor: isDark ? "#333" : "#e8f4ff",
-            borderRadius: 20,
-            marginRight: 10,
-            gap: 6,
-        },
-        siteChipActive: {
-            backgroundColor: "#0a84ff",
-        },
-        siteChipText: {
-            fontSize: 14,
-            color: isDark ? "#4da6ff" : "#0a84ff",
-            fontWeight: "500" as const,
-        },
-        siteChipTextActive: {
-            color: "#fff",
-        },
-        noSitesContainer: {
-            alignItems: "center" as const,
-            padding: 32,
-            backgroundColor: isDark ? "#1e1e1e" : "#fff",
-            borderRadius: 12,
-            marginBottom: 20,
-        },
-        noSitesText: {
-            fontSize: 16,
-            color: isDark ? "#aaa" : "#666",
-            marginTop: 12,
-        },
-        noSitesSubtext: {
-            fontSize: 14,
-            color: isDark ? "#777" : "#999",
-            marginTop: 4,
-        },
-    };
+    const firstName = userName.split(" ")[0];
 
     return (
         <View style={styles.mainContainer}>
+            <View style={styles.headerSection}>
+                <Text style={styles.greetingText}>Welcome back,</Text>
+                <Text style={styles.headerTitle}>{firstName}</Text>
+                <View style={{ marginTop: 16 }}>
+                    <GlobalSearch />
+                </View>
+            </View>
+
             <ScrollView
-                contentContainerStyle={styles.content}
+                contentContainerStyle={styles.contentStyle}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
                 }
             >
-                <Text style={styles.header}>Supervisor Dashboard</Text>
-
                 {/* Site Selector */}
                 {assignedSites.length > 0 && (
-                    <View style={localStyles.siteSection}>
-                        <Text style={localStyles.siteLabel}>Assigned Sites</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={localStyles.siteScroll}>
+                    <View style={styles.sectionContainer}>
+                        <Text style={styles.sectionHeader}>Assigned Sites</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.siteScroll}>
                             {assignedSites.map((site) => (
                                 <Pressable
                                     key={site.id}
                                     style={[
-                                        localStyles.siteChip,
-                                        selectedSite?.id === site.id && localStyles.siteChipActive
+                                        styles.siteChip,
+                                        selectedSite?.id === site.id && styles.siteChipActive
                                     ]}
                                     onPress={() => setSelectedSite(site)}
                                 >
                                     <MaterialIcons
                                         name="location-city"
-                                        size={16}
-                                        color={selectedSite?.id === site.id ? "#fff" : (isDark ? "#4da6ff" : "#0a84ff")}
+                                        size={20}
+                                        color={selectedSite?.id === site.id ? "#FFFFFF" : (isDark ? "#94A3B8" : "#64748B")}
                                     />
                                     <Text style={[
-                                        localStyles.siteChipText,
-                                        selectedSite?.id === site.id && localStyles.siteChipTextActive
+                                        styles.siteChipText,
+                                        selectedSite?.id === site.id && styles.siteChipTextActive
                                     ]}>
                                         {site.name}
                                     </Text>
@@ -208,13 +163,14 @@ export default function SupervisorHome(): JSX.Element {
                 )}
 
                 {assignedSites.length === 0 && !loading && (
-                    <View style={localStyles.noSitesContainer}>
-                        <MaterialIcons name="location-off" size={48} color={isDark ? "#555" : "#ccc"} />
-                        <Text style={localStyles.noSitesText}>No sites assigned to you yet</Text>
-                        <Text style={localStyles.noSitesSubtext}>Contact your admin to get assigned to a site</Text>
+                    <View style={styles.noSitesContainer}>
+                        <MaterialIcons name="location-off" size={48} color={isDark ? "#475569" : "#CBD5E1"} />
+                        <Text style={styles.noSitesText}>No sites assigned to you yet</Text>
+                        <Text style={styles.noSitesSubtext}>Contact your admin to get assigned to a site.</Text>
                     </View>
                 )}
 
+                <Text style={[styles.sectionHeader, { paddingHorizontal: 20 }]}>Quick Actions</Text>
                 <View style={styles.grid}>
                     {options.map((opt) => (
                         <Pressable
@@ -225,11 +181,11 @@ export default function SupervisorHome(): JSX.Element {
                             accessibilityLabel={opt.title}
                         >
                             <View style={styles.optionIconWrap}>
-                                <MaterialIcons name={opt.icon as any} size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                                <MaterialIcons name={opt.icon as any} size={24} color="#3B82F6" />
                             </View>
 
                             <Text style={styles.optionTitle}>{opt.title}</Text>
-                            <Text style={styles.optionDesc}>{opt.desc}</Text>
+                            <Text style={styles.optionDesc} numberOfLines={2}>{opt.desc}</Text>
                         </Pressable>
                     ))}
                 </View>
@@ -238,3 +194,147 @@ export default function SupervisorHome(): JSX.Element {
     );
 }
 
+const getLocalStyles = (isDark: boolean) => StyleSheet.create({
+    mainContainer: {
+        flex: 1,
+        backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+    },
+    headerSection: {
+        paddingTop: 64, // Top padding for safe area since using default header off
+        paddingHorizontal: 24,
+        paddingBottom: 24,
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 12,
+        elevation: 8,
+        zIndex: 100,
+        marginBottom: 24,
+    },
+    greetingText: {
+        fontSize: 15,
+        fontWeight: "500",
+        color: isDark ? "#94A3B8" : "#64748B",
+        marginBottom: 4,
+    },
+    headerTitle: {
+        fontSize: 32,
+        fontWeight: "800",
+        color: isDark ? "#F1F5F9" : "#0F172A",
+    },
+    contentStyle: {
+        paddingBottom: 40,
+    },
+    sectionContainer: {
+        marginBottom: 28,
+    },
+    sectionHeader: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: isDark ? "#F1F5F9" : "#0F172A",
+        marginBottom: 16,
+        paddingHorizontal: 20,
+    },
+    siteScroll: {
+        paddingLeft: 20,
+        paddingRight: 8,
+    },
+    siteChip: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderRadius: 24,
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: isDark ? "#334155" : "#E2E8F0",
+        gap: 8,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.1 : 0.02,
+        shadowRadius: 4,
+        elevation: 1,
+    },
+    siteChipActive: {
+        backgroundColor: "#3B82F6",
+        borderColor: "#3B82F6",
+        shadowOpacity: isDark ? 0.4 : 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    siteChipText: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: isDark ? "#94A3B8" : "#64748B",
+    },
+    siteChipTextActive: {
+        color: "#FFFFFF",
+    },
+    grid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+    },
+    optionCard: {
+        width: "48%",
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 16,
+        alignItems: "flex-start",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.2 : 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    optionIconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        backgroundColor: isDark ? "rgba(59, 130, 246, 0.15)" : "#EFF6FF",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    optionTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: isDark ? "#F1F5F9" : "#0F172A",
+        marginBottom: 6,
+    },
+    optionDesc: {
+        fontSize: 13,
+        fontWeight: "400",
+        color: isDark ? "#94A3B8" : "#64748B",
+        lineHeight: 18,
+    },
+    noSitesContainer: {
+        alignItems: "center",
+        padding: 40,
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderRadius: 20,
+        marginHorizontal: 20,
+        marginBottom: 24,
+        borderStyle: "dashed",
+        borderWidth: 1,
+        borderColor: isDark ? "#334155" : "#CBD5E1",
+    },
+    noSitesText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: isDark ? "#94A3B8" : "#64748B",
+        marginTop: 16,
+    },
+    noSitesSubtext: {
+        fontSize: 14,
+        color: isDark ? "#64748B" : "#94A3B8",
+        marginTop: 6,
+        textAlign: "center",
+    },
+});

@@ -7,6 +7,7 @@ const labourRoutes = require('./routes/labours');
 const dashboardRoutes = require('./routes/dashboard');
 const sitesRoutes = require('./routes/sites');
 const attendanceRoutes = require('./routes/attendance');
+const searchRoutes = require('./routes/search');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,6 +33,7 @@ app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 app.use('/api/attendance', authenticateToken, attendanceRoutes);
 app.use('/api/overtime', authenticateToken, require('./routes/overtime'));
 app.use('/api/reports', authenticateToken, require('./routes/reports'));
+app.use('/api/search', authenticateToken, searchRoutes);
 
 app.get('/', (req, res) => {
     res.send('Welcome to the Labour Management Server');

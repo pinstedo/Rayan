@@ -155,7 +155,10 @@ export default function AddLabour() {
       const response = await api.post("/labours", payload);
 
       if (response.ok) {
-        showModal("Success", "Labour added successfully.", 'success', [
+        const successMsg = userRole === 'supervisor'
+          ? "Labour added successfully. It is pending admin approval."
+          : "Labour added successfully.";
+        showModal("Success", successMsg, 'success', [
           { text: "OK", onPress: () => { setModalConfig(prev => ({ ...prev, visible: false })); router.back(); }, style: 'default' },
         ]);
       } else {

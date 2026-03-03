@@ -167,7 +167,12 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         );
 
         if (lockStatus && lockStatus.is_locked) {
-            return res.status(403).json({ error: 'Attendance for this date is locked and cannot be modified.' });
+            const isAdmin = req.user && req.user.role === 'admin';
+            const isToday = reqDateLocal.getTime() === currentDate.getTime();
+
+            if (!(isAdmin && isToday)) {
+                return res.status(403).json({ error: 'Attendance for this date is locked and cannot be modified.' });
+            }
         }
 
         // Use a transaction for batch inserts/updates

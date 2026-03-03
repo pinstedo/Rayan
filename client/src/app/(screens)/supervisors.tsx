@@ -86,12 +86,20 @@ export default function SupervisorsScreen() {
                     <MaterialIcons name="arrow-back" size={24} color="#000" />
                 </TouchableOpacity>
                 <Text style={styles.title}>Supervisors</Text>
-                <TouchableOpacity
-                    onPress={() => router.push("/(screens)/add-supervisor")}
-                    style={styles.addButton}
-                >
-                    <MaterialIcons name="add" size={24} color="#0a84ff" />
-                </TouchableOpacity>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity
+                        onPress={() => router.push("/(screens)/supervisor-bin")}
+                        style={styles.actionButton}
+                    >
+                        <MaterialIcons name="delete-outline" size={24} color="#ff3b30" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => router.push("/(screens)/add-supervisor")}
+                        style={styles.actionButton}
+                    >
+                        <MaterialIcons name="add" size={24} color="#0a84ff" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {loading ? (
@@ -145,8 +153,13 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#333",
     },
-    addButton: {
+    headerActions: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    actionButton: {
         padding: 8,
+        marginLeft: 4,
     },
     loader: {
         flex: 1,

@@ -114,7 +114,12 @@ export default function SiteAttendanceReport() {
             ) : (
                 <ScrollView contentContainerStyle={local.scrollContent}>
                     {reports.map((site) => (
-                        <View key={site.site_id} style={local.card}>
+                        <TouchableOpacity
+                            key={site.site_id}
+                            style={local.card}
+                            activeOpacity={0.7}
+                            onPress={() => router.push(`/(screens)/attendance?siteId=${site.site_id}&siteName=${encodeURIComponent(site.site_name)}&dateStr=${date.toISOString()}` as any)}
+                        >
                             <View style={local.cardHeader}>
                                 <Text style={local.siteName}>{site.site_name}</Text>
                                 {site.is_submitted ? (
@@ -146,7 +151,7 @@ export default function SiteAttendanceReport() {
                                     <Text style={local.statValue}>{site.total_labourers}</Text>
                                 </View>
                             </View>
-                        </View>
+                        </TouchableOpacity>
                     ))}
 
                     {reports.length === 0 && (

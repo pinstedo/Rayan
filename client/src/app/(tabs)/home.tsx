@@ -8,10 +8,10 @@ import {
 	ScrollView,
 	StyleSheet,
 	Text,
-	TextInput,
 	TouchableOpacity,
 	View
 } from "react-native";
+import GlobalSearch from "../../components/GlobalSearch";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 
@@ -49,7 +49,8 @@ export default function HomeScreen() {
 
 	const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 	const [complaints, setComplaints] = useState<any[]>([]);
-	const [notificationTab, setNotificationTab] = useState<'complaints' | 'activities'>('complaints');
+	const [pendingLabours, setPendingLabours] = useState<any[]>([]);
+	const [notificationTab, setNotificationTab] = useState<'complaints' | 'activities' | 'approvals'>('complaints');
 
 	const fetchComplaints = async () => {
 		try {
@@ -60,6 +61,24 @@ export default function HomeScreen() {
 			}
 		} catch (error) {
 			console.error("Failed to fetch complaints:", error);
+		}
+	};
+
+	const fetchPendingLabours = async () => {
+		try {
+			const userData = await AsyncStorage.getItem("userData");
+			if (userData) {
+				const user = JSON.parse(userData);
+				if (user.role === 'admin') {
+					const res = await api.get("/labours?status=pending");
+					if (res.ok) {
+						const data = await res.json();
+						setPendingLabours(data);
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Failed to fetch pending labours:", error);
 		}
 	};
 
@@ -84,6 +103,30 @@ export default function HomeScreen() {
 			}
 		} catch (error) {
 			console.error("Failed to clear specific notification:", error);
+		}
+	};
+
+	const handleApproveLabour = async (id: string) => {
+		try {
+			const res = await api.put(`/labours/${id}/status`, { status: 'active' });
+			if (res.ok) {
+				fetchPendingLabours();
+				fetchData(false);
+			}
+		} catch (error) {
+			console.error("Failed to approve labour:", error);
+		}
+	};
+
+	const handleDenyLabour = async (id: string) => {
+		try {
+			const res = await api.delete(`/labours/${id}`);
+			if (res.ok) {
+				fetchPendingLabours();
+				fetchData(false);
+			}
+		} catch (error) {
+			console.error("Failed to deny labour:", error);
 		}
 	};
 
@@ -179,6 +222,7 @@ export default function HomeScreen() {
 		{ label: "supervisors", icon: "account-tie-outline", route: "/(screens)/supervisors", color: isDark ? "#3A1B4D" : "#F3E5F5", iconColor: isDark ? "#BA68C8" : "#7B1FA2" },
 		{ label: "Wage Report", icon: "file-chart-outline", route: "/(screens)/reports/wage-report", color: isDark ? "#1B4323" : "#E8F5E9", iconColor: isDark ? "#81C784" : "#388E3C" },
 		{ label: "Add Site", icon: "office-building-outline", route: "/(screens)/add-site", color: isDark ? "#3A1B4D" : "#F3E5F5", iconColor: isDark ? "#BA68C8" : "#7B1FA2" },
+		{ label: "Pending Admins", icon: "account-clock-outline", route: "/(screens)/pending-admins", color: isDark ? "#3A2A1A" : "#FFF3E0", iconColor: isDark ? "#FFB74D" : "#F57C00" },
 	];
 
 	return (
@@ -199,7 +243,11 @@ export default function HomeScreen() {
 						</View>
 
 						<View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-							<TouchableOpacity style={local.notificationButton} onPress={() => { setShowNotificationsModal(true); fetchComplaints(); }}>
+							<TouchableOpacity style={local.notificationButton} onPress={() => {
+								setShowNotificationsModal(true);
+								fetchComplaints();
+								fetchPendingLabours();
+							}}>
 								<Ionicons name="notifications-outline" size={28} color={isDark ? "#aaa" : "#555"} />
 								{unreadReports > 0 && (
 									<View style={local.notificationBadge}>
@@ -218,17 +266,7 @@ export default function HomeScreen() {
 						</View>
 					</View>
 
-					<View style={local.searchContainer}>
-						<Ionicons name="search" size={20} color={isDark ? "#aaa" : "#888"} style={local.searchIcon} />
-						<TextInput
-							style={local.searchInput}
-							placeholder="Search activities or workers..."
-							value={query}
-							onChangeText={setQuery}
-							clearButtonMode="while-editing"
-							placeholderTextColor={isDark ? "#888" : "#888"}
-						/>
-					</View>
+					<GlobalSearch />
 				</View>
 
 				<View style={local.cardsRow}>
@@ -333,6 +371,12 @@ export default function HomeScreen() {
 									<Text style={{ fontWeight: '600', color: notificationTab === 'complaints' ? '#0a84ff' : (isDark ? '#aaa' : '#666') }}>Issues</Text>
 								</TouchableOpacity>
 								<TouchableOpacity
+									style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: notificationTab === 'approvals' ? 2 : 0, borderBottomColor: '#0a84ff' }}
+									onPress={() => setNotificationTab('approvals')}
+								>
+									<Text style={{ fontWeight: '600', color: notificationTab === 'approvals' ? '#0a84ff' : (isDark ? '#aaa' : '#666') }}>Approvals</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
 									style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: notificationTab === 'activities' ? 2 : 0, borderBottomColor: '#0a84ff' }}
 									onPress={() => setNotificationTab('activities')}
 								>
@@ -369,6 +413,50 @@ export default function HomeScreen() {
 													</TouchableOpacity>
 												</View>
 												<Text style={{ color: isDark ? '#ddd' : '#333', fontSize: 14 }}>{c.complaint}</Text>
+											</View>
+										))
+									)
+								) : notificationTab === 'approvals' ? (
+									pendingLabours.length === 0 ? (
+										<Text style={{ textAlign: 'center', color: isDark ? '#aaa' : '#666', marginTop: 20, marginBottom: 20 }}>No pending approvals.</Text>
+									) : (
+										pendingLabours.map((l, index) => (
+											<View key={l.id || index} style={{
+												padding: 12, marginBottom: 12, borderRadius: 8,
+												backgroundColor: isDark ? '#2a2a2a' : '#f9f9f9',
+												borderWidth: 1, borderColor: isDark ? '#444' : '#eee',
+												borderLeftWidth: 4, borderLeftColor: '#ff9800'
+											}}>
+												<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+													{l.profile_image ? (
+														<Image source={{ uri: l.profile_image }} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 8 }} />
+													) : (
+														<Ionicons name="person-circle" size={24} color="#ff9800" style={{ marginRight: 8 }} />
+													)}
+													<Text style={{ fontWeight: '600', color: isDark ? '#fff' : '#000', flex: 1 }}>
+														{l.name}
+													</Text>
+													<Text style={{ fontSize: 12, color: isDark ? '#888' : '#999' }}>
+														{new Date(l.created_at).toLocaleDateString()}
+													</Text>
+												</View>
+												<Text style={{ color: isDark ? '#ddd' : '#333', fontSize: 14, marginBottom: 4 }}>Site: {l.site || 'Unassigned'}</Text>
+												<Text style={{ color: isDark ? '#ddd' : '#333', fontSize: 14, marginBottom: 12 }}>Phone: {l.phone}</Text>
+
+												<View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+													<TouchableOpacity
+														onPress={() => handleDenyLabour(l.id)}
+														style={{ backgroundColor: '#ff3b30', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 }}
+													>
+														<Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>Deny</Text>
+													</TouchableOpacity>
+													<TouchableOpacity
+														onPress={() => handleApproveLabour(l.id)}
+														style={{ backgroundColor: '#34c759', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 }}
+													>
+														<Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>Approve</Text>
+													</TouchableOpacity>
+												</View>
 											</View>
 										))
 									)
@@ -439,6 +527,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		shadowOpacity: isDark ? 0.3 : 0.05,
 		shadowRadius: 12,
 		elevation: 4,
+		zIndex: 100,
 	},
 	headerTop: {
 		flexDirection: "row",
@@ -495,28 +584,6 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		width: 48,
 		height: 48,
 		borderRadius: 24,
-	},
-	searchContainer: {
-		flexDirection: "row",
-		alignItems: "center",
-		backgroundColor: isDark ? "#2a2a2a" : "#fff",
-		borderRadius: 16,
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: isDark ? 0.3 : 0.1,
-		shadowRadius: 10,
-		elevation: 4,
-	},
-	searchIcon: {
-		marginRight: 10,
-	},
-	searchInput: {
-		flex: 1,
-		fontSize: 16,
-		color: isDark ? "#fff" : "#0F172A",
-		fontWeight: "500",
 	},
 	cardsRow: {
 		flexDirection: "row",

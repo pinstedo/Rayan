@@ -3,6 +3,7 @@ import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
 
@@ -15,6 +16,10 @@ export default function WageReportScreen() {
     const [reportData, setReportData] = useState<any[]>([]);
 
     const [generatingPdf, setGeneratingPdf] = useState(false);
+
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [selectedLabour, setSelectedLabour] = useState<any>(null);
 
     // Month Selection
     const [date, setDate] = useState(new Date());
@@ -130,6 +135,8 @@ export default function WageReportScreen() {
                                 <th>Current Net</th>
                                 <th>Prev Bal</th>
                                 <th>Total Payable</th>
+                                <th>Paid</th>
+                                <th>Closing Bal</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -146,6 +153,8 @@ export default function WageReportScreen() {
                                     <td>${formatCurrency(item.current_net_payable)}</td>
                                     <td>${formatCurrency(item.previous_balance)}</td>
                                     <td><strong>${formatCurrency(item.total_payable)}</strong></td>
+                                    <td>${formatCurrency(item.salary_paid)}</td>
+                                    <td><strong>${formatCurrency(item.closing_balance)}</strong></td>
                                 </tr>
                             `).join('')}
                             <tr class="total-row">
@@ -160,6 +169,8 @@ export default function WageReportScreen() {
                                 <td>${formatCurrency(totals.net)}</td>
                                 <td>${formatCurrency(totals.prev)}</td>
                                 <td>${formatCurrency(totals.total)}</td>
+                                <td>-</td>
+                                <td>-</td>
                             </tr>
                         </tbody>
                     </table>
@@ -312,6 +323,14 @@ export default function WageReportScreen() {
                                     <span class="total-label">Total Net Payable</span>
                                     <span class="total-amount">₹${formatCurrency(netPayable)}</span>
                                 </div>
+                                <div class="total-row" style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px;">
+                                    <span class="info-label">Salary Paid this Month</span>
+                                    <span class="total-amount text-green">₹${formatCurrency(item.salary_paid || 0)}</span>
+                                </div>
+                                <div class="total-row" style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px;">
+                                    <span class="total-label">Closing Balance</span>
+                                    <span class="total-amount">₹${formatCurrency(item.closing_balance || 0)}</span>
+                                </div>
                             </div>
     
                             <div style="margin-top: 60px; display: flex; justify-content: space-between; padding: 0 20px;">
@@ -436,7 +455,50 @@ export default function WageReportScreen() {
                         * Wages are paid on the 10th of each month.
                         * Report includes previous month balance.
                     </Text>
+
+                    <Text style={[local.summaryTitle, { marginTop: 20 }]}>Labour Details</Text>
+                    {reportData.map((item, index) => (
+                        <View key={item.id.toString() + index} style={local.labourCard}>
+                            <View style={local.labourRow}>
+                                <Text style={local.labourName}>{item.name}</Text>
+                                <View style={local.balanceBadge}>
+                                    <Text style={local.balanceLabel}>Payable</Text>
+                                    <Text style={local.balanceValue}>₹{formatCurrency(item.total_payable)}</Text>
+                                </View>
+                            </View>
+                            <View style={[local.labourRow, { marginTop: 10 }]}>
+                                <View>
+                                    <Text style={local.smallLabel}>Paid: <Text style={{ color: isDark ? '#81C784' : '#388E3C', fontWeight: 'bold' }}>₹{formatCurrency(item.salary_paid)}</Text></Text>
+                                    <Text style={local.smallLabel}>Closing Bal: <Text style={{ color: isDark ? '#E57373' : '#D32F2F', fontWeight: 'bold' }}>₹{formatCurrency(item.closing_balance)}</Text></Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={local.payBtn}
+                                    onPress={() => {
+                                        setSelectedLabour(item);
+                                        setModalVisible(true);
+                                    }}
+                                >
+                                    <Text style={local.payBtnText}>Record Payment</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))}
                 </ScrollView>
+            )}
+
+            {selectedLabour && (
+                <SalaryPaymentModal
+                    visible={modalVisible}
+                    onClose={() => setModalVisible(false)}
+                    onSuccess={() => {
+                        setModalVisible(false);
+                        fetchReport();
+                    }}
+                    labourId={selectedLabour.id}
+                    labourName={selectedLabour.name}
+                    totalPayable={selectedLabour.total_payable}
+                    monthReference={monthStr}
+                />
             )}
         </View>
     );
@@ -480,5 +542,52 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         opacity: 0.7
     },
     btnText: { color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 10 },
-    note: { textAlign: 'center', color: isDark ? '#777' : '#888', fontStyle: 'italic', marginTop: 20 }
+    note: { textAlign: 'center', color: isDark ? '#777' : '#888', fontStyle: 'italic', marginTop: 20 },
+    labourCard: {
+        backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 10,
+        elevation: 1,
+        borderLeftWidth: 4,
+        borderLeftColor: '#0a84ff',
+    },
+    labourRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    labourName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: isDark ? '#fff' : '#333',
+    },
+    balanceBadge: {
+        alignItems: 'flex-end',
+    },
+    balanceLabel: {
+        fontSize: 12,
+        color: isDark ? '#aaa' : '#666',
+    },
+    balanceValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: isDark ? '#fff' : '#000',
+    },
+    smallLabel: {
+        fontSize: 13,
+        color: isDark ? '#bbb' : '#666',
+        marginTop: 2,
+    },
+    payBtn: {
+        backgroundColor: '#4CAF50',
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        borderRadius: 6,
+    },
+    payBtnText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
+    }
 });

@@ -5,80 +5,29 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1e9accc4-1fe4-473c-85b3-6195ec5173ca" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/client/eas.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/app.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(labour)/dashboard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(labour)/dashboard.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/add-labour.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/add-labour.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/add-site.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/add-site.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/add-supervisor.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/add-supervisor.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/advance.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/advance.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/attendance.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/attendance.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/labour-details.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/labour-details.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/labours.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/labours.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/overtime.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/overtime.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/reports/site-attendance.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/reports/site-attendance.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/reports/wage-report.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/reports/wage-report.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/site-details.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/site-details.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/sites.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/sites.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/supervisor-details.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/supervisor-details.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/supervisors.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/supervisors.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(tabs)/_layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(tabs)/_layout.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(tabs)/home.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(tabs)/home.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/(tabs)/manage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(tabs)/manage.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/(tabs)/profile.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(tabs)/profile.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/_layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/_layout.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/auth/authentication.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/auth/authentication.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/auth/authentication2.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/auth/authentication2.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/auth/labour-login.tsx" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/style/stylesheet1.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/style/stylesheet1.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/_layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/_layout.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/home.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/home.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/profile.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/profile.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/components/Calendar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/Calendar.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/components/CustomModal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/CustomModal.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/proto.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/check_anoop.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/check_table.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/clear_data.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/create_overtime_table.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/create_table.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/constants.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/constants.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/database.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/database.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/debug_labour_login.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/dump_labours.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/dump_schema.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/find_active_labour.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/fix_anoop_status.js" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/server/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/inspect_labours.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/inspect_schema_server.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/list_labours.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/migrate_dob.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/migrate_profile.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/proto.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/reproduce_issue.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/reproduce_labour_login.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/reproduce_login.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/reproduce_login_dual.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/reproduce_output.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protoMain.db" beforeDir="false" afterPath="$PROJECT_DIR$/server/protoMain.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/attendance.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/attendance.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/routes/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/auth.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/routes/labours.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/labours.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/run_migration.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/schema_dump.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5001.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5001_debug.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5002.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5003.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5004.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5005.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server_5006.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/test-labour-validation.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/test-labour-validation.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/test_output.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/verify_final.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/verify_output.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/reports.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/reports.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

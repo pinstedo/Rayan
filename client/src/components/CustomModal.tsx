@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from "../context/ThemeContext";
 
 export type ModalType = 'default' | 'success' | 'date' | 'error' | 'confirmation' | 'warning';
@@ -62,54 +62,59 @@ export const CustomModal: React.FC<CustomModalProps> = ({
             animationType="fade"
             onRequestClose={onClose}
         >
-            <TouchableOpacity
-                style={styles.overlay}
-                activeOpacity={1}
-                onPress={onClose}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
             >
-                <View style={styles.content} onStartShouldSetResponder={() => true}>
-                    {type !== 'default' && (
-                        <View style={styles.iconContainer}>
-                            <MaterialIcons name={getIconName() as any} size={48} color={getIconColor()} />
-                        </View>
-                    )}
+                <TouchableOpacity
+                    style={styles.overlay}
+                    activeOpacity={1}
+                    onPress={onClose}
+                >
+                    <View style={styles.content} onStartShouldSetResponder={() => true}>
+                        {type !== 'default' && (
+                            <View style={styles.iconContainer}>
+                                <MaterialIcons name={getIconName() as any} size={48} color={getIconColor()} />
+                            </View>
+                        )}
 
-                    {title && <Text style={styles.title}>{title}</Text>}
-                    {message && <Text style={styles.message}>{message}</Text>}
+                        {title && <Text style={styles.title}>{title}</Text>}
+                        {message && <Text style={styles.message}>{message}</Text>}
 
-                    {children}
+                        {children}
 
-                    {actions.length > 0 && (
-                        <View style={styles.actionsContainer}>
-                            {actions.map((action, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={[
-                                        styles.button,
-                                        action.style === 'cancel' && styles.cancelButton,
-                                        action.style === 'destructive' && styles.destructiveButton,
-                                        action.style === 'default' && styles.defaultButton,
-                                        index > 0 && { marginLeft: 10 }
-                                    ]}
-                                    onPress={action.onPress}
-                                >
-                                    <Text
+                        {actions.length > 0 && (
+                            <View style={styles.actionsContainer}>
+                                {actions.map((action, index) => (
+                                    <TouchableOpacity
+                                        key={index}
                                         style={[
-                                            styles.buttonText,
-                                            action.style === 'cancel' && styles.cancelButtonText,
-                                            action.style === 'destructive' && styles.destructiveButtonText,
-                                            action.style === 'default' && styles.defaultButtonText,
+                                            styles.button,
+                                            action.style === 'cancel' && styles.cancelButton,
+                                            action.style === 'destructive' && styles.destructiveButton,
+                                            action.style === 'default' && styles.defaultButton,
+                                            index > 0 && { marginLeft: 10 }
                                         ]}
+                                        onPress={action.onPress}
                                     >
-                                        {action.text}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
+                                        <Text
+                                            style={[
+                                                styles.buttonText,
+                                                action.style === 'cancel' && styles.cancelButtonText,
+                                                action.style === 'destructive' && styles.destructiveButtonText,
+                                                action.style === 'default' && styles.defaultButtonText,
+                                            ]}
+                                        >
+                                            {action.text}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
 
-                </View>
-            </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };

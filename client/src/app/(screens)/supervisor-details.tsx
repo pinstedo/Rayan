@@ -58,9 +58,41 @@ export default function SupervisorDetailsScreen() {
         } catch (error) {
             console.error("Update supervisor error:", error);
             Alert.alert("Error", "Unable to connect to server");
-        } finally {
             setLoading(false);
         }
+    };
+
+    const handleDelete = () => {
+        Alert.alert(
+            "Delete Supervisor",
+            "Are you sure you want to delete this supervisor? Their access will be revoked immediately and they will be moved to the bin for 7 days.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        setLoading(true);
+                        try {
+                            const response = await api.delete(`/auth/supervisors/${id}`);
+                            const data = await response.json();
+                            if (response.ok) {
+                                Alert.alert("Success", "Supervisor moved to bin successfully!", [
+                                    { text: "OK", onPress: () => router.back() },
+                                ]);
+                            } else {
+                                Alert.alert("Error", data.error || "Failed to delete supervisor");
+                            }
+                        } catch (error) {
+                            console.error("Delete supervisor error:", error);
+                            Alert.alert("Error", "Unable to connect to server");
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     return (
@@ -119,6 +151,15 @@ export default function SupervisorDetailsScreen() {
                         <Text style={local.submitButtonText}>
                             {loading ? "Updating..." : "Save Changes"}
                         </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[local.deleteButton, loading && local.disabledButton]}
+                        onPress={handleDelete}
+                        disabled={loading}
+                    >
+                        <Ionicons name="trash-outline" size={20} color="#ff3b30" style={local.deleteIcon} />
+                        <Text style={local.deleteButtonText}>Delete Supervisor</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -229,6 +270,25 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     submitButtonText: {
         color: "#fff",
         fontSize: 18,
+        fontWeight: "600",
+    },
+    deleteButton: {
+        flexDirection: "row",
+        backgroundColor: isDark ? "#2a1a1a" : "#ffeaea",
+        borderRadius: 12,
+        height: 55,
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: 15,
+        borderWidth: 1,
+        borderColor: isDark ? "#3a1a1a" : "#ffc2c2",
+    },
+    deleteIcon: {
+        marginRight: 8,
+    },
+    deleteButtonText: {
+        color: "#ff3b30",
+        fontSize: 16,
         fontWeight: "600",
     },
 });

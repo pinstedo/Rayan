@@ -98,7 +98,7 @@ export default function SplashScreen() {
 				source={require("../../assets/images/logo11.png")}
 				resizeMode="contain"
 			/>
-			<ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20 }} />
+			<ActivityIndicator size="large" color="#56565dff" style={{ marginTop: 20 }} />
 		</View>
 	);
 }

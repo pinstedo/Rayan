@@ -234,6 +234,29 @@ router.get('/labour-summary', authorizeRole(['admin', 'supervisor']), async (req
     }
 });
 
+// POST /api/reports/payments/salary - Record a salary payment
+router.post('/payments/salary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const { labour_id, amount, date, month_reference, payment_method, notes } = req.body;
+
+        if (!labour_id || !amount || !date || !month_reference) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const db = await openDb();
+        const result = await db.run(
+            `INSERT INTO salary_payments (labour_id, amount, date, month_reference, payment_method, notes, created_by) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [labour_id, amount, date, month_reference, payment_method || 'Cash', notes || '', req.user.id]
+        );
+
+        res.status(201).json({ id: result.lastID, message: 'Salary payment recorded successfully' });
+    } catch (error) {
+        console.error('Error recording salary payment:', error);
+        res.status(500).json({ error: 'Internal server error while saving payment' });
+    }
+});
+
 // GET /api/reports/wage-month?month=YYYY-MM&site_id=OPTIONAL
 router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
@@ -337,15 +360,34 @@ router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, re
             const advRes = await db.get(advQuery, advParams);
             const advAmount = advRes && advRes.total ? advRes.total : 0;
 
+            // -- Salary Payments (for calculating previous balance net correctly)
+            let paidQuery = `SELECT SUM(amount) as total FROM salary_payments WHERE labour_id = ?`;
+            const paidParams = [labour.id];
+            if (isPrevious) {
+                // If previous, we subtract ANY salary payment made before this month
+                paidQuery += ` AND date < ?`;
+                paidParams.push(rangeStart);
+            } else {
+                // If current, we don't naturally subtract payments from the "net payable" 
+                // because net payable defines the AMOUNT OWED for the work done this month.
+                // We'll track what was PAID this month separately.
+                paidQuery += ` AND date >= ? AND date <= ?`;
+                paidParams.push(rangeStart);
+                paidParams.push(rangeEnd);
+            }
+            const paidRes = await db.get(paidQuery, paidParams);
+            const paidAmount = paidRes && paidRes.total ? paidRes.total : 0;
+
             return {
                 wage,
                 otAmount,
                 foodAmount,
                 advAmount,
+                paidAmount,
                 fullDays,
                 halfDays,
                 foodAllowanceCount,
-                net: wage + otAmount + foodAmount - advAmount
+                net: isPrevious ? (wage + otAmount + foodAmount - advAmount - paidAmount) : (wage + otAmount + foodAmount - advAmount)
             };
         };
 
@@ -381,10 +423,19 @@ router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, re
                 // Net for this month (Earnings - Advances)
                 current_net_payable: currStats.net,
 
+                // What was physically paid in this date range
+                salary_paid: currStats.paidAmount,
+
                 // Total Payable
-                total_payable: previous_balance + currStats.net
+                total_payable: previous_balance + currStats.net,
+
+                // Closing Balance (Total Payable - Paid)
+                closing_balance: (previous_balance + currStats.net) - currStats.paidAmount
             });
         }
+
+        // Optional: filter out those entirely inactive (net 0, no previous balance, no current days)
+        // Usually handled dynamically on frontend.
 
         res.json(reports);
 
@@ -438,14 +489,19 @@ router.post('/complaints', async (req, res) => {
     }
 });
 
-// GET /api/reports/unread-count - Admin fetches the count of unread complaints
+// GET /api/reports/unread-count - Admin fetches the count of unread complaints and pending approvals
 router.get('/unread-count', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
         const row = await db.get(`SELECT COUNT(*) as count FROM complaints WHERE status = 'unread'`);
-        res.json({ unreadCount: row.count || 0 });
+        const pendingRow = await db.get(`SELECT COUNT(*) as count FROM labours WHERE status = 'pending'`);
+        res.json({
+            unreadComplaintsCount: row.count || 0,
+            pendingLaboursCount: pendingRow.count || 0,
+            unreadCount: (row.count || 0) + (pendingRow.count || 0)
+        });
     } catch (error) {
-        console.error('Error fetching unread complaint count:', error);
+        console.error('Error fetching unread complaint and pending count:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

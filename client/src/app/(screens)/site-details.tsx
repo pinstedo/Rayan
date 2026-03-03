@@ -1,7 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -55,6 +56,22 @@ export default function SiteDetailsScreen() {
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [availableSupervisors, setAvailableSupervisors] = useState<Supervisor[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [userRole, setUserRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchRole = async () => {
+            try {
+                const userStr = await AsyncStorage.getItem('user');
+                if (userStr) {
+                    const user = JSON.parse(userStr);
+                    setUserRole(user.role);
+                }
+            } catch (error) {
+                console.error("Error fetching user role", error);
+            }
+        };
+        fetchRole();
+    }, []);
 
     const fetchSiteDetails = async (isRefresh = false) => {
         try {
@@ -234,9 +251,13 @@ export default function SiteDetailsScreen() {
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={local.title}>Site Details</Text>
-                <TouchableOpacity onPress={() => setIsEditing(!isEditing)} style={local.editButton}>
-                    <MaterialIcons name={isEditing ? "close" : "edit"} size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
-                </TouchableOpacity>
+                {userRole === 'admin' ? (
+                    <TouchableOpacity onPress={() => setIsEditing(!isEditing)} style={local.editButton}>
+                        <MaterialIcons name={isEditing ? "close" : "edit"} size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={local.editButton} />
+                )}
             </View>
 
             <FlatList
@@ -287,10 +308,12 @@ export default function SiteDetailsScreen() {
                         <View style={local.section}>
                             <View style={local.sectionHeader}>
                                 <Text style={local.sectionTitle}>Assigned Supervisors</Text>
-                                <TouchableOpacity onPress={openAssignModal} style={local.addBtn}>
-                                    <MaterialIcons name="add" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
-                                    <Text style={local.addBtnText}>Assign</Text>
-                                </TouchableOpacity>
+                                {userRole === 'admin' && (
+                                    <TouchableOpacity onPress={openAssignModal} style={local.addBtn}>
+                                        <MaterialIcons name="add" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                                        <Text style={local.addBtnText}>Assign</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                             {site.supervisors.length === 0 ? (
                                 <Text style={local.emptyText}>No supervisors assigned</Text>
@@ -304,12 +327,14 @@ export default function SiteDetailsScreen() {
                                             <Text style={local.personName}>{sup.name}</Text>
                                             <Text style={local.personPhone}>{sup.phone}</Text>
                                         </View>
-                                        <TouchableOpacity
-                                            onPress={() => handleUnassignSupervisor(sup.id, sup.name)}
-                                            style={local.removeBtn}
-                                        >
-                                            <MaterialIcons name="remove-circle" size={24} color="#ff3b30" />
-                                        </TouchableOpacity>
+                                        {userRole === 'admin' && (
+                                            <TouchableOpacity
+                                                onPress={() => handleUnassignSupervisor(sup.id, sup.name)}
+                                                style={local.removeBtn}
+                                            >
+                                                <MaterialIcons name="remove-circle" size={24} color="#ff3b30" />
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 ))
                             )}
@@ -335,11 +360,13 @@ export default function SiteDetailsScreen() {
                             )}
                         </View>
 
-                        {/* Delete Button */}
-                        <TouchableOpacity style={local.deleteBtn} onPress={handleDelete}>
-                            <MaterialIcons name="delete" size={20} color="#fff" />
-                            <Text style={local.deleteBtnText}>Delete Site</Text>
-                        </TouchableOpacity>
+                        {/* Delete Button - Admin Only */}
+                        {userRole === 'admin' && (
+                            <TouchableOpacity style={local.deleteBtn} onPress={handleDelete}>
+                                <MaterialIcons name="delete" size={20} color="#fff" />
+                                <Text style={local.deleteBtnText}>Delete Site</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
                 refreshControl={
