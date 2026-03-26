@@ -59,9 +59,12 @@ export default function AddSupervisorScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                Alert.alert("Success", "Supervisor added successfully!", [
-                    { text: "OK", onPress: () => router.back() },
-                ]);
+                if (Platform.OS === 'web') {
+                    window.alert("Supervisor added successfully!");
+                } else {
+                    Alert.alert("Success", "Supervisor added successfully!");
+                }
+                router.back();
             } else {
                 Alert.alert("Error", data.error || "Failed to add supervisor");
             }
@@ -77,6 +80,7 @@ export default function AddSupervisorScreen() {
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={local.container}
+            enabled={Platform.OS !== "web"}
         >
             <ScrollView contentContainerStyle={local.scrollContent}>
                 <View style={local.header}>

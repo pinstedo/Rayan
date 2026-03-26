@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
     Alert,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -21,6 +22,7 @@ export default function AddSite() {
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
     const [description, setDescription] = useState("");
+    const [loading, setLoading] = useState(false);
 
     const onSubmit = async () => {
         if (!name.trim()) {
@@ -28,14 +30,18 @@ export default function AddSite() {
             return;
         }
 
+        setLoading(true);
         try {
             const payload = { name, address, description };
             const response = await api.post("/sites", payload);
 
             if (response.ok) {
-                Alert.alert("Success", "Site added successfully.", [
-                    { text: "OK", onPress: () => router.back() },
-                ]);
+                if (Platform.OS === 'web') {
+                    window.alert("Site added successfully.");
+                } else {
+                    Alert.alert("Success", "Site added successfully.");
+                }
+                router.back();
             } else {
                 const errorData = await response.json();
                 Alert.alert("Error", errorData.error || "Failed to add site");
@@ -43,6 +49,8 @@ export default function AddSite() {
         } catch (error) {
             console.error(error);
             Alert.alert("Error", "Failed to connect to server");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -86,8 +94,14 @@ export default function AddSite() {
                     <Text style={local.cancelText}>Cancel</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={local.submitBtn} onPress={onSubmit}>
-                    <Text style={local.submitText}>Add Site</Text>
+                <TouchableOpacity 
+                    style={[local.submitBtn, loading && { opacity: 0.7 }]} 
+                    onPress={onSubmit}
+                    disabled={loading}
+                >
+                    <Text style={local.submitText}>
+                        {loading ? "Adding..." : "Add Site"}
+                    </Text>
                 </TouchableOpacity>
             </View>
         </ScrollView>

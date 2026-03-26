@@ -88,6 +88,7 @@ export default function SignUpScreen() {
     <KeyboardAvoidingView
       style={styles.keyboardView}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      enabled={Platform.OS !== "web"}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}

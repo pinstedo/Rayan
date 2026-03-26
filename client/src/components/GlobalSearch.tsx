@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { api } from '../services/api';
 
 export default function GlobalSearch() {
-    const { isDark } = useTheme();
+    const { isDark, colors } = useTheme();
     const router = useRouter();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<any[]>([]);
@@ -60,16 +60,16 @@ export default function GlobalSearch() {
         }
     };
 
-    const styles = getStyles(isDark);
+    const styles = getStyles(isDark, colors);
 
     return (
         <View style={styles.container}>
             <View style={styles.searchBar}>
-                <Ionicons name="search" size={20} color={isDark ? "#aaa" : "#888"} style={styles.icon} />
+                <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.icon} />
                 <TextInput
                     style={styles.input}
                     placeholder="Search labours, sites, supervisors..."
-                    placeholderTextColor={isDark ? "#888" : "#888"}
+                    placeholderTextColor={colors.textSecondary}
                     value={query}
                     onChangeText={(t) => {
                         setQuery(t);
@@ -78,10 +78,10 @@ export default function GlobalSearch() {
                     onFocus={() => setShowResults(true)}
                     clearButtonMode="while-editing"
                 />
-                {loading && <ActivityIndicator size="small" color="#0a84ff" />}
+                {loading && <ActivityIndicator size="small" color={colors.primary} />}
                 {query.length > 0 && !loading && (
                     <TouchableOpacity onPress={() => { setQuery(''); setShowResults(false); }}>
-                        <Ionicons name="close-circle" size={20} color={isDark ? "#aaa" : "#888"} style={{ marginLeft: 8 }} />
+                        <Ionicons name="close-circle" size={20} color={colors.textSecondary} style={{ marginLeft: 8 }} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -111,7 +111,7 @@ export default function GlobalSearch() {
                                             <Ionicons
                                                 name={item.type === 'site' ? 'business' : item.type === 'user' ? 'person-circle' : 'person'}
                                                 size={20}
-                                                color="#0a84ff"
+                                                color={colors.primary}
                                             />
                                         )}
                                     </View>
@@ -133,7 +133,7 @@ export default function GlobalSearch() {
     );
 }
 
-const getStyles = (isDark: boolean) => StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     container: {
         position: 'relative',
         zIndex: 9999, // Ensure it's higher than cards below
@@ -143,15 +143,17 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: isDark ? "#2a2a2a" : "#fff",
-        borderRadius: 16,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: isDark ? 0.3 : 0.1,
-        shadowRadius: 10,
-        elevation: 4,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
     icon: {
         marginRight: 10,
@@ -159,7 +161,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
-        color: isDark ? "#fff" : "#0F172A",
+        color: colors.textPrimary,
         fontWeight: "500",
     },
     dropdown: {
@@ -167,24 +169,24 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         top: 60,
         left: 0,
         right: 0,
-        backgroundColor: isDark ? "#1e1e1e" : "#fff",
-        borderRadius: 16,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
         paddingVertical: 8,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: isDark ? 0.4 : 0.2,
-        shadowRadius: 20,
-        elevation: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
         zIndex: 100,
         borderWidth: 1,
-        borderColor: isDark ? '#333' : '#eee',
+        borderColor: colors.border,
     },
     centerItem: {
         padding: 20,
         alignItems: 'center',
     },
     emptyText: {
-        color: isDark ? "#888" : "#888",
+        color: colors.textSecondary,
         fontSize: 14,
         fontStyle: 'italic',
     },
@@ -194,13 +196,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: isDark ? '#333' : '#f0f0f0',
+        borderBottomColor: colors.border,
     },
     resultIcon: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: isDark ? '#2a2a2a' : '#f0f8ff',
+        backgroundColor: colors.secondary,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -216,11 +218,11 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     resultTitle: {
         fontSize: 15,
         fontWeight: '600',
-        color: isDark ? '#fff' : '#222',
+        color: colors.textPrimary,
         marginBottom: 2,
     },
     resultSubtitle: {
         fontSize: 12,
-        color: isDark ? '#888' : '#666',
+        color: colors.textSecondary,
     },
 });

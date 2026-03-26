@@ -78,7 +78,7 @@ router.get('/summary', authorizeRole(['admin', 'supervisor']), async (req, res) 
 
         const rows = await db.all(
             `SELECT DISTINCT date FROM attendance 
-             WHERE site_id = ? AND strftime('%m', date) = ? AND strftime('%Y', date) = ?`,
+             WHERE site_id = ? AND TO_CHAR(CAST(date AS DATE), 'MM') = ? AND TO_CHAR(CAST(date AS DATE), 'YYYY') = ?`,
             [site_id, monthStr, year.toString()]
         );
 
@@ -204,9 +204,9 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         if (supervisor_id_to_lock) {
             await db.run(
                 `INSERT INTO daily_site_attendance_status (site_id, date, is_locked, food_provided, submitted_by)
-                 VALUES (?, ?, 1, ?, ?)
-                 ON CONFLICT(site_id, date) DO UPDATE SET is_locked = 1, food_provided = excluded.food_provided, submitted_by = excluded.submitted_by, submitted_at = CURRENT_TIMESTAMP`,
-                [site_id, date, (food_provided === true || food_provided === 'true') ? 1 : 0, supervisor_id_to_lock]
+                 VALUES (?, ?, true, ?, ?)
+                 ON CONFLICT(site_id, date) DO UPDATE SET is_locked = true, food_provided = excluded.food_provided, submitted_by = excluded.submitted_by, submitted_at = CURRENT_TIMESTAMP`,
+                [site_id, date, (food_provided === true || food_provided === 'true'), supervisor_id_to_lock]
             );
         }
 

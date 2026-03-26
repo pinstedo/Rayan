@@ -30,8 +30,8 @@ export const CustomModal: React.FC<CustomModalProps> = ({
     type = 'default',
     actions = [],
 }) => {
-    const { isDark } = useTheme();
-    const styles = getStyles(isDark);
+    const { isDark, colors } = useTheme();
+    const styles = getStyles(isDark, colors);
 
     const getIconName = () => {
         switch (type) {
@@ -46,12 +46,12 @@ export const CustomModal: React.FC<CustomModalProps> = ({
 
     const getIconColor = () => {
         switch (type) {
-            case 'success': return isDark ? '#4caf50' : '#4CAF50';
-            case 'error': return isDark ? '#ef5350' : '#F44336';
-            case 'warning': return isDark ? '#ffb300' : '#FFC107';
-            case 'confirmation': return isDark ? '#4da6ff' : '#0a84ff';
-            case 'date': return isDark ? '#4da6ff' : '#0a84ff';
-            default: return isDark ? '#fff' : '#333';
+            case 'success': return colors.success;
+            case 'error': return colors.error;
+            case 'warning': return colors.warning;
+            case 'confirmation': return colors.primary;
+            case 'date': return colors.primary;
+            default: return colors.textPrimary;
         }
     };
 
@@ -65,6 +65,7 @@ export const CustomModal: React.FC<CustomModalProps> = ({
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
+                enabled={Platform.OS !== "web"}
             >
                 <TouchableOpacity
                     style={styles.overlay}
@@ -119,7 +120,7 @@ export const CustomModal: React.FC<CustomModalProps> = ({
     );
 };
 
-const getStyles = (isDark: boolean) => StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -130,18 +131,18 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     content: {
         width: '100%',
         maxWidth: 340,
-        backgroundColor: isDark ? '#1e1e1e' : 'white',
-        borderRadius: 16,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
         padding: 24,
         alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
-            height: 2,
+            height: 10,
         },
-        shadowOpacity: isDark ? 0.4 : 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOpacity: 0.1,
+        shadowRadius: 15,
+        elevation: 10,
     },
     iconContainer: {
         marginBottom: 16,
@@ -149,13 +150,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: isDark ? '#fff' : '#333',
+        color: colors.textPrimary,
         marginBottom: 8,
         textAlign: 'center',
     },
     message: {
         fontSize: 16,
-        color: isDark ? '#aaa' : '#666',
+        color: colors.textSecondary,
         marginBottom: 24,
         textAlign: 'center',
         lineHeight: 22,
@@ -174,13 +175,15 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         justifyContent: 'center',
     },
     defaultButton: {
-        backgroundColor: '#0a84ff',
+        backgroundColor: colors.primary,
     },
     destructiveButton: {
-        backgroundColor: '#F44336',
+        backgroundColor: colors.error,
     },
     cancelButton: {
-        backgroundColor: isDark ? '#333' : '#f5f5f5',
+        backgroundColor: colors.secondary,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
     buttonText: {
         fontSize: 16,
@@ -193,6 +196,6 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: 'white',
     },
     cancelButtonText: {
-        color: isDark ? '#fff' : '#333',
+        color: colors.textPrimary,
     },
 });

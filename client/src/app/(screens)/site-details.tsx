@@ -8,6 +8,7 @@ import {
     Alert,
     FlatList,
     Modal,
+    Platform,
     RefreshControl,
     StyleSheet,
     Text,
@@ -55,13 +56,15 @@ export default function SiteDetailsScreen() {
     const [editDescription, setEditDescription] = useState("");
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [availableSupervisors, setAvailableSupervisors] = useState<Supervisor[]>([]);
+    const [showAssignLabourModal, setShowAssignLabourModal] = useState(false);
+    const [availableLabours, setAvailableLabours] = useState<Labour[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchRole = async () => {
             try {
-                const userStr = await AsyncStorage.getItem('user');
+                const userStr = await AsyncStorage.getItem('userData');
                 if (userStr) {
                     const user = JSON.parse(userStr);
                     setUserRole(user.role);
@@ -134,98 +137,269 @@ export default function SiteDetailsScreen() {
             });
 
             if (response.ok) {
-                Alert.alert("Success", "Site updated successfully");
+                if (Platform.OS === 'web') {
+                    window.alert("Site updated successfully");
+                } else {
+                    Alert.alert("Success", "Site updated successfully");
+                }
                 setIsEditing(false);
                 fetchSiteDetails();
             } else {
                 const data = await response.json();
-                Alert.alert("Error", data.error || "Failed to update site");
+                if (Platform.OS === 'web') {
+                    window.alert(data.error || "Failed to update site");
+                } else {
+                    Alert.alert("Error", data.error || "Failed to update site");
+                }
             }
         } catch (error) {
-            Alert.alert("Error", "Failed to connect to server");
+            if (Platform.OS === 'web') {
+                window.alert("Failed to connect to server");
+            } else {
+                Alert.alert("Error", "Failed to connect to server");
+            }
         }
     };
 
     const handleDelete = () => {
-        Alert.alert(
-            "Delete Site",
-            "Are you sure you want to delete this site? This action cannot be undone.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            const response = await api.delete(`/sites/${id}`);
+        const executeDelete = async () => {
+            try {
+                const response = await api.delete(`/sites/${id}`);
 
-                            if (response.ok) {
-                                Alert.alert("Success", "Site deleted", [
-                                    { text: "OK", onPress: () => router.back() },
-                                ]);
-                            } else {
-                                const data = await response.json();
-                                Alert.alert("Error", data.error || "Failed to delete site");
-                            }
-                        } catch (error) {
-                            Alert.alert("Error", "Failed to connect to server");
-                        }
-                    },
-                },
-            ]
-        );
+                if (response.ok) {
+                    if (Platform.OS === 'web') {
+                        window.alert("Site deleted");
+                    } else {
+                        Alert.alert("Success", "Site deleted");
+                    }
+                    router.back();
+                } else {
+                    const data = await response.json();
+                    if (Platform.OS === 'web') {
+                        window.alert(data.error || "Failed to delete site");
+                    } else {
+                        Alert.alert("Error", data.error || "Failed to delete site");
+                    }
+                }
+            } catch (error) {
+                if (Platform.OS === 'web') {
+                    window.alert("Failed to connect to server");
+                } else {
+                    Alert.alert("Error", "Failed to connect to server");
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm("Are you sure you want to delete this site? This action cannot be undone.")) {
+                executeDelete();
+            }
+        } else {
+            Alert.alert(
+                "Delete Site",
+                "Are you sure you want to delete this site? This action cannot be undone.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Delete", style: "destructive", onPress: executeDelete }
+                ]
+            );
+        }
     };
 
-    const handleAssignSupervisor = async (supervisorId: number) => {
-        try {
-            const response = await api.post(`/sites/${id}/assign`, { supervisor_id: supervisorId });
+    const handleAssignSupervisor = async (supervisorId: number, name: string) => {
+        const executeAssign = async () => {
+            try {
+                const response = await api.post(`/sites/${id}/assign`, { supervisor_id: supervisorId });
 
-            if (response.ok) {
-                Alert.alert("Success", "Supervisor assigned to site");
-                setShowAssignModal(false);
-                fetchSiteDetails();
-            } else {
-                const data = await response.json();
-                Alert.alert("Error", data.error || "Failed to assign supervisor");
+                if (response.ok) {
+                    if (Platform.OS === 'web') {
+                        window.alert("Supervisor assigned to site");
+                    } else {
+                        Alert.alert("Success", "Supervisor assigned to site");
+                    }
+                    setShowAssignModal(false);
+                    fetchSiteDetails();
+                } else {
+                    const data = await response.json();
+                    if (Platform.OS === 'web') {
+                        window.alert(data.error || "Failed to assign supervisor");
+                    } else {
+                        Alert.alert("Error", data.error || "Failed to assign supervisor");
+                    }
+                }
+            } catch (error) {
+                if (Platform.OS === 'web') {
+                    window.alert("Failed to connect to server");
+                } else {
+                    Alert.alert("Error", "Failed to connect to server");
+                }
             }
-        } catch (error) {
-            Alert.alert("Error", "Failed to connect to server");
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Assign ${name} to this site?`)) {
+                executeAssign();
+            }
+        } else {
+            Alert.alert(
+                "Assign Supervisor",
+                `Assign ${name} to this site?`,
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Assign", onPress: executeAssign }
+                ]
+            );
         }
     };
 
     const handleUnassignSupervisor = (supervisorId: number, name: string) => {
-        Alert.alert(
-            "Remove Supervisor",
-            `Remove ${name} from this site?`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Remove",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            const response = await api.delete(
-                                `/sites/${id}/unassign/${supervisorId}`
-                            );
+        const executeRemove = async () => {
+            try {
+                const response = await api.delete(
+                    `/sites/${id}/unassign/${supervisorId}`
+                );
 
-                            if (response.ok) {
-                                fetchSiteDetails();
-                            } else {
-                                const data = await response.json();
-                                Alert.alert("Error", data.error || "Failed to remove supervisor");
-                            }
-                        } catch (error) {
-                            Alert.alert("Error", "Failed to connect to server");
-                        }
-                    },
-                },
-            ]
-        );
+                if (response.ok) {
+                    fetchSiteDetails();
+                } else {
+                    const data = await response.json();
+                    if (Platform.OS === 'web') {
+                        window.alert(data.error || "Failed to remove supervisor");
+                    } else {
+                        Alert.alert("Error", data.error || "Failed to remove supervisor");
+                    }
+                }
+            } catch (error) {
+                if (Platform.OS === 'web') {
+                    window.alert("Failed to connect to server");
+                } else {
+                    Alert.alert("Error", "Failed to connect to server");
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Remove ${name} from this site?`)) {
+                executeRemove();
+            }
+        } else {
+            Alert.alert(
+                "Remove Supervisor",
+                `Remove ${name} from this site?`,
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Remove", style: "destructive", onPress: executeRemove }
+                ]
+            );
+        }
     };
 
     const openAssignModal = () => {
         fetchAvailableSupervisors();
         setShowAssignModal(true);
+    };
+
+    const fetchAvailableLabours = async () => {
+        try {
+            const response = await api.get("/labours");
+            const data = await response.json();
+            if (response.ok) {
+                const assignedIds = site?.labours.map(l => l.id) || [];
+                const available = data.filter((l: Labour) => !assignedIds.includes(l.id));
+                setAvailableLabours(available);
+            }
+        } catch (error) {
+            console.error("Fetch labours error:", error);
+        }
+    };
+
+    const handleAssignLabour = async (labourId: number, name: string) => {
+        const executeAssign = async () => {
+            try {
+                const response = await api.post(`/sites/${id}/assign-labour`, { labour_id: labourId });
+                if (response.ok) {
+                    if (Platform.OS === 'web') {
+                        window.alert("Labour assigned to site");
+                    } else {
+                        Alert.alert("Success", "Labour assigned to site");
+                    }
+                    setShowAssignLabourModal(false);
+                    fetchSiteDetails();
+                } else {
+                    const data = await response.json();
+                    if (Platform.OS === 'web') {
+                        window.alert(data.error || "Failed to assign labour");
+                    } else {
+                        Alert.alert("Error", data.error || "Failed to assign labour");
+                    }
+                }
+            } catch (error) {
+                if (Platform.OS === 'web') {
+                    window.alert("Failed to connect to server");
+                } else {
+                    Alert.alert("Error", "Failed to connect to server");
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Assign ${name} to this site?`)) {
+                executeAssign();
+            }
+        } else {
+            Alert.alert(
+                "Assign Labour",
+                `Assign ${name} to this site?`,
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Assign", onPress: executeAssign }
+                ]
+            );
+        }
+    };
+
+    const handleUnassignLabour = (labourId: number, name: string) => {
+        const executeRemove = async () => {
+            try {
+                const response = await api.delete(`/sites/${id}/unassign-labour/${labourId}`);
+                if (response.ok) {
+                    fetchSiteDetails();
+                } else {
+                    const data = await response.json();
+                    if (Platform.OS === 'web') {
+                        window.alert(data.error || "Failed to remove labour");
+                    } else {
+                        Alert.alert("Error", data.error || "Failed to remove labour");
+                    }
+                }
+            } catch (error) {
+                if (Platform.OS === 'web') {
+                    window.alert("Failed to connect to server");
+                } else {
+                    Alert.alert("Error", "Failed to connect to server");
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Remove ${name} from this site?`)) {
+                executeRemove();
+            }
+        } else {
+            Alert.alert(
+                "Remove Labour",
+                `Remove ${name} from this site?`,
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Remove", style: "destructive", onPress: executeRemove }
+                ]
+            );
+        }
+    };
+
+    const openAssignLabourModal = () => {
+        fetchAvailableLabours();
+        setShowAssignLabourModal(true);
     };
 
     if (loading) {
@@ -308,7 +482,7 @@ export default function SiteDetailsScreen() {
                         <View style={local.section}>
                             <View style={local.sectionHeader}>
                                 <Text style={local.sectionTitle}>Assigned Supervisors</Text>
-                                {userRole === 'admin' && (
+                                {(userRole === 'admin' || userRole === 'supervisor') && (
                                     <TouchableOpacity onPress={openAssignModal} style={local.addBtn}>
                                         <MaterialIcons name="add" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
                                         <Text style={local.addBtnText}>Assign</Text>
@@ -327,7 +501,7 @@ export default function SiteDetailsScreen() {
                                             <Text style={local.personName}>{sup.name}</Text>
                                             <Text style={local.personPhone}>{sup.phone}</Text>
                                         </View>
-                                        {userRole === 'admin' && (
+                                        {(userRole === 'admin' || userRole === 'supervisor') && (
                                             <TouchableOpacity
                                                 onPress={() => handleUnassignSupervisor(sup.id, sup.name)}
                                                 style={local.removeBtn}
@@ -342,7 +516,15 @@ export default function SiteDetailsScreen() {
 
                         {/* Labours Section */}
                         <View style={local.section}>
-                            <Text style={local.sectionTitle}>Labours at this Site</Text>
+                            <View style={local.sectionHeader}>
+                                <Text style={local.sectionTitle}>Labours at this Site</Text>
+                                {(userRole === 'admin' || userRole === 'supervisor') && (
+                                    <TouchableOpacity onPress={openAssignLabourModal} style={local.addBtn}>
+                                        <MaterialIcons name="add" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                                        <Text style={local.addBtnText}>Assign</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                             {site.labours.length === 0 ? (
                                 <Text style={local.emptyText}>No labours assigned to this site</Text>
                             ) : (
@@ -355,6 +537,14 @@ export default function SiteDetailsScreen() {
                                             <Text style={local.personName}>{labour.name}</Text>
                                             <Text style={local.personPhone}>{labour.phone || labour.trade}</Text>
                                         </View>
+                                        {(userRole === 'admin' || userRole === 'supervisor') && (
+                                            <TouchableOpacity
+                                                onPress={() => handleUnassignLabour(labour.id, labour.name)}
+                                                style={local.removeBtn}
+                                            >
+                                                <MaterialIcons name="remove-circle" size={24} color="#ff3b30" />
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 ))
                             )}
@@ -393,7 +583,7 @@ export default function SiteDetailsScreen() {
                                 renderItem={({ item }) => (
                                     <TouchableOpacity
                                         style={local.supervisorOption}
-                                        onPress={() => handleAssignSupervisor(item.id)}
+                                        onPress={() => handleAssignSupervisor(item.id, item.name)}
                                     >
                                         <View style={local.personIconWrap}>
                                             <MaterialIcons name="person" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
@@ -401,6 +591,43 @@ export default function SiteDetailsScreen() {
                                         <View style={local.personInfo}>
                                             <Text style={local.personName}>{item.name}</Text>
                                             <Text style={local.personPhone}>{item.phone}</Text>
+                                        </View>
+                                        <MaterialIcons name="add-circle" size={24} color="#34c759" />
+                                    </TouchableOpacity>
+                                )}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Assign Labour Modal */}
+            <Modal visible={showAssignLabourModal} transparent animationType="slide">
+                <View style={local.modalOverlay}>
+                    <View style={local.modalContent}>
+                        <View style={local.modalHeader}>
+                            <Text style={local.modalTitle}>Assign Labour</Text>
+                            <TouchableOpacity onPress={() => setShowAssignLabourModal(false)}>
+                                <MaterialIcons name="close" size={24} color={isDark ? "#fff" : "#333"} />
+                            </TouchableOpacity>
+                        </View>
+                        {availableLabours.length === 0 ? (
+                            <Text style={local.emptyText}>No available labours to assign</Text>
+                        ) : (
+                            <FlatList
+                                data={availableLabours}
+                                keyExtractor={(item) => item.id.toString()}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={local.supervisorOption}
+                                        onPress={() => handleAssignLabour(item.id, item.name)}
+                                    >
+                                        <View style={local.personIconWrapGreen}>
+                                            <MaterialIcons name="engineering" size={20} color="#34c759" />
+                                        </View>
+                                        <View style={local.personInfo}>
+                                            <Text style={local.personName}>{item.name}</Text>
+                                            <Text style={local.personPhone}>{item.phone || item.trade}</Text>
                                         </View>
                                         <MaterialIcons name="add-circle" size={24} color="#34c759" />
                                     </TouchableOpacity>

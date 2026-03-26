@@ -137,7 +137,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         const initialStatus = req.user && req.user.role === 'supervisor' ? 'pending' : 'active';
 
         const result = await db.run(
-            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
             [name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, initialStatus]
         );
 
@@ -279,7 +279,7 @@ router.post('/:id/advance', authorizeRole(['admin', 'supervisor']), async (req, 
     try {
         const db = await openDb();
         const result = await db.run(
-            `INSERT INTO advances (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO advances (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?) RETURNING id`,
             [labour_id, amount, date, notes, created_by]
         );
 

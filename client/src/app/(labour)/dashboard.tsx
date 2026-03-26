@@ -511,6 +511,7 @@ const LabourDashboard = () => {
                     <KeyboardAvoidingView
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                         style={{ width: '100%', alignItems: 'center' }}
+                        enabled={Platform.OS !== "web"}
                     >
                         <View style={{
                             backgroundColor: isDark ? '#1e1e1e' : '#fff',

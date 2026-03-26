@@ -54,7 +54,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
         const result = await db.run(
-            `INSERT INTO sites (name, address, description, created_by) VALUES (?, ?, ?, ?)`,
+            `INSERT INTO sites (name, address, description, created_by) VALUES (?, ?, ?, ?) RETURNING id`,
             [name, address, description, created_by]
         );
 
@@ -167,6 +167,34 @@ router.delete('/:id/unassign/:supervisorId', authorizeRole(['admin', 'supervisor
             [req.params.id, req.params.supervisorId]
         );
         res.json({ message: 'Supervisor removed from site' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Assign labour to site
+router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    const { labour_id } = req.body;
+    if (!labour_id) {
+        return res.status(400).json({ error: 'Labour ID is required' });
+    }
+    try {
+        const db = await openDb();
+        const site = await db.get('SELECT name FROM sites WHERE id = ?', [req.params.id]);
+        if (!site) return res.status(404).json({ error: 'Site not found' });
+        await db.run('UPDATE labours SET site_id = ?, site = ? WHERE id = ?', [req.params.id, site.name, labour_id]);
+        res.json({ message: 'Labour assigned to site' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Remove labour from site
+router.delete('/:id/unassign-labour/:labourId', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const db = await openDb();
+        await db.run('UPDATE labours SET site_id = NULL, site = NULL WHERE id = ?', [req.params.labourId]);
+        res.json({ message: 'Labour removed from site' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

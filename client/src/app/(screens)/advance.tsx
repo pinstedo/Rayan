@@ -180,6 +180,7 @@ export default function Advance() {
                     <KeyboardAvoidingView
                         behavior={Platform.OS === "ios" ? "padding" : "height"}
                         style={local.keyboardView}
+                        enabled={Platform.OS !== "web"}
                     >
                         <View style={local.modalContent}>
                             <View style={local.modalHeader}>

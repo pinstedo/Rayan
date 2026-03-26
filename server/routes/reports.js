@@ -246,7 +246,7 @@ router.post('/payments/salary', authorizeRole(['admin', 'supervisor']), async (r
         const db = await openDb();
         const result = await db.run(
             `INSERT INTO salary_payments (labour_id, amount, date, month_reference, payment_method, notes, created_by) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
             [labour_id, amount, date, month_reference, payment_method || 'Cash', notes || '', req.user.id]
         );
 
@@ -478,7 +478,7 @@ router.post('/complaints', async (req, res) => {
 
         const db = await openDb();
         const result = await db.run(
-            `INSERT INTO complaints (labour_id, complaint, status) VALUES (?, ?, 'unread')`,
+            `INSERT INTO complaints (labour_id, complaint, status) VALUES (?, ?, 'unread') RETURNING id`,
             [tokenLabourId, complaint.trim()]
         );
 

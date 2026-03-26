@@ -1,11 +1,11 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "../../../constants";
 import { useTheme } from "../../../context/ThemeContext";
-import { styles as commonStyles } from "../../style/stylesheet1";
 
 export default function SupervisorProfile() {
     const router = useRouter();
@@ -126,44 +126,70 @@ export default function SupervisorProfile() {
     const userRole = user?.role || "Supervisor";
 
     return (
-        <SafeAreaView style={[commonStyles.mainContainer, { backgroundColor: isDark ? "#121212" : "#f5f5f5" }]}>
+        <SafeAreaView style={localStyles.container}>
+            <View style={localStyles.header}>
+                <Text style={localStyles.title}>Settings</Text>
+            </View>
+
             <ScrollView
-                contentContainerStyle={commonStyles.content}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-                }
+                contentContainerStyle={localStyles.body}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
             >
-                <Text style={[commonStyles.header, { color: isDark ? "#ffffff" : "#000000" }]}>Profile</Text>
-
-                {user && (
-                    <View style={localStyles.userCard}>
-                        <Text style={localStyles.userName}>{user.name}</Text>
-                        <Text style={localStyles.userInfo}>Role: {user.role}</Text>
-                        <Text style={localStyles.userInfo}>Phone: {user.phone}</Text>
+                {/* Profile Header Block */}
+                <View style={localStyles.profileHeader}>
+                    <View style={localStyles.avatar}>
+                        <Text style={localStyles.avatarText}>
+                            {user?.name ? user.name.charAt(0).toUpperCase() : "S"}
+                        </Text>
                     </View>
-                )}
-
-                <View style={[localStyles.themeRow, { backgroundColor: isDark ? "#1e1e1e" : "#fff" }]}>
-                    <Text style={[localStyles.themeLabel, { color: isDark ? "#ffffff" : "#000000" }]}>Dark Mode</Text>
-                    <Switch
-                        value={isDark}
-                        onValueChange={toggleTheme}
-                        trackColor={{ false: "#ccc", true: "#0a84ff" }}
-                        thumbColor={isDark ? "#fff" : "#f4f3f4"}
-                    />
-                </View>
-                <View style={localStyles.actions}>
-                    <TouchableOpacity style={localStyles.actionBtn} onPress={() => setIsPasswordModalVisible(true)}>
-                        <Text style={localStyles.actionText}>Change Password</Text>
-                    </TouchableOpacity>
+                    <View style={localStyles.profileInfo}>
+                        <Text style={localStyles.name}>{user?.name || "Supervisor"}</Text>
+                        <Text style={localStyles.contactText}>{user?.phone || ""}</Text>
+                        <View style={localStyles.roleBadge}>
+                            <Text style={localStyles.roleBadgeText}>{userRole}</Text>
+                        </View>
+                    </View>
                 </View>
 
-                <TouchableOpacity
-                    style={[commonStyles.optionCard, { justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#3f1a1a' : '#fee2e2', marginTop: 20 }]}
-                    onPress={handleLogout}
-                >
-                    <Text style={{ color: isDark ? '#ef4444' : '#ef4444', fontSize: 16, fontWeight: '600' }}>Logout</Text>
-                </TouchableOpacity>
+                {/* Account Menu */}
+                <Text style={localStyles.sectionTitle}>Account Settings</Text>
+                <View style={localStyles.menuCard}>
+                    <Pressable style={localStyles.menuItem} onPress={() => setIsPasswordModalVisible(true)}>
+                        <View style={[localStyles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#FFF4ED" }]}>
+                            <MaterialIcons name="lock" size={20} color="#F97316" />
+                        </View>
+                        <Text style={localStyles.menuText}>Change Password</Text>
+                        <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+                    </Pressable>
+                </View>
+
+                {/* Preferences Menu */}
+                <Text style={localStyles.sectionTitle}>Preferences</Text>
+                <View style={localStyles.menuCard}>
+                    <View style={localStyles.menuItem}>
+                        <View style={[localStyles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#F5F3FF" }]}>
+                            <MaterialIcons name={isDark ? "dark-mode" : "light-mode"} size={20} color="#8B5CF6" />
+                        </View>
+                        <Text style={localStyles.menuText}>Dark Mode</Text>
+                        <Switch
+                            value={isDark}
+                            onValueChange={toggleTheme}
+                            trackColor={{ false: "#CBD5E1", true: "#3B82F6" }}
+                            thumbColor={isDark ? "#FFFFFF" : "#F8FAFC"}
+                        />
+                    </View>
+                </View>
+
+                {/* System & Actions Menu */}
+                <Text style={localStyles.sectionTitle}>System & Actions</Text>
+                <View style={localStyles.menuCard}>
+                    <Pressable style={localStyles.menuItem} onPress={handleLogout}>
+                        <View style={[localStyles.menuIconBg, { backgroundColor: isDark ? "#331515" : "#FEF2F2" }]}>
+                            <MaterialIcons name="logout" size={20} color="#EF4444" />
+                        </View>
+                        <Text style={[localStyles.menuText, { color: "#EF4444" }]}>Logout</Text>
+                    </Pressable>
+                </View>
 
                 {/* Change Password Modal */}
                 <Modal
@@ -237,92 +263,200 @@ export default function SupervisorProfile() {
 }
 
 const getStyles = (isDark: boolean) => StyleSheet.create({
-    userCard: {
-        backgroundColor: isDark ? "#1e1e1e" : "#fff",
-        padding: 20,
-        borderRadius: 12,
-        marginBottom: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: isDark ? 0.3 : 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+    container: {
+        flex: 1,
+        backgroundColor: isDark ? "#0F172A" : "#F8FAFC"
     },
-    userName: {
-        fontSize: 18,
-        fontWeight: "600",
-        marginBottom: 10,
-        color: isDark ? "#ffffff" : "#000000"
-    },
-    userInfo: {
-        fontSize: 16,
-        color: isDark ? "#aaaaaa" : "#666666",
-        marginBottom: 5
-    },
-    themeRow: {
-        width: "100%",
-        padding: 20,
-        borderRadius: 12,
+    header: {
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
+        paddingHorizontal: 24,
+        paddingTop: 64, // App safe area padding top
+        paddingBottom: 20,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowRadius: 12,
+        elevation: 8,
+        marginBottom: 16,
+    },
+    title: {
+        fontSize: 32,
+        fontWeight: "800",
+        color: isDark ? "#F1F5F9" : "#0F172A"
+    },
+    body: {
+        padding: 20,
+        paddingBottom: 40
+    },
+    profileHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 32,
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        padding: 20,
+        borderRadius: 24,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: isDark ? 0.3 : 0.05,
+        shadowOpacity: isDark ? 0.2 : 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    avatar: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: isDark ? "#0F172A" : "#EFF6FF",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        borderWidth: 2,
+        borderColor: isDark ? "#334155" : "#E2E8F0",
+    },
+    avatarText: {
+        color: "#3B82F6",
+        fontSize: 28,
+        fontWeight: "700"
+    },
+    profileInfo: {
+        marginLeft: 16,
+        flex: 1,
+    },
+    name: {
+        fontSize: 22,
+        fontWeight: "800",
+        color: isDark ? "#F1F5F9" : "#0F172A",
+    },
+    contactText: {
+        fontSize: 14,
+        color: isDark ? "#94A3B8" : "#64748B",
+        marginTop: 4,
+    },
+    roleBadge: {
+        marginTop: 8,
+        backgroundColor: "rgba(59, 130, 246, 0.15)",
+        alignSelf: "flex-start",
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    roleBadgeText: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: "#3B82F6",
+        textTransform: "uppercase",
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: isDark ? "#64748B" : "#94A3B8",
+        textTransform: "uppercase",
+        letterSpacing: 1,
+        marginBottom: 8,
+        marginLeft: 12,
+    },
+    menuCard: {
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderRadius: 20,
+        marginBottom: 28,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.2 : 0.03,
         shadowRadius: 8,
         elevation: 2,
+        overflow: "hidden",
     },
-    themeLabel: {
-        fontSize: 16,
-        fontWeight: "500",
-    },
-    actions: { flexDirection: "row", marginTop: 20 },
-    actionBtn: {
-        flex: 1,
-        paddingVertical: 12,
-        backgroundColor: "#0a84ff",
-        borderRadius: 8,
+    menuItem: {
+        flexDirection: "row",
         alignItems: "center",
+        paddingVertical: 16,
+        paddingHorizontal: 16,
     },
-    actionText: { color: "#fff", fontWeight: "700" },
+    menuIconBg: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 16,
+    },
+    menuText: {
+        flex: 1,
+        fontSize: 16,
+        fontWeight: "600",
+        color: isDark ? "#F1F5F9" : "#1E293B",
+    },
+    divider: {
+        height: 1,
+        backgroundColor: isDark ? "#334155" : "#F1F5F9",
+        marginLeft: 72,
+    },
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        backgroundColor: "rgba(15, 23, 42, 0.6)",
         justifyContent: "center",
         alignItems: "center",
-        padding: 20,
+        padding: 24,
     },
     modalContent: {
-        backgroundColor: isDark ? "#1e1e1e" : "#fff",
-        borderRadius: 12,
-        padding: 20,
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderRadius: 28,
+        padding: 28,
         width: "100%",
         maxWidth: 400,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
     },
     modalHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 20,
+        marginBottom: 24,
     },
-    modalTitle: { fontSize: 18, fontWeight: "700", color: isDark ? "#ffffff" : "#000000" },
-    closeText: { color: "#0a84ff", fontWeight: "600" },
-    inputGroup: { marginBottom: 16 },
-    label: { fontSize: 14, color: isDark ? "#aaaaaa" : "#666666", marginBottom: 8 },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: "800",
+        color: isDark ? "#F1F5F9" : "#0F172A"
+    },
+    closeText: {
+        color: "#3B82F6",
+        fontWeight: "600",
+    },
+    inputGroup: {
+        marginBottom: 20
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: isDark ? "#94A3B8" : "#64748B",
+        marginBottom: 8
+    },
     input: {
         borderWidth: 1,
-        borderColor: isDark ? "#444" : "#ddd",
-        borderRadius: 8,
-        padding: 12,
+        borderColor: isDark ? "#334155" : "#E2E8F0",
+        borderRadius: 16,
+        padding: 16,
         fontSize: 16,
-        backgroundColor: isDark ? "#2a2a2a" : "#fff",
+        backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+        color: isDark ? "#F1F5F9" : "#0F172A",
     },
     saveBtn: {
-        backgroundColor: "#0a84ff",
-        paddingVertical: 14,
-        borderRadius: 8,
+        backgroundColor: "#3B82F6",
+        paddingVertical: 18,
+        borderRadius: 20,
         alignItems: "center",
-        marginTop: 8,
+        marginTop: 12,
     },
-    saveBtnText: { color: "#ffffff", fontWeight: "700", fontSize: 16 },
+    saveBtnText: {
+        color: "#FFFFFF",
+        fontWeight: "700",
+        fontSize: 16
+    },
 });

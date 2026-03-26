@@ -3,30 +3,38 @@ import "@expo/vector-icons";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { default as React, useEffect, useRef } from "react";
-import { Animated } from "react-native";
+import { Animated, useWindowDimensions, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
+import { Sidebar } from "../../components/layout/Sidebar";
 
 export default function RootLayout() {
-  const { isDark } = useTheme();
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: isDark ? "#4da6ff" : "#0a84ff",
-        tabBarInactiveTintColor: isDark ? "#666" : "#8e8e93",
-        tabBarShowLabel: true,
-        tabBarStyle: {
-          backgroundColor: isDark ? "#121212" : "#ffffff",
-          height: 65,
-          paddingBottom: 10,
+    <View style={{ flex: 1, flexDirection: isLargeScreen ? "row" : "column" }}>
+      {isLargeScreen && <Sidebar />}
+      <View style={{ flex: 1 }}>
+        <Tabs
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: colors.primary,
+            tabBarInactiveTintColor: colors.textSecondary,
+            tabBarShowLabel: true,
+            tabBarStyle: {
+              display: isLargeScreen ? "none" : "flex",
+              backgroundColor: colors.surface,
+          height: 64,
+          paddingBottom: 8,
           paddingTop: 8,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: isDark ? 0.3 : 0.1,
-          shadowRadius: 6,
-          elevation: 10,
-          borderTopWidth: 0,
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 5,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -80,6 +88,8 @@ export default function RootLayout() {
         }}
       />
     </Tabs>
+    </View>
+    </View>
   );
 }
 

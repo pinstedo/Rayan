@@ -4,7 +4,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   FlatList,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,6 +44,7 @@ export default function AddLabour() {
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [userRole, setUserRole] = useState<string>("");
+  const [loading, setLoading] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     visible: boolean;
     title?: string;
@@ -138,6 +141,7 @@ export default function AddLabour() {
       return;
     }
 
+    setLoading(true);
     try {
       const payload = {
         name,
@@ -158,9 +162,13 @@ export default function AddLabour() {
         const successMsg = userRole === 'supervisor'
           ? "Labour added successfully. It is pending admin approval."
           : "Labour added successfully.";
-        showModal("Success", successMsg, 'success', [
-          { text: "OK", onPress: () => { setModalConfig(prev => ({ ...prev, visible: false })); router.back(); }, style: 'default' },
-        ]);
+        
+        if (Platform.OS === 'web') {
+            window.alert(successMsg);
+        } else {
+            Alert.alert("Success", successMsg);
+        }
+        router.back();
       } else {
         const errorData = await response.json();
         showModal("Error", errorData.error || "Failed to add labour", 'error');
@@ -168,6 +176,8 @@ export default function AddLabour() {
     } catch (error) {
       console.error(error);
       showModal("Error", "Failed to connect to server", 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -238,8 +248,14 @@ export default function AddLabour() {
           <Text style={local.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={local.submit} onPress={onSubmit}>
-          <Text style={local.submitText}>Add Labour</Text>
+        <TouchableOpacity 
+          style={[local.submit, loading && { opacity: 0.7 }]} 
+          onPress={onSubmit}
+          disabled={loading}
+        >
+          <Text style={local.submitText}>
+            {loading ? "Adding..." : "Add Labour"}
+          </Text>
         </TouchableOpacity>
       </View>
 

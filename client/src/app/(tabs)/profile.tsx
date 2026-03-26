@@ -245,19 +245,15 @@ export default function Profile() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-        <Pressable style={styles.editHeaderBtn} onPress={openEditModal}>
-          <Text style={styles.editHeaderText}>Edit Profile</Text>
-        </Pressable>
+        <Text style={styles.title}>Settings</Text>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.body}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
       >
-        <View style={styles.avatarContainer}>
+        {/* Profile Header Block */}
+        <View style={styles.profileHeader}>
           <View style={styles.avatar}>
             {userProfileImage ? (
               <Image source={{ uri: userProfileImage }} style={styles.avatarImage} />
@@ -265,18 +261,46 @@ export default function Profile() {
               <Text style={styles.avatarText}>{initials}</Text>
             )}
           </View>
-          <Text style={styles.name}>{userName}</Text>
-          <Text style={styles.role}>{userRole}</Text>
+          <View style={styles.profileInfo}>
+            <Text style={styles.name}>{userName}</Text>
+            <Text style={styles.contactText}>{userPhone}</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleBadgeText}>{userRole}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Phone Number</Text>
-            <Text style={styles.infoValue}>{userPhone}</Text>
-          </View>
+        {/* Account Menu */}
+        <Text style={styles.sectionTitle}>Account Settings</Text>
+        <View style={styles.menuCard}>
+          <Pressable style={styles.menuItem} onPress={openEditModal}>
+            <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF" }]}>
+              <MaterialIcons name="person" size={20} color="#3B82F6" />
+            </View>
+            <Text style={styles.menuText}>Edit Profile</Text>
+            <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+          </Pressable>
+          <View style={styles.divider} />
+          
+          {(userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'supervisor') && (
+            <Pressable style={styles.menuItem} onPress={() => setIsPasswordModalVisible(true)}>
+              <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#FFF4ED" }]}>
+                <MaterialIcons name="lock" size={20} color="#F97316" />
+              </View>
+              <Text style={styles.menuText}>Change Password</Text>
+              <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+            </Pressable>
+          )}
+        </View>
 
-          <View style={[styles.themeRow, styles.infoRowLast]}>
-            <Text style={styles.themeLabel}>Dark Mode</Text>
+        {/* Preferences Menu */}
+        <Text style={styles.sectionTitle}>Preferences</Text>
+        <View style={styles.menuCard}>
+          <View style={styles.menuItem}>
+            <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#F5F3FF" }]}>
+              <MaterialIcons name={isDark ? "dark-mode" : "light-mode"} size={20} color="#8B5CF6" />
+            </View>
+            <Text style={styles.menuText}>Dark Mode</Text>
             <Switch
               value={isDark}
               onValueChange={toggleTheme}
@@ -286,32 +310,26 @@ export default function Profile() {
           </View>
         </View>
 
-        <View style={styles.actions}>
-          {(userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'supervisor') && (
-            <Pressable style={styles.actionBtn} onPress={() => setIsPasswordModalVisible(true)}>
-              <Text style={styles.actionText}>Change Password</Text>
-            </Pressable>
-          )}
-
+        {/* System Data Menu */}
+        <Text style={styles.sectionTitle}>System & Actions</Text>
+        <View style={styles.menuCard}>
           {userRole.toLowerCase() === 'admin' && (
-            <Pressable
-              style={[styles.actionBtn, styles.clearDbBtn]}
-              onPress={handleClearDatabase}
-              disabled={isClearingDatabase}
-            >
-              {isClearingDatabase ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.clearDbText}>Clear Application Data</Text>
-              )}
-            </Pressable>
+            <>
+              <Pressable style={styles.menuItem} onPress={handleClearDatabase} disabled={isClearingDatabase}>
+                <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#331515" : "#FEF2F2" }]}>
+                  {isClearingDatabase ? <ActivityIndicator size="small" color="#EF4444" /> : <MaterialIcons name="delete-forever" size={20} color="#EF4444" />}
+                </View>
+                <Text style={[styles.menuText, { color: "#EF4444" }]}>Clear Application Data</Text>
+              </Pressable>
+              <View style={styles.divider} />
+            </>
           )}
 
-          <Pressable
-            style={[styles.actionBtn, styles.logoutBtn]}
-            onPress={handleLogout}
-          >
-            <Text style={[styles.actionText, styles.logoutText]}>Logout</Text>
+          <Pressable style={styles.menuItem} onPress={handleLogout}>
+            <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#331515" : "#FEF2F2" }]}>
+              <MaterialIcons name="logout" size={20} color="#EF4444" />
+            </View>
+            <Text style={[styles.menuText, { color: "#EF4444" }]}>Logout</Text>
           </Pressable>
         </View>
 
@@ -484,25 +502,29 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     padding: 20,
     paddingBottom: 40
   },
-  avatarContainer: {
+  profileHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 28,
+    marginBottom: 32,
+    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+    padding: 20,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.2 : 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
   avatar: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: isDark ? "#1E293B" : "#EFF6FF",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: isDark ? "#0F172A" : "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
     overflow: "hidden",
-    borderWidth: 4,
-    borderColor: isDark ? "#334155" : "#FFFFFF",
+    borderWidth: 2,
+    borderColor: isDark ? "#334155" : "#E2E8F0",
   },
   avatarImage: {
     width: "100%",
@@ -511,105 +533,81 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   },
   avatarText: {
     color: "#3B82F6",
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: "700"
   },
+  profileInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
   name: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
     color: isDark ? "#F1F5F9" : "#0F172A",
-    marginTop: 16
   },
-  role: {
+  contactText: {
     fontSize: 14,
+    color: isDark ? "#94A3B8" : "#64748B",
+    marginTop: 4,
+  },
+  roleBadge: {
+    marginTop: 8,
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleBadgeText: {
+    fontSize: 12,
     fontWeight: "700",
     color: "#3B82F6",
-    marginTop: 6,
     textTransform: "uppercase",
-    letterSpacing: 1.2
   },
-  infoCard: {
-    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: isDark ? 0.2 : 0.03,
-    shadowRadius: 8,
-    elevation: 2,
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: isDark ? "#64748B" : "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginLeft: 12,
   },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: isDark ? "#334155" : "#F1F5F9",
-  },
-  infoRowLast: {
-    borderBottomWidth: 0,
-    paddingBottom: 4,
-  },
-  infoLabel: {
-    color: isDark ? "#94A3B8" : "#64748B",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: isDark ? "#F1F5F9" : "#1E293B",
-  },
-  themeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-  },
-  themeLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: isDark ? "#F1F5F9" : "#1E293B",
-  },
-  actions: {
-    gap: 12,
-  },
-  actionBtn: {
-    paddingVertical: 16,
+  menuCard: {
     backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
     borderRadius: 20,
-    alignItems: "center",
+    marginBottom: 28,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: isDark ? 0.2 : 0.03,
     shadowRadius: 8,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: isDark ? "#334155" : "#E2E8F0",
+    overflow: "hidden",
   },
-  actionText: {
-    color: isDark ? "#F1F5F9" : "#1E293B",
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  menuIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  menuText: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: "600",
-    fontSize: 16
+    color: isDark ? "#F1F5F9" : "#1E293B",
   },
-  logoutBtn: {
-    backgroundColor: isDark ? "rgba(239, 68, 68, 0.1)" : "#FEF2F2",
-    borderColor: "rgba(239, 68, 68, 0.3)",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  logoutText: {
-    color: "#EF4444",
-  },
-  clearDbBtn: {
-    backgroundColor: "#EF4444",
-    borderColor: "#EF4444",
-  },
-  clearDbText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16
+  divider: {
+    height: 1,
+    backgroundColor: isDark ? "#334155" : "#F1F5F9",
+    marginLeft: 72, // Aligned with text
   },
   modalOverlay: {
     flex: 1,

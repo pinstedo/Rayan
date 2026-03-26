@@ -146,6 +146,7 @@ export default function LabourDetailsScreen() {
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={local.container}
+            enabled={Platform.OS !== "web"}
         >
             <ScrollView contentContainerStyle={local.scrollContent}>
                 <View style={local.header}>

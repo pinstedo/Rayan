@@ -17,8 +17,8 @@ import { api } from "../../services/api";
 
 export default function HomeScreen() {
 	const router = useRouter();
-	const { isDark } = useTheme();
-	const local = getStyles(isDark);
+	const { isDark, colors } = useTheme();
+	const local = getStyles(isDark, colors);
 
 	const today = new Date().toLocaleDateString(undefined, {
 		weekday: "long",
@@ -176,7 +176,7 @@ export default function HomeScreen() {
 			label: "Total Workers",
 			value: stats.workers,
 			icon: "account-group",
-			color: "#4CAF50",
+			color: colors.success,
 			onPress: () => router.push("/(screens)/labours")
 		},
 		{
@@ -184,7 +184,7 @@ export default function HomeScreen() {
 			label: "Active Workers",
 			value: stats.jobs,
 			icon: "account-hard-hat",
-			color: "#2196F3",
+			color: colors.primary,
 			onPress: () => router.push({ pathname: "/(screens)/labours", params: { status: 'active' } } as any)
 		},
 		{
@@ -192,7 +192,7 @@ export default function HomeScreen() {
 			label: "Today Present",
 			value: stats.attendance,
 			icon: "calendar-check",
-			color: "#FF9800",
+			color: colors.warning,
 			onPress: () => router.push("/(screens)/reports/site-attendance" as any),
 		},
 		{
@@ -200,7 +200,7 @@ export default function HomeScreen() {
 			label: "Total Sites",
 			value: stats.approvals,
 			icon: "office-building",
-			color: "#9C27B0",
+			color: colors.primaryHover,
 			onPress: () => router.push("/(screens)/sites" as any)
 		},
 	];
@@ -218,11 +218,11 @@ export default function HomeScreen() {
 	);
 
 	const quickActions = [
-		{ label: "Labours", icon: "account-group-outline", route: "/(screens)/labours", color: isDark ? "#1A3B5C" : "#E3F2FD", iconColor: isDark ? "#64B5F6" : "#1976D2" },
-		{ label: "supervisors", icon: "account-tie-outline", route: "/(screens)/supervisors", color: isDark ? "#3A1B4D" : "#F3E5F5", iconColor: isDark ? "#BA68C8" : "#7B1FA2" },
-		{ label: "Wage Report", icon: "file-chart-outline", route: "/(screens)/reports/wage-report", color: isDark ? "#1B4323" : "#E8F5E9", iconColor: isDark ? "#81C784" : "#388E3C" },
-		{ label: "Add Site", icon: "office-building-outline", route: "/(screens)/add-site", color: isDark ? "#3A1B4D" : "#F3E5F5", iconColor: isDark ? "#BA68C8" : "#7B1FA2" },
-		{ label: "Pending Admins", icon: "account-clock-outline", route: "/(screens)/pending-admins", color: isDark ? "#3A2A1A" : "#FFF3E0", iconColor: isDark ? "#FFB74D" : "#F57C00" },
+		{ label: "Labours", icon: "account-group-outline", route: "/(screens)/labours", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Supervisors", icon: "account-tie-outline", route: "/(screens)/supervisors", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Wage Report", icon: "file-chart-outline", route: "/(screens)/reports/wage-report", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Add Site", icon: "office-building-outline", route: "/(screens)/add-site", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Pending Admins", icon: "account-clock-outline", route: "/(screens)/pending-admins", color: colors.secondary, iconColor: colors.warning },
 	];
 
 	return (
@@ -505,15 +505,15 @@ export default function HomeScreen() {
 	);
 }
 
-const getStyles = (isDark: boolean) => StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
 	container: {
 		padding: 20,
 		paddingTop: 50,
-		backgroundColor: isDark ? "#121212" : "#FAFAFA",
+		backgroundColor: colors.background,
 		minHeight: "100%",
 	},
 	header: {
-		backgroundColor: isDark ? "#1e1e1e" : "#FFFFFF",
+		backgroundColor: colors.surface,
 		marginHorizontal: -20,
 		marginTop: -50,
 		paddingHorizontal: 24,
@@ -524,10 +524,12 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		borderBottomRightRadius: 24,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: isDark ? 0.3 : 0.05,
+		shadowOpacity: 0.05,
 		shadowRadius: 12,
 		elevation: 4,
 		zIndex: 100,
+		borderBottomWidth: 1,
+		borderBottomColor: colors.border,
 	},
 	headerTop: {
 		flexDirection: "row",
@@ -537,7 +539,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	},
 	greeting: {
 		fontSize: 14,
-		color: isDark ? "#aaa" : "#64748B",
+		color: colors.textSecondary,
 		fontWeight: "600",
 		textTransform: "uppercase",
 		letterSpacing: 0.5,
@@ -545,11 +547,11 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	title: {
 		fontSize: 30,
 		fontWeight: "800",
-		color: isDark ? "#ffffff" : "#0F172A",
+		color: colors.textPrimary,
 		marginTop: 2,
 	},
 	date: {
-		color: isDark ? "#888" : "#64748B",
+		color: colors.textSecondary,
 		marginTop: 4,
 		fontSize: 14,
 		fontWeight: "500",
@@ -562,7 +564,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		position: 'absolute',
 		top: -2,
 		right: -4,
-		backgroundColor: '#FF3B30',
+		backgroundColor: colors.error,
 		borderRadius: 10,
 		minWidth: 18,
 		height: 18,
@@ -570,7 +572,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		alignItems: 'center',
 		paddingHorizontal: 4,
 		borderWidth: 1.5,
-		borderColor: isDark ? "#1e1e1e" : "#FFFFFF",
+		borderColor: colors.surface,
 	},
 	notificationBadgeText: {
 		color: '#fff',
@@ -593,16 +595,18 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	},
 	card: {
 		width: "48%",
-		backgroundColor: isDark ? "#1e1e1e" : "#fff",
-		borderRadius: 16,
+		backgroundColor: colors.surface,
+		borderRadius: 12,
 		padding: 16,
 		marginBottom: 16,
 		borderTopWidth: 4,
 		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: isDark ? 0.3 : 0.06,
-		shadowRadius: 10,
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.06,
+		shadowRadius: 8,
 		elevation: 3,
+		borderWidth: 1,
+		borderColor: colors.border,
 	},
 	cardHeader: {
 		flexDirection: "row",
@@ -612,16 +616,16 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	},
 	iconBg: {
 		padding: 8,
-		borderRadius: 12,
+		borderRadius: 10,
 	},
 	cardValue: {
 		fontSize: 24,
 		fontWeight: "800",
-		color: isDark ? "#fff" : "#222",
+		color: colors.textPrimary,
 	},
 	cardLabel: {
 		fontSize: 14,
-		color: isDark ? "#aaa" : "#666",
+		color: colors.textSecondary,
 		fontWeight: "500",
 	},
 	actions: {
@@ -631,7 +635,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		fontSize: 18,
 		fontWeight: "700",
 		marginBottom: 16,
-		color: isDark ? "#fff" : "#222",
+		color: colors.textPrimary,
 	},
 	actionsScroll: {
 		paddingBottom: 8,
@@ -643,18 +647,20 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	actionIconContainer: {
 		width: 60,
 		height: 60,
-		borderRadius: 20,
+		borderRadius: 16,
 		justifyContent: "center",
 		alignItems: "center",
 		marginBottom: 8,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: isDark ? 0.3 : 0.05,
+		shadowOpacity: 0.05,
 		shadowRadius: 6,
 		elevation: 2,
+        borderWidth: 1,
+        borderColor: colors.border,
 	},
 	actionText: {
-		color: isDark ? "#ccc" : "#444",
+		color: colors.textSecondary,
 		fontWeight: "600",
 		fontSize: 13,
 	},
@@ -662,14 +668,16 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		marginTop: 8,
 	},
 	recentContainer: {
-		backgroundColor: isDark ? "#1e1e1e" : "#fff",
-		borderRadius: 16,
+		backgroundColor: colors.surface,
+		borderRadius: 12,
 		padding: 16,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: isDark ? 0.3 : 0.05,
+		shadowOpacity: 0.05,
 		shadowRadius: 8,
 		elevation: 2,
+		borderWidth: 1,
+		borderColor: colors.border,
 	},
 	recentItem: {
 		flexDirection: "row",
@@ -683,13 +691,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		width: 10,
 		height: 10,
 		borderRadius: 5,
-		backgroundColor: "#0a84ff",
+		backgroundColor: colors.primary,
 		marginTop: 6,
 	},
 	recentLine: {
 		width: 2,
 		flex: 1,
-		backgroundColor: isDark ? "#333" : "#f0f0f0",
+		backgroundColor: colors.border,
 		marginTop: 4,
 	},
 	recentContent: {
@@ -697,13 +705,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		paddingBottom: 4,
 	},
 	recentText: {
-		color: isDark ? "#fff" : "#333",
+		color: colors.textPrimary,
 		fontSize: 15,
 		fontWeight: "500",
 		lineHeight: 22,
 	},
 	recentTime: {
-		color: isDark ? "#888" : "#999",
+		color: colors.textSecondary,
 		fontSize: 12,
 		marginTop: 2,
 	},
@@ -713,7 +721,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		paddingVertical: 24,
 	},
 	emptyText: {
-		color: isDark ? "#888" : "#888",
+		color: colors.textSecondary,
 		fontStyle: "italic",
 		marginTop: 8,
 	},
