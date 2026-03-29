@@ -219,6 +219,20 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
     try {
         const db = await openDb();
+        const currentLabour = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
+        if (!currentLabour) {
+            return res.status(404).json({ error: 'Labour not found' });
+        }
+
+        // Handle rate change history
+        if (rate !== undefined && parseFloat(rate) !== currentLabour.rate) {
+            const today = new Date().toISOString().split('T')[0];
+            await db.run(
+                `INSERT INTO salary_history (labour_id, previous_rate, new_rate, date, created_by) VALUES (?, ?, ?, ?, ?)`,
+                [req.params.id, currentLabour.rate || 0, parseFloat(rate), today, req.user ? req.user.id : null]
+            );
+        }
+
         await db.run(
             `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, notes = ?, trade = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ? WHERE id = ?`,
             [name, phone, aadhaar, site, site_id, rate, notes, trade, profile_image, date_of_birth, emergency_phone, req.params.id]
@@ -259,6 +273,30 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
 
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
         res.json(updated);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Add Bonus
+router.post('/:id/bonus', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    const { amount, date, notes } = req.body;
+    const labour_id = req.params.id;
+
+    if (!amount || amount <= 0) {
+        return res.status(400).json({ error: 'Valid amount is required' });
+    }
+    const bonusDate = date || new Date().toISOString().split('T')[0];
+
+    try {
+        const db = await openDb();
+        const result = await db.run(
+            `INSERT INTO bonus_payments (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+            [labour_id, amount, bonusDate, notes, req.user ? req.user.id : null]
+        );
+
+        const newBonus = await db.get('SELECT * FROM bonus_payments WHERE id = ?', [result.lastID]);
+        res.status(201).json(newBonus);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -568,4 +568,79 @@ router.delete('/complaints/:id', authorizeRole(['admin', 'supervisor']), async (
     }
 });
 
+// GET /api/reports/bonus-attendance-range?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&site_id=OPTIONAL
+router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const db = await openDb();
+        const { startDate, endDate, site_id } = req.query;
+
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'startDate and endDate are required' });
+        }
+
+        console.log('Generating bonus and attendance report for:', { startDate, endDate, site_id });
+
+        let labourQuery = `SELECT * FROM labours`;
+        const labourParams = [];
+        if (site_id) {
+            labourQuery += ` WHERE site_id = ?`;
+            labourParams.push(site_id);
+        }
+        const labours = await db.all(labourQuery, labourParams);
+
+        const reports = [];
+
+        for (const labour of labours) {
+            let fullDays = 0;
+            let halfDays = 0;
+            let absentDays = 0;
+
+            const attRecs = await db.all(
+                `SELECT status FROM attendance WHERE labour_id = ? AND date >= ? AND date <= ?`,
+                [labour.id, startDate, endDate]
+            );
+
+            attRecs.forEach(rec => {
+                if (rec.status === 'full') fullDays++;
+                else if (rec.status === 'half') halfDays++;
+                else if (rec.status === 'absent') absentDays++;
+            });
+
+            const bonusRes = await db.get(
+                `SELECT SUM(amount) as total FROM bonus_payments WHERE labour_id = ? AND date >= ? AND date <= ?`,
+                [labour.id, startDate, endDate]
+            );
+            const bonusAmount = bonusRes && bonusRes.total ? bonusRes.total : 0;
+
+            const salaryHistoryRecs = await db.all(
+                `SELECT * FROM salary_history WHERE labour_id = ? AND date >= ? AND date <= ? ORDER BY date ASC`,
+                [labour.id, startDate, endDate]
+            );
+
+            const salary_increased = salaryHistoryRecs.length > 0;
+            const new_rate_details = salary_increased ? salaryHistoryRecs[salaryHistoryRecs.length - 1].new_rate : null;
+
+            reports.push({
+                id: labour.id,
+                name: labour.name,
+                rate: labour.rate,
+                site_id: labour.site_id,
+                total_working_days: fullDays + halfDays,
+                full_days: fullDays,
+                half_days: halfDays,
+                absent_days: absentDays,
+                bonus_amount: bonusAmount,
+                salary_increased: salary_increased,
+                new_rate_details: new_rate_details
+            });
+        }
+
+        res.json(reports);
+
+    } catch (err) {
+        console.error('Error generating bonus/attendance report:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

@@ -29,7 +29,6 @@ export function Sidebar({
 	return (
 		<View style={[styles.container, { backgroundColor: isDark ? "#1e293b" : localColors.surface, borderRightColor: isDark ? "#334155" : localColors.border }]}>
 			<View style={styles.logoContainer}>
-				<Ionicons name="cube" size={32} color={localColors.primary} />
 				<Text style={[styles.logoText, { color: isDark ? "#f8fafc" : localColors.textPrimary }]}>{title}</Text>
 			</View>
 

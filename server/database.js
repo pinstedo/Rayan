@@ -206,6 +206,26 @@ async function initDb() {
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS bonus_payments (
+      id SERIAL PRIMARY KEY,
+      labour_id INTEGER NOT NULL REFERENCES labours(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS salary_history (
+      id SERIAL PRIMARY KEY,
+      labour_id INTEGER NOT NULL REFERENCES labours(id) ON DELETE CASCADE,
+      previous_rate REAL,
+      new_rate REAL NOT NULL,
+      date TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Search Indexes - PostgreSQL doesn't support IF NOT EXISTS for indexes directly in standard CREATE INDEX syntax 

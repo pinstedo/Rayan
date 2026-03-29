@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { JSX, useCallback, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import GlobalSearch from "../../../components/GlobalSearch";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
@@ -117,20 +117,19 @@ export default function SupervisorHome(): JSX.Element {
 
     return (
         <View style={styles.mainContainer}>
-            <View style={styles.headerSection}>
-                <Text style={styles.greetingText}>Welcome back,</Text>
-                <Text style={styles.headerTitle}>{firstName}</Text>
-                <View style={{ marginTop: 16 }}>
-                    <GlobalSearch />
-                </View>
-            </View>
-
             <ScrollView
                 contentContainerStyle={styles.contentStyle}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
                 }
             >
+                <View style={styles.headerSection}>
+                    <Text style={styles.greetingText}>Welcome back,</Text>
+                    <Text style={styles.headerTitle}>{firstName}</Text>
+                    <View style={{ marginTop: 16 }}>
+                        <GlobalSearch />
+                    </View>
+                </View>
                 {/* Site Selector */}
                 {assignedSites.length > 0 && (
                     <View style={styles.sectionContainer}>
@@ -200,7 +199,7 @@ const getLocalStyles = (isDark: boolean) => StyleSheet.create({
         backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
     },
     headerSection: {
-        paddingTop: 64, // Top padding for safe area since using default header off
+        paddingTop: Platform.OS === 'web' ? 64 : 24, // Top padding for safe area since using default header off
         paddingHorizontal: 24,
         paddingBottom: 24,
         backgroundColor: isDark ? "#1E293B" : "#FFFFFF",

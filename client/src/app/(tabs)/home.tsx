@@ -4,6 +4,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
 	Image,
+	Platform,
 	RefreshControl,
 	ScrollView,
 	StyleSheet,
@@ -221,6 +222,7 @@ export default function HomeScreen() {
 		{ label: "Labours", icon: "account-group-outline", route: "/(screens)/labours", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Supervisors", icon: "account-tie-outline", route: "/(screens)/supervisors", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Wage Report", icon: "file-chart-outline", route: "/(screens)/reports/wage-report", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Bonus & Attd.", icon: "calendar-star", route: "/(screens)/reports/bonus-attendance-report", color: colors.secondary, iconColor: colors.success },
 		{ label: "Add Site", icon: "office-building-outline", route: "/(screens)/add-site", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Pending Admins", icon: "account-clock-outline", route: "/(screens)/pending-admins", color: colors.secondary, iconColor: colors.warning },
 	];
@@ -508,16 +510,16 @@ export default function HomeScreen() {
 const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
 	container: {
 		padding: 20,
-		paddingTop: 50,
+		paddingTop: Platform.OS === 'web' ? 50 : 20,
 		backgroundColor: colors.background,
 		minHeight: "100%",
 	},
 	header: {
 		backgroundColor: colors.surface,
 		marginHorizontal: -20,
-		marginTop: -50,
+		marginTop: Platform.OS === 'web' ? -50 : -20,
 		paddingHorizontal: 24,
-		paddingTop: 64,
+		paddingTop: Platform.OS === 'web' ? 64 : 24,
 		paddingBottom: 20,
 		marginBottom: 24,
 		borderBottomLeftRadius: 24,

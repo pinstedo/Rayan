@@ -162,6 +162,9 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect, 
 
 const getStyles = (isDark: boolean) => StyleSheet.create({
     container: {
+        width: '100%',
+        maxWidth: 400,
+        alignSelf: 'center',
         backgroundColor: isDark ? "#1e1e1e" : '#fff',
         borderRadius: 12,
         padding: 10,
