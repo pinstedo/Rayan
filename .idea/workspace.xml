@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="1e9accc4-1fe4-473c-85b3-6195ec5173ca" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/add-labour.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/add-labour.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/attendance.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/attendance.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/labour-details.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/labour-details.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/overtime.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/overtime.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/reports/site-attendance.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/reports/site-attendance.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/reports/wage-report.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/reports/wage-report.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/site-details.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/site-details.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/supervisor-details.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/supervisor-details.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(screens)/supervisors.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(screens)/supervisors.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(tabs)/home.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(tabs)/home.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/(tabs)/profile.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/(tabs)/profile.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/auth/authentication.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/auth/authentication.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/index.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/home.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/app/supervisor/(tabs)/home.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/components/CustomModal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/CustomModal.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/constants.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/constants.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/database.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/database.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protoMain.db" beforeDir="false" afterPath="$PROJECT_DIR$/server/protoMain.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/attendance.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/attendance.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/labours.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/labours.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/routes/reports.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/routes/reports.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
+  <component name="ProjectId" id="3600Fm6ufZAojY2xAR2aqqxvoJJ" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Admin/Proto&quot;
+  }
+}</component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="1e9accc4-1fe4-473c-85b3-6195ec5173ca" name="Changes" comment="" />
+      <created>1764128080289</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1764128080289</updated>
+    </task>
+    <servers />
+  </component>
+</project>
