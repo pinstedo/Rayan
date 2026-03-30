@@ -15,7 +15,7 @@ const generateTokens = async (user, db, refreshExpiresInDays = 30) => {
     const accessToken = jwt.sign(
         { id: user.id, phone: user.phone, role: user.role },
         SECRET_KEY,
-        { expiresIn: '15m' } // Short-lived access token
+        { expiresIn: '24h' } // Short-lived access token
     );
 
     const refreshToken = crypto.randomBytes(40).toString('hex');
