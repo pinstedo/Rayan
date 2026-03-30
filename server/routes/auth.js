@@ -113,7 +113,7 @@ router.post('/signin', async (req, res) => {
                 // Revoke any existing active sessions to allow login on the new device 
                 // while enforcing single-device usage.
                 await db.run(
-                    `UPDATE refresh_tokens SET revoked = true WHERE user_id = ? AND revoked = false`,
+                    `UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ? AND revoked = 0`,
                     [user.id]
                 );
             }
@@ -179,13 +179,13 @@ router.post('/logout', async (req, res) => {
 
     try {
         const db = await openDb();
-        await db.run(`UPDATE refresh_tokens SET revoked = true WHERE token = ?`, [refreshToken]);
+        await db.run(`UPDATE refresh_tokens SET revoked = 1 WHERE token = ?`, [refreshToken]);
         // Also try to revoke from labour_refresh_tokens just in case, or make it specific?
         // The implementation plan focused on supervisors (users table -> refresh_tokens). 
         // But let's be safe and check both or just the one relevant.
         // Given we don't know the type of user from just the token easily without a query, 
         // and we want to be robust:
-        await db.run(`UPDATE labour_refresh_tokens SET revoked = true WHERE token = ?`, [refreshToken]);
+        await db.run(`UPDATE labour_refresh_tokens SET revoked = 1 WHERE token = ?`, [refreshToken]);
 
         res.json({ message: 'Logged out successfully' });
     } catch (err) {
@@ -206,7 +206,7 @@ router.post('/refresh-token', async (req, res) => {
 
         // Check User Refresh Tokens
         let storedToken = await db.get(
-            `SELECT * FROM refresh_tokens WHERE token = ? AND revoked = false`,
+            `SELECT * FROM refresh_tokens WHERE token = ? AND revoked = 0`,
             [refreshToken]
         );
 
@@ -221,7 +221,7 @@ router.post('/refresh-token', async (req, res) => {
             }
 
             // Revoke old token (Rotation)
-            await db.run(`UPDATE refresh_tokens SET revoked = true WHERE id = ?`, [storedToken.id]);
+            await db.run(`UPDATE refresh_tokens SET revoked = 1 WHERE id = ?`, [storedToken.id]);
 
             // For supervisors, do we allow refresh if a new session was created elsewhere? 
             // The single session check is at Login. 
@@ -236,7 +236,7 @@ router.post('/refresh-token', async (req, res) => {
 
         // Check Labour Refresh Tokens
         storedToken = await db.get(
-            `SELECT * FROM labour_refresh_tokens WHERE token = ? AND revoked = false`,
+            `SELECT * FROM labour_refresh_tokens WHERE token = ? AND revoked = 0`,
             [refreshToken]
         );
 
@@ -251,7 +251,7 @@ router.post('/refresh-token', async (req, res) => {
             }
 
             // Revoke old token
-            await db.run(`UPDATE labour_refresh_tokens SET revoked = true WHERE id = ?`, [storedToken.id]);
+            await db.run(`UPDATE labour_refresh_tokens SET revoked = 1 WHERE id = ?`, [storedToken.id]);
 
             // Generate new tokens for labour (7 days)
             // We need a separate generate function or adapt the existing one.
@@ -293,7 +293,7 @@ router.get('/supervisors', authenticateToken, async (req, res) => {
         // Automatic cleanup: permanently delete supervisors in bin for > 7 days
         await db.run(`DELETE FROM users WHERE role = 'supervisor' AND is_deleted = 1 AND deleted_at < datetime('now', '-7 days')`);
 
-        const supervisors = await db.all(`SELECT id, name, phone FROM users WHERE role = 'supervisor' AND is_deleted = false`);
+        const supervisors = await db.all(`SELECT id, name, phone FROM users WHERE role = 'supervisor' AND is_deleted = 0`);
         res.json(supervisors);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -382,9 +382,9 @@ router.delete('/supervisors/:id', authenticateToken, async (req, res) => {
         await db.run('BEGIN TRANSACTION');
         try {
             // Soft delete user
-            await db.run(`UPDATE users SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+            await db.run(`UPDATE users SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
             // Revoke sessions
-            await db.run(`UPDATE refresh_tokens SET revoked = true WHERE user_id = ?`, [id]);
+            await db.run(`UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?`, [id]);
             // Remove site assignments
             await db.run(`DELETE FROM site_supervisors WHERE supervisor_id = ?`, [id]);
 
@@ -439,7 +439,7 @@ router.get('/supervisors/bin', authenticateToken, async (req, res) => {
     }
     try {
         const db = await openDb();
-        const supervisors = await db.all(`SELECT id, name, phone, deleted_at FROM users WHERE role = 'supervisor' AND is_deleted = true`);
+        const supervisors = await db.all(`SELECT id, name, phone, deleted_at FROM users WHERE role = 'supervisor' AND is_deleted = 1`);
         res.json(supervisors);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -460,7 +460,7 @@ router.put('/supervisors/:id/restore', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Deleted supervisor not found' });
         }
 
-        await db.run(`UPDATE users SET is_deleted = false, deleted_at = NULL WHERE id = ?`, [id]);
+        await db.run(`UPDATE users SET is_deleted = 0, deleted_at = NULL WHERE id = ?`, [id]);
         res.json({ message: 'Supervisor restored successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -496,7 +496,7 @@ router.get('/admins/pending', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const pendingAdmins = await db.all(`SELECT id, name, phone, created_at FROM users WHERE role = 'admin' AND status = 'pending' AND is_deleted = false`);
+        const pendingAdmins = await db.all(`SELECT id, name, phone, created_at FROM users WHERE role = 'admin' AND status = 'pending' AND is_deleted = 0`);
         res.json(pendingAdmins);
     } catch (err) {
         res.status(500).json({ error: err.message });
