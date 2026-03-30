@@ -318,11 +318,6 @@ router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, re
 
             const attendanceRecs = await db.all(attQuery, attParams);
 
-            const labourHistory = await db.all(
-                `SELECT previous_rate, new_rate, date FROM salary_history WHERE labour_id = ? ORDER BY date ASC`,
-                [labour.id]
-            );
-
             attendanceRecs.forEach(rec => {
                 if (rec.status === 'full') fullDays++;
                 if (rec.status === 'half') halfDays++;
@@ -331,20 +326,10 @@ router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, re
                 if ((rec.status === 'full' || rec.status === 'half') && !allowMap.has(`${rec.site_id}:${rec.date}`)) {
                     foodAllowanceCount++;
                 }
-
-                let applicableRate = labour.rate || 0;
-                const futureChanges = labourHistory.filter(h => h.date > rec.date);
-                if (futureChanges.length > 0) {
-                    applicableRate = futureChanges[0].previous_rate;
-                }
-
-                if (rec.status === 'full') {
-                    wage += (8 * applicableRate);
-                } else if (rec.status === 'half') {
-                    wage += (4 * applicableRate);
-                }
             });
 
+            const rate = labour.rate || 0;
+            wage = (fullDays * 8 * rate) + (halfDays * 4 * rate);
             const foodAmount = foodAllowanceCount * 70;
 
             // -- Overtime --
@@ -393,31 +378,16 @@ router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, re
             const paidRes = await db.get(paidQuery, paidParams);
             const paidAmount = paidRes && paidRes.total ? paidRes.total : 0;
 
-            // -- Bonus --
-            let bonusQuery = `SELECT SUM(amount) as total FROM bonus_payments WHERE labour_id = ?`;
-            const bonusParams = [labour.id];
-            if (isPrevious) {
-                bonusQuery += ` AND date < ?`;
-                bonusParams.push(rangeStart);
-            } else {
-                bonusQuery += ` AND date >= ? AND date <= ?`;
-                bonusParams.push(rangeStart);
-                bonusParams.push(rangeEnd);
-            }
-            const bonusRes = await db.get(bonusQuery, bonusParams);
-            const bonusAmount = bonusRes && bonusRes.total ? bonusRes.total : 0;
-
             return {
                 wage,
                 otAmount,
                 foodAmount,
                 advAmount,
                 paidAmount,
-                bonusAmount,
                 fullDays,
                 halfDays,
                 foodAllowanceCount,
-                net: isPrevious ? (wage + otAmount + foodAmount + bonusAmount - advAmount - paidAmount) : (wage + otAmount + foodAmount + bonusAmount - advAmount)
+                net: isPrevious ? (wage + otAmount + foodAmount - advAmount - paidAmount) : (wage + otAmount + foodAmount - advAmount)
             };
         };
 
@@ -445,7 +415,6 @@ router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, re
                 current_overtime_amount: currStats.otAmount,
                 current_food_allowance_amount: currStats.foodAmount,
                 current_advance_amount: currStats.advAmount,
-                current_bonus_amount: currStats.bonusAmount,
 
                 current_full_days: currStats.fullDays,
                 current_half_days: currStats.halfDays,
@@ -640,7 +609,7 @@ router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), as
 
             // 1. Attendance
             const attRecs = await db.all(
-                `SELECT status, strftime('%Y-%m', date) as month FROM attendance WHERE labour_id = ? AND date >= ? AND date <= ?`,
+                `SELECT status, LEFT(date, 7) as month FROM attendance WHERE labour_id = ? AND date >= ? AND date <= ?`,
                 [labour.id, startDate, endDate]
             );
 
@@ -660,7 +629,7 @@ router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), as
 
             // 2. Bonus
             const bonusRecs = await db.all(
-                `SELECT amount, strftime('%Y-%m', date) as month FROM bonus_payments WHERE labour_id = ? AND date >= ? AND date <= ?`,
+                `SELECT amount, LEFT(date, 7) as month FROM bonus_payments WHERE labour_id = ? AND date >= ? AND date <= ?`,
                 [labour.id, startDate, endDate]
             );
 
@@ -676,7 +645,7 @@ router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), as
 
             // 3. Salary History
             const salaryHistoryRecs = await db.all(
-                `SELECT strftime('%Y-%m', date) as month FROM salary_history WHERE labour_id = ? AND date >= ? AND date <= ?`,
+                `SELECT LEFT(date, 7) as month FROM salary_history WHERE labour_id = ? AND date >= ? AND date <= ?`,
                 [labour.id, startDate, endDate]
             );
 

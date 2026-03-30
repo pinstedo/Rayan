@@ -2,6 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { CustomModal } from "../../components/CustomModal";
 import {
     ActivityIndicator,
     Alert,
@@ -46,6 +47,16 @@ export default function LabourDetailsScreen() {
 
     // Form State
     const [formData, setFormData] = useState<Partial<Labour>>({});
+
+    // Modals
+    const [showBonusModal, setShowBonusModal] = useState(false);
+    const [bonusAmount, setBonusAmount] = useState("");
+    const [bonusNotes, setBonusNotes] = useState("");
+    const [savingBonus, setSavingBonus] = useState(false);
+
+    const [showIncrementModal, setShowIncrementModal] = useState(false);
+    const [newRate, setNewRate] = useState("");
+    const [savingIncrement, setSavingIncrement] = useState(false);
 
     useEffect(() => {
         fetchLabourDetails();
@@ -100,6 +111,70 @@ export default function LabourDetailsScreen() {
             Alert.alert("Error", "Unable to connect to server");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSaveBonus = async () => {
+        if (!bonusAmount || isNaN(Number(bonusAmount)) || Number(bonusAmount) <= 0) {
+            Alert.alert("Error", "Please enter a valid amount");
+            return;
+        }
+
+        try {
+            setSavingBonus(true);
+            const response = await api.post(`/labours/${id}/bonus`, {
+                amount: Number(bonusAmount),
+                date: new Date().toISOString(),
+                notes: bonusNotes
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                Alert.alert("Success", "Bonus recorded successfully");
+                setShowBonusModal(false);
+                setBonusAmount("");
+                setBonusNotes("");
+            } else {
+                Alert.alert("Error", data.error || "Failed to record bonus");
+            }
+        } catch (error) {
+            console.error("Error recording bonus:", error);
+            Alert.alert("Error", "Unable to connect to server");
+        } finally {
+            setSavingBonus(false);
+        }
+    };
+
+    const handleSaveIncrement = async () => {
+        if (!newRate || isNaN(Number(newRate)) || Number(newRate) <= 0) {
+            Alert.alert("Error", "Please enter a valid rate");
+            return;
+        }
+
+        try {
+            setSavingIncrement(true);
+            const payload = {
+                ...labour,
+                rate: Number(newRate),
+            };
+
+            const response = await api.put(`/labours/${id}`, payload);
+            const data = await response.json();
+
+            if (response.ok) {
+                setLabour(data as Labour);
+                setFormData(data as Labour);
+                setShowIncrementModal(false);
+                Alert.alert("Success", "Daily rate updated successfully");
+            } else {
+                Alert.alert("Error", data.error || "Failed to update rate");
+            }
+        } catch (error) {
+            console.error("Error updating rate:", error);
+            Alert.alert("Error", "Unable to connect to server");
+        } finally {
+            setSavingIncrement(false);
         }
     };
 
@@ -188,6 +263,18 @@ export default function LabourDetailsScreen() {
                             <Text style={local.statusText}>{labour.status.toUpperCase()}</Text>
                         </View>
                     </View>
+                </View>
+
+                {/* Quick Actions */}
+                <View style={local.actionRow}>
+                    <TouchableOpacity style={local.actionBtn} onPress={() => setShowBonusModal(true)}>
+                        <Ionicons name="gift-outline" size={20} color="#fff" />
+                        <Text style={local.actionBtnText}>Record Bonus</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[local.actionBtn, { backgroundColor: isDark ? '#2e7d32' : '#4CAF50' }]} onPress={() => { setNewRate(String(labour.rate || "")); setShowIncrementModal(true); }}>
+                        <Ionicons name="trending-up-outline" size={20} color="#fff" />
+                        <Text style={local.actionBtnText}>Update Rate</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={local.formContainer}>
@@ -303,6 +390,71 @@ export default function LabourDetailsScreen() {
                     )}
                 </View>
             </ScrollView>
+
+            {/* Bonus Modal */}
+            <CustomModal
+                visible={showBonusModal}
+                onClose={() => setShowBonusModal(false)}
+                title="Record Bonus"
+                actions={[
+                    { text: "Cancel", onPress: () => setShowBonusModal(false), style: "cancel" },
+                    { text: savingBonus ? "Saving..." : "Save Bonus", onPress: handleSaveBonus, style: "default" }
+                ]}
+            >
+                <View style={local.modalForm}>
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Amount (₹)</Text>
+                        <TextInput
+                            style={local.input}
+                            keyboardType="numeric"
+                            placeholder="Enter amount"
+                            value={bonusAmount}
+                            onChangeText={setBonusAmount}
+                            placeholderTextColor={isDark ? "#888" : "#999"}
+                        />
+                    </View>
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Notes</Text>
+                        <TextInput
+                            style={[local.input, { height: 80, textAlignVertical: 'top' }]}
+                            placeholder="Optional notes"
+                            value={bonusNotes}
+                            onChangeText={setBonusNotes}
+                            multiline
+                            numberOfLines={3}
+                            placeholderTextColor={isDark ? "#888" : "#999"}
+                        />
+                    </View>
+                </View>
+            </CustomModal>
+
+            {/* Increment Modal */}
+            <CustomModal
+                visible={showIncrementModal}
+                onClose={() => setShowIncrementModal(false)}
+                title="Update Daily Rate"
+                actions={[
+                    { text: "Cancel", onPress: () => setShowIncrementModal(false), style: "cancel" },
+                    { text: savingIncrement ? "Saving..." : "Update Rate", onPress: handleSaveIncrement, style: "default" }
+                ]}
+            >
+                <View style={local.modalForm}>
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Current Rate: ₹{labour.rate || 0}</Text>
+                    </View>
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>New Daily Rate (₹)</Text>
+                        <TextInput
+                            style={local.input}
+                            keyboardType="numeric"
+                            placeholder="Enter new rate"
+                            value={newRate}
+                            onChangeText={setNewRate}
+                            placeholderTextColor={isDark ? "#888" : "#999"}
+                        />
+                    </View>
+                </View>
+            </CustomModal>
         </KeyboardAvoidingView>
     );
 }
@@ -485,5 +637,35 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: "#fff",
         fontSize: 18,
         fontWeight: "600",
+    },
+    actionRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginBottom: 20,
+        gap: 10,
+    },
+    actionBtn: {
+        flex: 1,
+        flexDirection: "row",
+        backgroundColor: "#0a84ff",
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    actionBtnText: {
+        color: "#fff",
+        marginLeft: 8,
+        fontWeight: "600",
+        fontSize: 15,
+    },
+    modalForm: {
+        paddingTop: 10,
+        width: "100%",
     },
 });
