@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { JSX, useCallback, useState } from "react";
+import React, { JSX, useCallback, useRef, useState } from "react";
 import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import GlobalSearch from "../../../components/GlobalSearch";
 import { useTheme } from "../../../context/ThemeContext";
@@ -17,7 +17,6 @@ interface Site {
 const options = [
     { key: "attendance", icon: "check-circle", title: "Attendance", desc: "Record and view attendance" },
     { key: "labours", icon: "group", title: "Labours", desc: "View assigned labours" },
-    { key: "overtime", icon: "timer", title: "Overtime", desc: "Log overtime hours" },
     { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
     { key: "add-labour", icon: "person-add", title: "Add Labours", desc: "Add new labours to the system" },
 ];
@@ -31,6 +30,10 @@ export default function SupervisorHome(): JSX.Element {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [userName, setUserName] = useState("Supervisor");
+    // Tracks whether the user has explicitly chosen a site, so re-fetching on
+    // screen focus doesn't reset their selection back to the first site.
+    const hasUserSelectedSite = useRef(false);
+    const selectedSiteRef = useRef<Site | null>(null);
 
     const fetchAssignedSites = async (isRefresh = false) => {
         try {
@@ -54,8 +57,23 @@ export default function SupervisorHome(): JSX.Element {
 
             if (response.ok) {
                 setAssignedSites(data);
-                if (data.length > 0 && !selectedSite) {
+                if (data.length > 0 && !hasUserSelectedSite.current) {
+                    // Only auto-select the first site if the user hasn't
+                    // manually picked one yet.
                     setSelectedSite(data[0]);
+                    selectedSiteRef.current = data[0];
+                } else if (data.length > 0 && selectedSiteRef.current) {
+                    // Re-apply the user's previous selection from the fresh
+                    // data (ids may stay the same, but data could refresh).
+                    const stillExists = data.find((s: Site) => s.id === selectedSiteRef.current!.id);
+                    if (stillExists) {
+                        setSelectedSite(stillExists);
+                    } else {
+                        // Their chosen site is gone; fall back to first.
+                        setSelectedSite(data[0]);
+                        selectedSiteRef.current = data[0];
+                        hasUserSelectedSite.current = false;
+                    }
                 }
             } else {
                 console.error("Failed to fetch sites:", data.error);
@@ -96,10 +114,7 @@ export default function SupervisorHome(): JSX.Element {
             }
             return;
         }
-        if (key === "overtime") {
-            router.push("/(screens)/overtime");
-            return;
-        }
+
         if (key === "labours") {
             // Navigate to shared labours screen, it will handle fetching based on role/id
             router.push("/(screens)/labours");
@@ -142,7 +157,11 @@ export default function SupervisorHome(): JSX.Element {
                                         styles.siteChip,
                                         selectedSite?.id === site.id && styles.siteChipActive
                                     ]}
-                                    onPress={() => setSelectedSite(site)}
+                                    onPress={() => {
+                                        hasUserSelectedSite.current = true;
+                                        selectedSiteRef.current = site;
+                                        setSelectedSite(site);
+                                    }}
                                 >
                                     <MaterialIcons
                                         name="location-city"

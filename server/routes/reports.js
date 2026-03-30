@@ -654,7 +654,7 @@ router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), as
                 ensureMonth(rec.month);
                 monthlyData[rec.month].has_increment = true;
             });
-            
+
             incrementMonthsCount = new Set(salaryHistoryRecs.map(r => r.month)).size;
 
             reports.push({

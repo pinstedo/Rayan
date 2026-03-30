@@ -7,7 +7,6 @@ import { styles } from "../style/stylesheet1";
 
 const options = [
   { key: "attendance", icon: "check-circle", title: "Attendance", desc: "Record and view attendance" },
-  { key: "overtime", icon: "timer", title: "Overtime", desc: "Log overtime hours" },
   { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
   { key: "sites", icon: "location-city", title: "Sites", desc: "Manage job sites" },
   { key: "labours", icon: "group", title: "Labours", desc: "View and manage labours" },
@@ -28,10 +27,7 @@ export default function Manage(): JSX.Element {
       router.push("/(screens)/reports/site-attendance" as any);
       return;
     }
-    if (key === "overtime") {
-      router.push("/(screens)/overtime");
-      return;
-    }
+
     if (key === "supervisors") {
       router.push("/(screens)/supervisors");
       return;

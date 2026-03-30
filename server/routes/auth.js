@@ -291,7 +291,7 @@ router.get('/supervisors', authenticateToken, async (req, res) => {
         const db = await openDb();
 
         // Automatic cleanup: permanently delete supervisors in bin for > 7 days
-        await db.run(`DELETE FROM users WHERE role = 'supervisor' AND is_deleted = true AND deleted_at < datetime('now', '-7 days')`);
+        await db.run(`DELETE FROM users WHERE role = 'supervisor' AND is_deleted = true AND deleted_at < NOW() - INTERVAL '7 days'`);
 
         const supervisors = await db.all(`SELECT id, name, phone FROM users WHERE role = 'supervisor' AND is_deleted = false`);
         res.json(supervisors);
