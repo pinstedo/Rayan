@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
+import { CustomModal } from '../../../components/CustomModal';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
 import { Platform } from 'react-native';
@@ -17,6 +18,10 @@ export default function WageReportScreen() {
     const [reportData, setReportData] = useState<any[]>([]);
 
     const [generatingPdf, setGeneratingPdf] = useState(false);
+
+    // Month Picker state
+    const [showMonthPicker, setShowMonthPicker] = useState(false);
+    const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
 
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
@@ -419,9 +424,11 @@ export default function WageReportScreen() {
                 <TouchableOpacity onPress={() => changeMonth(-1)} style={local.arrowBtn}>
                     <MaterialIcons name="chevron-left" size={30} color={isDark ? "#fff" : "#333"} />
                 </TouchableOpacity>
-                <Text style={local.monthText}>
-                    {date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                </Text>
+                <TouchableOpacity onPress={() => { setPickerYear(date.getFullYear()); setShowMonthPicker(true); }}>
+                    <Text style={[local.monthText, { color: isDark ? '#4da6ff' : '#0a84ff', textDecorationLine: 'underline' }]}>
+                        {date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                    </Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => changeMonth(1)} style={local.arrowBtn}>
                     <MaterialIcons name="chevron-right" size={30} color={isDark ? "#fff" : "#333"} />
                 </TouchableOpacity>
@@ -535,6 +542,49 @@ export default function WageReportScreen() {
                     monthReference={monthStr}
                 />
             )}
+
+            <CustomModal
+                visible={showMonthPicker}
+                onClose={() => setShowMonthPicker(false)}
+                title="Select Month"
+                actions={[
+                    { text: "Cancel", onPress: () => setShowMonthPicker(false), style: "cancel" }
+                ]}
+            >
+                <View style={{ alignItems: 'center', padding: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                        <TouchableOpacity onPress={() => setPickerYear(y => y - 1)} style={{ padding: 10 }}>
+                            <MaterialIcons name="chevron-left" size={30} color={isDark ? "#fff" : "#333"} />
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? "#fff" : "#333", marginHorizontal: 30 }}>{pickerYear}</Text>
+                        <TouchableOpacity onPress={() => setPickerYear(y => y + 1)} style={{ padding: 10 }}>
+                            <MaterialIcons name="chevron-right" size={30} color={isDark ? "#fff" : "#333"} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
+                        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => {
+                            const isSelected = date.getMonth() === i && date.getFullYear() === pickerYear;
+                            return (
+                                <TouchableOpacity 
+                                    key={m}
+                                    style={{ 
+                                        paddingVertical: 12, width: '28%', alignItems: 'center',
+                                        backgroundColor: isSelected ? '#0a84ff' : (isDark ? '#333' : '#eee'),
+                                        borderRadius: 8
+                                    }}
+                                    onPress={() => {
+                                        const newDate = new Date(pickerYear, i, 1);
+                                        setDate(newDate);
+                                        setShowMonthPicker(false);
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : (isDark ? '#fff' : '#333'), fontWeight: isSelected ? 'bold' : '500' }}>{m}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+            </CustomModal>
         </View>
     );
 }

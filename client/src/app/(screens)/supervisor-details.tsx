@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { CustomModal, ModalType } from "../../components/CustomModal";
 
 export default function SupervisorDetailsScreen() {
     const router = useRouter();
@@ -24,18 +25,42 @@ export default function SupervisorDetailsScreen() {
     const [id] = useState(params.id);
     const [name, setName] = useState(params.name as string || "");
     const [phone, setPhone] = useState(params.phone as string || "");
-
-
-
     const [loading, setLoading] = useState(false);
+
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalConfig, setModalConfig] = useState<{
+        title: string;
+        message: string;
+        type: ModalType;
+        actions: { text: string; onPress: () => void; style?: "cancel" | "destructive" | "default" }[];
+    }>({
+        title: "",
+        message: "",
+        type: "default",
+        actions: [],
+    });
+
+    const showModal = (
+        title: string,
+        message: string,
+        type: ModalType,
+        actions: { text: string; onPress: () => void; style?: "cancel" | "destructive" | "default" }[]
+    ) => {
+        setModalConfig({ title, message, type, actions });
+        setModalVisible(true);
+    };
 
     const handleUpdate = async () => {
         if (!name.trim()) {
-            Alert.alert("Validation Error", "Please enter the supervisor's name.");
+            showModal("Validation Error", "Please enter the supervisor's name.", "error", [
+                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+            ]);
             return;
         }
         if (!phone.trim()) {
-            Alert.alert("Validation Error", "Please enter the phone number.");
+            showModal("Validation Error", "Please enter the phone number.", "error", [
+                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+            ]);
             return;
         }
         setLoading(true);
@@ -49,43 +74,68 @@ export default function SupervisorDetailsScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                Alert.alert("Success", "Supervisor updated successfully!", [
-                    { text: "OK", onPress: () => router.back() },
+                showModal("Success", "Supervisor updated successfully!", "success", [
+                    { 
+                        text: "OK", 
+                        onPress: () => {
+                            setModalVisible(false);
+                            router.back();
+                        },
+                        style: "default"
+                    },
                 ]);
             } else {
-                Alert.alert("Error", data.error || "Failed to update supervisor");
+                showModal("Error", data.error || "Failed to update supervisor", "error", [
+                    { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                ]);
             }
         } catch (error) {
             console.error("Update supervisor error:", error);
-            Alert.alert("Error", "Unable to connect to server");
+            showModal("Error", "Unable to connect to server", "error", [
+                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+            ]);
+        } finally {
             setLoading(false);
         }
     };
 
     const handleDelete = () => {
-        Alert.alert(
+        showModal(
             "Delete Supervisor",
             "Are you sure you want to delete this supervisor? Their access will be revoked immediately and they will be moved to the bin for 7 days.",
+            "warning",
             [
-                { text: "Cancel", style: "cancel" },
+                { text: "Cancel", style: "cancel", onPress: () => setModalVisible(false) },
                 {
                     text: "Delete",
                     style: "destructive",
                     onPress: async () => {
+                        setModalVisible(false);
                         setLoading(true);
                         try {
                             const response = await api.delete(`/auth/supervisors/${id}`);
                             const data = await response.json();
                             if (response.ok) {
-                                Alert.alert("Success", "Supervisor moved to bin successfully!", [
-                                    { text: "OK", onPress: () => router.back() },
+                                showModal("Success", "Supervisor moved to bin successfully!", "success", [
+                                    { 
+                                        text: "OK", 
+                                        onPress: () => {
+                                            setModalVisible(false);
+                                            router.back();
+                                        },
+                                        style: "default"
+                                    },
                                 ]);
                             } else {
-                                Alert.alert("Error", data.error || "Failed to delete supervisor");
+                                showModal("Error", data.error || "Failed to delete supervisor", "error", [
+                                    { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                                ]);
                             }
                         } catch (error) {
                             console.error("Delete supervisor error:", error);
-                            Alert.alert("Error", "Unable to connect to server");
+                            showModal("Error", "Unable to connect to server", "error", [
+                                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                            ]);
                         } finally {
                             setLoading(false);
                         }
@@ -164,6 +214,15 @@ export default function SupervisorDetailsScreen() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            <CustomModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                actions={modalConfig.actions}
+            />
         </KeyboardAvoidingView>
     );
 }

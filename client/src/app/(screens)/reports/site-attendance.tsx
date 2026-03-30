@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -13,6 +12,8 @@ import {
 } from "react-native";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
+import { Calendar } from "../../../components/Calendar";
+import { CustomModal } from "../../../components/CustomModal";
 
 interface SiteReport {
     site_id: number;
@@ -29,7 +30,7 @@ export default function SiteAttendanceReport() {
     const local = getStyles(isDark);
     const [loading, setLoading] = useState(true);
     const [date, setDate] = useState(new Date());
-    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showCalendar, setShowCalendar] = useState(false);
     const [reports, setReports] = useState<SiteReport[]>([]);
 
     const fetchReports = async (selectedDate: Date) => {
@@ -55,8 +56,8 @@ export default function SiteAttendanceReport() {
         fetchReports(date);
     }, [date]);
 
-    const handleDateChange = (event: any, selectedDate?: Date) => {
-        setShowDatePicker(false);
+    const handleDateChange = (selectedDate: Date) => {
+        setShowCalendar(false);
         if (selectedDate) {
             setDate(selectedDate);
         }
@@ -79,18 +80,23 @@ export default function SiteAttendanceReport() {
 
     return (
         <View style={local.container}>
-            <Stack.Screen options={{
-                title: "Site Attendance Report",
-                headerStyle: { backgroundColor: isDark ? "#1e1e1e" : "#fff" },
-                headerTintColor: isDark ? "#fff" : "#000",
-            }} />
+            <Stack.Screen options={{ headerShown: false }} />
+
+            <View style={local.headerRow}>
+                <TouchableOpacity onPress={() => router.back()} style={local.backBtnText}>
+                    <Ionicons name="arrow-back" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                    <Text style={local.backText}>Back</Text>
+                </TouchableOpacity>
+                <Text style={local.headerTitle}>Site Attendance Report</Text>
+                <View style={{ width: 40 }} />
+            </View>
 
             <View style={local.header}>
                 <TouchableOpacity onPress={() => changeDate(-1)} style={local.arrowBtn}>
                     <Ionicons name="chevron-back" size={24} color={isDark ? "#fff" : "#333"} />
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => setShowDatePicker(true)} style={local.dateDisplay}>
+                <TouchableOpacity onPress={() => setShowCalendar(true)} style={local.dateDisplay}>
                     <Ionicons name="calendar-outline" size={20} color={isDark ? "#aaa" : "#555"} style={{ marginRight: 8 }} />
                     <Text style={local.dateText}>{formatDate(date)}</Text>
                 </TouchableOpacity>
@@ -100,14 +106,21 @@ export default function SiteAttendanceReport() {
                 </TouchableOpacity>
             </View>
 
-            {showDatePicker && (
-                <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display="default"
-                    onChange={handleDateChange}
+            <CustomModal
+                visible={showCalendar}
+                onClose={() => setShowCalendar(false)}
+                title="Select Date"
+                actions={[
+                    { text: "Cancel", onPress: () => setShowCalendar(false), style: "cancel" }
+                ]}
+            >
+                <Calendar
+                    selectedDate={date}
+                    onDateSelect={handleDateChange}
+                    markedDates={[]}
+                    onMonthChange={() => {}}
                 />
-            )}
+            </CustomModal>
 
             {loading ? (
                 <ActivityIndicator size="large" color="#eb9834" style={{ marginTop: 40 }} />
@@ -167,6 +180,31 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: isDark ? "#121212" : "#f4f6f8",
+        paddingTop: 40,
+    },
+    headerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        paddingBottom: 15,
+        backgroundColor: isDark ? "#1e1e1e" : "#fff",
+        borderBottomWidth: 1,
+        borderBottomColor: isDark ? "#333" : "#e0e0e0",
+    },
+    backBtnText: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    backText: {
+        color: isDark ? "#4da6ff" : "#0a84ff",
+        fontSize: 16,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: isDark ? "#fff" : "#333",
     },
     header: {
         flexDirection: "row",

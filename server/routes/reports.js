@@ -591,47 +591,85 @@ router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), as
         const reports = [];
 
         for (const labour of labours) {
-            let fullDays = 0;
-            let halfDays = 0;
-            let absentDays = 0;
+            let fullDaysTotal = 0;
+            let halfDaysTotal = 0;
+            let absentDaysTotal = 0;
+            let bonusAmountTotal = 0;
+            let incrementMonthsCount = 0;
+            let bonusMonthsCount = 0;
 
+            const monthlyData = {};
+
+            // Helper to initialize month if not exists
+            const ensureMonth = (month) => {
+                if (!monthlyData[month]) {
+                    monthlyData[month] = { attendance: 0, bonus_amount: 0, has_increment: false };
+                }
+            };
+
+            // 1. Attendance
             const attRecs = await db.all(
-                `SELECT status FROM attendance WHERE labour_id = ? AND date >= ? AND date <= ?`,
+                `SELECT status, strftime('%Y-%m', date) as month FROM attendance WHERE labour_id = ? AND date >= ? AND date <= ?`,
                 [labour.id, startDate, endDate]
             );
 
             attRecs.forEach(rec => {
-                if (rec.status === 'full') fullDays++;
-                else if (rec.status === 'half') halfDays++;
-                else if (rec.status === 'absent') absentDays++;
+                if (!rec.month) return;
+                ensureMonth(rec.month);
+                if (rec.status === 'full') {
+                    monthlyData[rec.month].attendance += 1;
+                    fullDaysTotal++;
+                } else if (rec.status === 'half') {
+                    monthlyData[rec.month].attendance += 0.5;
+                    halfDaysTotal++;
+                } else if (rec.status === 'absent') {
+                    absentDaysTotal++;
+                }
             });
 
-            const bonusRes = await db.get(
-                `SELECT SUM(amount) as total FROM bonus_payments WHERE labour_id = ? AND date >= ? AND date <= ?`,
+            // 2. Bonus
+            const bonusRecs = await db.all(
+                `SELECT amount, strftime('%Y-%m', date) as month FROM bonus_payments WHERE labour_id = ? AND date >= ? AND date <= ?`,
                 [labour.id, startDate, endDate]
             );
-            const bonusAmount = bonusRes && bonusRes.total ? bonusRes.total : 0;
 
+            bonusRecs.forEach(rec => {
+                if (!rec.month) return;
+                ensureMonth(rec.month);
+                monthlyData[rec.month].bonus_amount += rec.amount;
+                bonusAmountTotal += rec.amount;
+            });
+
+            // Rough tracking of how many unique months got a bonus
+            bonusMonthsCount = new Set(bonusRecs.filter(r => r.amount > 0).map(r => r.month)).size;
+
+            // 3. Salary History
             const salaryHistoryRecs = await db.all(
-                `SELECT * FROM salary_history WHERE labour_id = ? AND date >= ? AND date <= ? ORDER BY date ASC`,
+                `SELECT strftime('%Y-%m', date) as month FROM salary_history WHERE labour_id = ? AND date >= ? AND date <= ?`,
                 [labour.id, startDate, endDate]
             );
 
-            const salary_increased = salaryHistoryRecs.length > 0;
-            const new_rate_details = salary_increased ? salaryHistoryRecs[salaryHistoryRecs.length - 1].new_rate : null;
+            salaryHistoryRecs.forEach(rec => {
+                if (!rec.month) return;
+                ensureMonth(rec.month);
+                monthlyData[rec.month].has_increment = true;
+            });
+            
+            incrementMonthsCount = new Set(salaryHistoryRecs.map(r => r.month)).size;
 
             reports.push({
                 id: labour.id,
                 name: labour.name,
                 rate: labour.rate,
                 site_id: labour.site_id,
-                total_working_days: fullDays + halfDays,
-                full_days: fullDays,
-                half_days: halfDays,
-                absent_days: absentDays,
-                bonus_amount: bonusAmount,
-                salary_increased: salary_increased,
-                new_rate_details: new_rate_details
+                total_working_days: fullDaysTotal + (halfDaysTotal * 0.5),
+                full_days: fullDaysTotal,
+                half_days: halfDaysTotal,
+                absent_days: absentDaysTotal,
+                total_bonus: bonusAmountTotal,
+                total_bonus_months: bonusMonthsCount,
+                total_increment_months: incrementMonthsCount,
+                monthly_data: monthlyData
             });
         }
 
