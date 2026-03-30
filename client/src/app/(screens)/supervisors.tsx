@@ -39,6 +39,7 @@ export default function SupervisorsScreen() {
             if (response.ok) {
                 setSupervisors(data);
             } else {
+                console.error("Fetch supervisors failed:", data);
                 Alert.alert("Error", data.error || "Failed to fetch supervisors");
             }
         } catch (error) {
