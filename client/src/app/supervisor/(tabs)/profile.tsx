@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Image } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "../../../constants";
 import { useTheme } from "../../../context/ThemeContext";
@@ -93,33 +93,37 @@ export default function SupervisorProfile() {
             setIsChangingPassword(false);
         }
     };
-    const handleLogout = async () => {
-        Alert.alert("Confirm Logout", "Are you sure you want to logout?", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Logout",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        const refreshToken = await AsyncStorage.getItem("refreshToken");
-                        if (refreshToken) {
-                            await fetch(`${API_URL}/auth/logout`, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify({ refreshToken }),
-                            });
-                        }
-                    } catch (error) {
-                        console.error("Logout error:", error);
-                    } finally {
-                        await AsyncStorage.clear();
-                        router.replace("/auth/authentication2" as any);
-                    }
-                },
-            },
-        ]);
+    const handleLogout = () => {
+        const doLogout = async () => {
+            try {
+                const refreshToken = await AsyncStorage.getItem("refreshToken");
+                if (refreshToken) {
+                    await fetch(`${API_URL}/auth/logout`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ refreshToken }),
+                    });
+                }
+            } catch (error) {
+                console.error("Logout error:", error);
+            } finally {
+                await AsyncStorage.clear();
+                router.replace("/auth/authentication2" as any);
+            }
+        };
+
+        if (Platform.OS === "web") {
+            if (window.confirm("Are you sure you want to logout?")) {
+                doLogout();
+            }
+        } else {
+            Alert.alert("Confirm Logout", "Are you sure you want to logout?", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Logout", style: "destructive", onPress: doLogout },
+            ]);
+        }
     };
 
     const localStyles = getStyles(isDark);

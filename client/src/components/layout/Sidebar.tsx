@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePathname, useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { theme } from "../../app/style/theme";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -68,7 +69,35 @@ export function Sidebar({
 			<View style={styles.footer}>
 				<TouchableOpacity
 					style={styles.menuItem}
-					onPress={() => router.replace("/auth/authentication2" as any)} // Assuming this logs out or goes to auth
+					onPress={() => {
+						const doLogout = async () => {
+							try {
+								const refreshToken = await AsyncStorage.getItem("refreshToken");
+								if (refreshToken) {
+									await fetch(`${require('../../constants').API_URL}/auth/logout`, {
+										method: "POST",
+										headers: { "Content-Type": "application/json" },
+										body: JSON.stringify({ refreshToken }),
+									});
+								}
+							} catch (e) {
+								console.error("Sidebar logout error:", e);
+							} finally {
+								await AsyncStorage.clear();
+								router.replace("/auth/authentication2" as any);
+							}
+						};
+						if (Platform.OS === "web") {
+							if (window.confirm("Are you sure you want to logout?")) {
+								doLogout();
+							}
+						} else {
+							Alert.alert("Confirm Logout", "Are you sure you want to logout?", [
+								{ text: "Cancel", style: "cancel" },
+								{ text: "Logout", style: "destructive", onPress: doLogout },
+							]);
+						}
+					}}
 				>
 					<Ionicons name="log-out-outline" size={22} color={localColors.error} />
 					<Text style={[styles.menuText, { color: localColors.error }]}>Logout</Text>

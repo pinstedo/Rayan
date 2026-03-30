@@ -291,7 +291,7 @@ router.get('/supervisors', authenticateToken, async (req, res) => {
         const db = await openDb();
 
         // Automatic cleanup: permanently delete supervisors in bin for > 7 days
-        await db.run(`DELETE FROM users WHERE role = 'supervisor' AND is_deleted = true AND deleted_at < NOW() - INTERVAL '7 days'`);
+        await db.run(`DELETE FROM users WHERE role = 'supervisor' AND is_deleted = 1 AND deleted_at < datetime('now', '-7 days')`);
 
         const supervisors = await db.all(`SELECT id, name, phone FROM users WHERE role = 'supervisor' AND is_deleted = false`);
         res.json(supervisors);
@@ -337,7 +337,7 @@ router.put('/supervisors/:id', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "supervisor"', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
 
         if (!existing) {
             return res.status(404).json({ error: 'Supervisor not found' });
@@ -374,7 +374,7 @@ router.delete('/supervisors/:id', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "supervisor"', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Supervisor not found' });
         }
@@ -414,7 +414,7 @@ router.put('/supervisors/:id/change-password', authenticateToken, async (req, re
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "supervisor"', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
 
         if (!existing) {
             return res.status(404).json({ error: 'Supervisor not found' });
@@ -455,7 +455,7 @@ router.put('/supervisors/:id/restore', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "supervisor" AND is_deleted = true', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor' AND is_deleted = 1`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Deleted supervisor not found' });
         }
@@ -476,7 +476,7 @@ router.delete('/supervisors/:id/permanent', authenticateToken, async (req, res) 
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "supervisor" AND is_deleted = true', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor' AND is_deleted = 1`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Deleted supervisor not found' });
         }
@@ -512,7 +512,7 @@ router.put('/admins/:id/approve', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "admin" AND status = "pending"', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin' AND status = 'pending'`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Pending admin request not found' });
         }
@@ -533,7 +533,7 @@ router.put('/admins/:id/reject', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const existing = await db.get('SELECT * FROM users WHERE id = ? AND role = "admin" AND status = "pending"', [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin' AND status = 'pending'`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Pending admin request not found' });
         }
