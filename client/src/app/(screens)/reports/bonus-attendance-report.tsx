@@ -142,7 +142,24 @@ export default function BonusAttendanceReportScreen() {
             </html>
             `;
 
-            await Print.printAsync({ html });
+            if (Platform.OS === 'web') {
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                iframe.contentDocument?.write(html);
+                iframe.contentDocument?.close();
+                iframe.contentWindow?.focus();
+                
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                    setTimeout(() => {
+                        document.body.removeChild(iframe);
+                    }, 1000);
+                }, 250);
+            } else {
+                await Print.printAsync({ html });
+            }
 
         } catch (error: any) {
             if (error.message?.includes("not complete") || error.message?.includes("cancel")) {

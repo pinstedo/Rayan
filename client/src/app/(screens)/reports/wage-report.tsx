@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text,
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
+import { Platform } from 'react-native';
 
 export default function WageReportScreen() {
     const router = useRouter();
@@ -178,7 +179,24 @@ export default function WageReportScreen() {
             </html>
             `;
 
-            await Print.printAsync({ html });
+            if (Platform.OS === 'web') {
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                iframe.contentDocument?.write(html);
+                iframe.contentDocument?.close();
+                iframe.contentWindow?.focus();
+                
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                    setTimeout(() => {
+                        document.body.removeChild(iframe);
+                    }, 1000);
+                }, 250);
+            } else {
+                await Print.printAsync({ html });
+            }
 
         } catch (error: any) {
             if (error.message?.includes("not complete") || error.message?.includes("cancel")) {
@@ -352,7 +370,24 @@ export default function WageReportScreen() {
             </html>
             `;
 
-            await Print.printAsync({ html });
+            if (Platform.OS === 'web') {
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                iframe.contentDocument?.write(html);
+                iframe.contentDocument?.close();
+                iframe.contentWindow?.focus();
+                
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                    setTimeout(() => {
+                        document.body.removeChild(iframe);
+                    }, 1000);
+                }, 250);
+            } else {
+                await Print.printAsync({ html });
+            }
 
         } catch (error: any) {
             if (error.message?.includes("not complete") || error.message?.includes("cancel")) {

@@ -170,8 +170,8 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             const isAdmin = req.user && req.user.role === 'admin';
             const isToday = reqDateLocal.getTime() === currentDate.getTime();
 
-            if (!(isAdmin && isToday)) {
-                return res.status(403).json({ error: 'Attendance for this date is locked and cannot be modified.' });
+            if (!isAdmin) {
+                return res.status(403).json({ error: 'Attendance for this date is locked and cannot be modified by supervisors.' });
             }
         }
 

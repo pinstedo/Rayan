@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React from 'react';
+import * as React from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from "../context/ThemeContext";
 
@@ -72,7 +72,16 @@ export const CustomModal: React.FC<CustomModalProps> = ({
                     activeOpacity={1}
                     onPress={onClose}
                 >
-                    <View style={styles.content} onStartShouldSetResponder={() => true}>
+                    <View 
+                        style={styles.content} 
+                        onStartShouldSetResponder={() => true}
+                        // @ts-ignore
+                        onClick={(e: any) => {
+                            if (e && e.stopPropagation) {
+                                e.stopPropagation();
+                            }
+                        }}
+                    >
                         {type !== 'default' && (
                             <View style={styles.iconContainer}>
                                 <MaterialIcons name={getIconName() as any} size={48} color={getIconColor()} />

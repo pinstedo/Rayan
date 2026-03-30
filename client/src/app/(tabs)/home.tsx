@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
 	Image,
 	Platform,
@@ -206,15 +206,15 @@ export default function HomeScreen() {
 		},
 	];
 
-	React.useEffect(() => {
+	useEffect(() => {
 		if (newActivity) {
 			const entry = `${newActivity} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-			setRecent((r) => [entry, ...r]);
+			setRecent((r: string[]) => [entry, ...r]);
 			router.replace("/home");
 		}
 	}, [newActivity, router]);
 
-	const filteredRecent = recent.filter((r) =>
+	const filteredRecent = recent.filter((r: string) =>
 		r.toLowerCase().includes(query.trim().toLowerCase())
 	);
 
@@ -319,7 +319,7 @@ export default function HomeScreen() {
 								<Text style={local.emptyText}>No recent activity</Text>
 							</View>
 						) : (
-							filteredRecent.map((r, i) => {
+							filteredRecent.map((r: string, i: number) => {
 								const parts = r.split(' • ');
 								const actionText = parts[0] || r;
 								const timeText = parts.length > 1 ? parts[1] : '';
@@ -391,7 +391,7 @@ export default function HomeScreen() {
 									complaints.length === 0 ? (
 										<Text style={{ textAlign: 'center', color: isDark ? '#aaa' : '#666', marginTop: 20, marginBottom: 20 }}>No issues found.</Text>
 									) : (
-										complaints.map((c, index) => (
+										complaints.map((c: any, index: number) => (
 											<View key={c.id || index} style={{
 												padding: 12, marginBottom: 12, borderRadius: 8,
 												backgroundColor: isDark ? '#2a2a2a' : '#f9f9f9',
@@ -422,7 +422,7 @@ export default function HomeScreen() {
 									pendingLabours.length === 0 ? (
 										<Text style={{ textAlign: 'center', color: isDark ? '#aaa' : '#666', marginTop: 20, marginBottom: 20 }}>No pending approvals.</Text>
 									) : (
-										pendingLabours.map((l, index) => (
+										pendingLabours.map((l: any, index: number) => (
 											<View key={l.id || index} style={{
 												padding: 12, marginBottom: 12, borderRadius: 8,
 												backgroundColor: isDark ? '#2a2a2a' : '#f9f9f9',
@@ -466,7 +466,7 @@ export default function HomeScreen() {
 									recent.length === 0 ? (
 										<Text style={{ textAlign: 'center', color: isDark ? '#aaa' : '#666', marginTop: 20, marginBottom: 20 }}>No recent activity.</Text>
 									) : (
-										recent.map((r, i) => {
+										recent.map((r: string, i: number) => {
 											const parts = r.split(' • ');
 											const actionText = parts[0] || r;
 											const timeText = parts.length > 1 ? parts[1] : '';
@@ -488,7 +488,7 @@ export default function HomeScreen() {
 								)}
 							</ScrollView>
 
-							{notificationTab === 'complaints' && complaints.some(c => c.status === 'unread') && (
+							{notificationTab === 'complaints' && complaints.some((c: any) => c.status === 'unread') && (
 								<TouchableOpacity
 									onPress={handleClearNotifications}
 									style={{

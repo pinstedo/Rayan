@@ -14,6 +14,7 @@ interface Labour {
 	name: string;
 	role: string;
 	site?: string;
+	rate?: number;
 }
 
 export default function AttendanceScreen() {
@@ -23,6 +24,7 @@ export default function AttendanceScreen() {
 	const { siteId, siteName, dateStr } = useLocalSearchParams();
 	const [labours, setLabours] = useState<Labour[]>([]);
 	const [attendance, setAttendance] = useState<Map<number, 'full' | 'half' | 'absent'>>(new Map());
+	const [overtimeData, setOvertimeData] = useState<Map<number, number>>(new Map());
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [date, setDate] = useState(dateStr && typeof dateStr === 'string' ? new Date(dateStr) : new Date());
@@ -55,7 +57,7 @@ export default function AttendanceScreen() {
 
 	const isGlobalView = !siteId;
 	const isToday = date.toDateString() === new Date().toDateString();
-	const canEdit = !isGlobalView && (!locked || (isAdmin && isToday));
+	const canEdit = !isGlobalView && (!locked || isAdmin);
 
 	useEffect(() => {
 		const checkAdmin = async () => {
@@ -82,6 +84,7 @@ export default function AttendanceScreen() {
 		// If global view, we need to refetch attendance when date changes
 		// For site view, fetchLabours calls fetchExistingAttendance initially, but date change should also trigger it
 		fetchExistingAttendance();
+		fetchExistingOvertime();
 	}, [date]);
 
 	const fetchLabours = async (isRefresh = false) => {
@@ -172,12 +175,44 @@ export default function AttendanceScreen() {
 		}
 	};
 
+	const fetchExistingOvertime = async () => {
+		try {
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			const dateStr = `${year}-${month}-${day}`;
+
+			let url = `${API_URL}/overtime?date=${dateStr}`;
+			if (siteId) {
+				url += `&site_id=${siteId}`;
+			}
+
+			const response = await api.fetch(url);
+			const data = await response.json();
+
+			if (response.ok && Array.isArray(data)) {
+				const newOvertime = new Map();
+				data.forEach((record: any) => {
+					// Backend might return float for hours
+					newOvertime.set(record.labour_id, typeof record.hours === 'number' ? record.hours : parseFloat(record.hours) || 0);
+				});
+				setOvertimeData(newOvertime);
+			} else {
+				setOvertimeData(new Map());
+			}
+		} catch (error) {
+			console.error("Fetch existing overtime error", error);
+			setOvertimeData(new Map());
+		}
+	};
+
 	const onRefresh = async () => {
 		setRefreshing(true);
 		try {
 			await Promise.all([
 				fetchLabours(true),
 				fetchExistingAttendance(),
+				fetchExistingOvertime(),
 				!isGlobalView ? fetchLockStatus() : Promise.resolve()
 			]);
 		} finally {
@@ -186,11 +221,23 @@ export default function AttendanceScreen() {
 	};
 
 	const handleStatusChange = (labourId: number, status: 'full' | 'half' | 'absent') => {
-		if (isGlobalView) return; // Read-only in global view
+		if (isGlobalView || !canEdit) return; // Read-only in global view or if locked
 
 		setAttendance(prev => {
 			const newMap = new Map(prev);
 			newMap.set(labourId, status);
+			return newMap;
+		});
+	};
+
+	const handleOvertimeChange = (labourId: number, delta: number) => {
+		if (isGlobalView || !canEdit) return;
+
+		setOvertimeData(prev => {
+			const newMap = new Map(prev);
+			const current = newMap.get(labourId) || 0;
+			const newValue = Math.max(0, current + delta);
+			newMap.set(labourId, newValue);
 			return newMap;
 		});
 	};
@@ -227,8 +274,29 @@ export default function AttendanceScreen() {
 
 			const response = await api.post("/attendance", { records, food_provided: foodProvided });
 
+			// If attendance submit succeeds, also submit overtime
 			if (response.ok) {
-				showModal("Success", "Attendance marked successfully", 'success', [
+				const overtimeRecords: any[] = [];
+				for (const [labourId, hours] of overtimeData.entries()) {
+					if (hours >= 0) { // Send 0 to allow clearing
+						const labour = labours.find(l => l.id === labourId);
+						const rate = labour?.rate || 0;
+						overtimeRecords.push({
+							labour_id: labourId,
+							site_id: siteId,
+							date: dateStr,
+							hours: hours,
+							amount: hours * rate,
+							created_by: userData.id
+						});
+					}
+				}
+
+				if (overtimeRecords.length > 0) {
+					await api.post("/overtime", overtimeRecords);
+				}
+
+				showModal("Success", "Attendance and Overtime marked successfully", 'success', [
 					{
 						text: "OK", onPress: () => {
 							setModalConfig(prev => ({ ...prev, visible: false }));
@@ -299,6 +367,29 @@ export default function AttendanceScreen() {
 						<Text style={[local.statusText, status === 'absent' && local.statusTextActive]}>Absent</Text>
 					</Pressable>
 				</View>
+
+				<View style={local.overtimeContainer}>
+					<Text style={local.overtimeLabel}>OT Hours:</Text>
+					<View style={local.overtimeControls}>
+						<Pressable 
+							style={[local.otBtn, itemLocked && local.otBtnDisabled]} 
+							onPress={() => handleOvertimeChange(item.id, -0.5)}
+							disabled={itemLocked || (overtimeData.get(item.id) || 0) <= 0}
+						>
+							<MaterialIcons name="remove" size={18} color={isDark ? "#fff" : "#333"} />
+						</Pressable>
+						<Text style={[local.otValue, itemLocked && local.otValueDisabled]}>
+							{overtimeData.get(item.id) || 0}
+						</Text>
+						<Pressable 
+							style={[local.otBtn, itemLocked && local.otBtnDisabled]} 
+							onPress={() => handleOvertimeChange(item.id, 0.5)}
+							disabled={itemLocked}
+						>
+							<MaterialIcons name="add" size={18} color={isDark ? "#fff" : "#333"} />
+						</Pressable>
+					</View>
+				</View>
 			</View>
 		);
 	};
@@ -312,15 +403,25 @@ export default function AttendanceScreen() {
 	const ListHeader = () => (
 		<View style={local.subHeader}>
 			{isGlobalView ? (
-				<View style={local.filterContainer}>
-					<Text style={local.filterLabel}>Filter:</Text>
-					<Pressable onPress={() => setFilter(f => {
-						if (f === 'all') return 'full';
-						if (f === 'full') return 'half';
-						if (f === 'half') return 'absent';
-						return 'all';
-					})} style={local.filterBtn}>
-						<Text style={local.filterText}>{filter.toUpperCase()}</Text>
+				<View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+					<View style={local.filterContainer}>
+						<Text style={local.filterLabel}>Filter:</Text>
+						<Pressable onPress={() => setFilter(f => {
+							if (f === 'all') return 'full';
+							if (f === 'full') return 'half';
+							if (f === 'half') return 'absent';
+							return 'all';
+						})} style={local.filterBtn}>
+							<Text style={local.filterText}>{filter.toUpperCase()}</Text>
+						</Pressable>
+					</View>
+
+					<Pressable
+						style={local.dateSelector}
+						onPress={() => setShowCalendar(true)}
+					>
+						<MaterialIcons name="calendar-today" size={20} color={isDark ? "#64b5f6" : "#0a84ff"} />
+						<Text style={local.dateSelectorText}>{date.toLocaleDateString()}</Text>
 					</Pressable>
 				</View>
 			) : (
@@ -354,9 +455,10 @@ export default function AttendanceScreen() {
 
 	return (
 		<View style={local.container}>
-			<View style={local.header}>
-				<Pressable onPress={() => router.back()} style={local.backBtn}>
-					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#333"} />
+			<View style={local.headerRow}>
+				<Pressable onPress={() => router.back()} style={local.backBtnText}>
+					<MaterialIcons name="arrow-back" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
+					<Text style={local.backText}>Back</Text>
 				</Pressable>
 				<Text style={local.headerTitle}>{isGlobalView ? "All Attendance" : "Mark Attendance"}</Text>
 				<View style={{ width: 24 }} />
@@ -426,17 +528,26 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		flex: 1,
 		backgroundColor: isDark ? "#121212" : "#f5f5f5",
 	},
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		padding: 16,
-		backgroundColor: isDark ? "#1e1e1e" : "#fff",
-		elevation: 2,
+	headerRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingHorizontal: 20,
+		paddingVertical: 15,
+		paddingBottom: 15,
+		backgroundColor: isDark ? '#1e1e1e' : '#fff',
+		borderBottomWidth: 1,
+		borderBottomColor: isDark ? '#333' : '#eee',
 		marginTop: 20
 	},
-	backBtn: {
-		padding: 4,
+	backBtnText: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4
+	},
+	backText: {
+		color: isDark ? '#4da6ff' : '#0a84ff',
+		fontSize: 16
 	},
 	headerTitle: {
 		fontSize: 18,
@@ -591,5 +702,46 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		color: isDark ? "#fff" : '#333',
 		flex: 1,
 		marginRight: 8,
+	},
+	overtimeContainer: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginTop: 12,
+		paddingTop: 12,
+		borderTopWidth: 1,
+		borderTopColor: isDark ? "#333" : "#eee",
+	},
+	overtimeLabel: {
+		fontSize: 14,
+		fontWeight: "500",
+		color: isDark ? "#aaa" : "#666",
+	},
+	overtimeControls: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 12,
+		backgroundColor: isDark ? "#2a2a2a" : "#f0f0f0",
+		borderRadius: 8,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+	},
+	otBtn: {
+		padding: 4,
+		backgroundColor: isDark ? "#444" : "#e0e0e0",
+		borderRadius: 4,
+	},
+	otBtnDisabled: {
+		opacity: 0.5,
+	},
+	otValue: {
+		fontSize: 16,
+		fontWeight: "bold",
+		color: isDark ? "#fff" : "#333",
+		minWidth: 24,
+		textAlign: "center",
+	},
+	otValueDisabled: {
+		color: isDark ? "#666" : "#aaa",
 	}
 });
