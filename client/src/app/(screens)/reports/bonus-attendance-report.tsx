@@ -33,6 +33,10 @@ export default function BonusAttendanceReportScreen() {
     const [endDate, setEndDate] = useState(formatDateStr(today));
     const [showCalendar, setShowCalendar] = useState<'start' | 'end' | null>(null);
 
+    const isValidDate = (d: string) => {
+        return /^\d{4}-\d{2}-\d{2}$/.test(d);
+    };
+
     // Dynamic Months calculation
     const getMonthsList = () => {
         if (!isValidDate(startDate) || !isValidDate(endDate)) return [];
@@ -65,10 +69,6 @@ export default function BonusAttendanceReportScreen() {
             fetchReport();
         }
     }, [startDate, endDate]);
-
-    const isValidDate = (d: string) => {
-        return /^\d{4}-\d{2}-\d{2}$/.test(d);
-    };
 
     const fetchReport = async (isRefresh = false) => {
         if (!isValidDate(startDate) || !isValidDate(endDate)) return;
