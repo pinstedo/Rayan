@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, Modal } from 'react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api';
-import { Calendar } from '../../../components/Calendar';
+import { CustomModal } from '../../../components/CustomModal';
 
 export default function BonusAttendanceReportScreen() {
     const router = useRouter();
@@ -31,7 +31,8 @@ export default function BonusAttendanceReportScreen() {
 
     const [startDate, setStartDate] = useState(formatDateStr(firstDay));
     const [endDate, setEndDate] = useState(formatDateStr(today));
-    const [showCalendar, setShowCalendar] = useState<'start' | 'end' | null>(null);
+    const [showMonthPicker, setShowMonthPicker] = useState<'start' | 'end' | null>(null);
+    const [pickerYear, setPickerYear] = useState(today.getFullYear());
 
     const isValidDate = (d: string) => {
         return /^\d{4}-\d{2}-\d{2}$/.test(d);
@@ -154,7 +155,7 @@ export default function BonusAttendanceReportScreen() {
                 let rowHtml = `<tr><td class="text-left">${escapeHtml(item.name)}</td>`;
                 
                 monthsList.forEach(m => {
-                    const mData = item.monthly_data[m];
+                    const mData = item.monthly_data?.[m];
                     const att = mData ? mData.attendance : 0;
                     const style = getCellColorPDF(mData);
                     rowHtml += `<td style="${style}">${att > 0 ? att : ''}</td>`;
@@ -253,21 +254,25 @@ export default function BonusAttendanceReportScreen() {
 
             <View style={local.controls}>
                 <View style={local.dateInputContainer}>
-                    <Text style={local.dateLabel}>Start Date</Text>
+                    <Text style={local.dateLabel}>Start Month</Text>
                     <TouchableOpacity
                         style={local.dateInput}
-                        onPress={() => setShowCalendar('start')}
+                        onPress={() => { setPickerYear(new Date(startDate).getFullYear()); setShowMonthPicker('start'); }}
                     >
-                        <Text style={{color: isDark ? '#fff' : '#000', textAlign: 'center'}}>{startDate}</Text>
+                        <Text style={{color: isDark ? '#fff' : '#000', textAlign: 'center'}}>
+                            {new Date(startDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        </Text>
                     </TouchableOpacity>
                 </View>
                 <View style={local.dateInputContainer}>
-                    <Text style={local.dateLabel}>End Date</Text>
+                    <Text style={local.dateLabel}>End Month</Text>
                     <TouchableOpacity
                         style={local.dateInput}
-                        onPress={() => setShowCalendar('end')}
+                        onPress={() => { setPickerYear(new Date(endDate).getFullYear()); setShowMonthPicker('end'); }}
                     >
-                        <Text style={{color: isDark ? '#fff' : '#000', textAlign: 'center'}}>{endDate}</Text>
+                        <Text style={{color: isDark ? '#fff' : '#000', textAlign: 'center'}}>
+                            {new Date(endDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -348,26 +353,55 @@ export default function BonusAttendanceReportScreen() {
                 </View>
             )}
 
-            <Modal visible={!!showCalendar} transparent={true} animationType="fade">
-                <View style={local.modalOverlay}>
-                    <View style={local.modalContainer}>
-                        <Calendar 
-                            selectedDate={showCalendar === 'start' ? new Date(startDate) : showCalendar === 'end' ? new Date(endDate) : new Date()}
-                            onDateSelect={(date) => {
-                                const dateStr = formatDateStr(date);
-                                if (showCalendar === 'start') setStartDate(dateStr);
-                                else if (showCalendar === 'end') setEndDate(dateStr);
-                                setShowCalendar(null);
-                            }}
-                            markedDates={[]}
-                            onMonthChange={() => {}}
-                        />
-                        <TouchableOpacity style={local.closeBtn} onPress={() => setShowCalendar(null)}>
-                            <Text style={local.btnText}>Close</Text>
+            <CustomModal
+                visible={!!showMonthPicker}
+                onClose={() => setShowMonthPicker(null)}
+                title={showMonthPicker === 'start' ? "Select Start Month" : "Select End Month"}
+                actions={[
+                    { text: "Cancel", onPress: () => setShowMonthPicker(null), style: "cancel" }
+                ]}
+            >
+                <View style={{ alignItems: 'center', padding: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                        <TouchableOpacity onPress={() => setPickerYear(y => y - 1)} style={{ padding: 10 }}>
+                            <MaterialIcons name="chevron-left" size={30} color={isDark ? "#fff" : "#333"} />
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? "#fff" : "#333", marginHorizontal: 30 }}>{pickerYear}</Text>
+                        <TouchableOpacity onPress={() => setPickerYear(y => y + 1)} style={{ padding: 10 }}>
+                            <MaterialIcons name="chevron-right" size={30} color={isDark ? "#fff" : "#333"} />
                         </TouchableOpacity>
                     </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
+                        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => {
+                            const isSelected = showMonthPicker === 'start' 
+                                ? new Date(startDate).getMonth() === i && new Date(startDate).getFullYear() === pickerYear
+                                : new Date(endDate).getMonth() === i && new Date(endDate).getFullYear() === pickerYear;
+                            return (
+                                <TouchableOpacity 
+                                    key={m}
+                                    style={{ 
+                                        paddingVertical: 12, width: '28%', alignItems: 'center',
+                                        backgroundColor: isSelected ? '#0a84ff' : (isDark ? '#333' : '#eee'),
+                                        borderRadius: 8
+                                    }}
+                                    onPress={() => {
+                                        if (showMonthPicker === 'start') {
+                                            const d = new Date(pickerYear, i, 1);
+                                            setStartDate(formatDateStr(d));
+                                        } else {
+                                            const d = new Date(pickerYear, i + 1, 0); // Last day
+                                            setEndDate(formatDateStr(d));
+                                        }
+                                        setShowMonthPicker(null);
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : (isDark ? '#fff' : '#333'), fontWeight: isSelected ? 'bold' : '500' }}>{m}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
                 </View>
-            </Modal>
+            </CustomModal>
         </View>
     );
 }

@@ -279,7 +279,7 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
 });
 
 // Add Bonus
-router.post('/:id/bonus', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/:id/bonus', authorizeRole(['admin']), async (req, res) => {
     const { amount, date, notes } = req.body;
     const labour_id = req.params.id;
 
@@ -297,6 +297,42 @@ router.post('/:id/bonus', authorizeRole(['admin', 'supervisor']), async (req, re
 
         const newBonus = await db.get('SELECT * FROM bonus_payments WHERE id = ?', [result.lastID]);
         res.status(201).json(newBonus);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Record Wage Increment
+router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
+    const { new_rate, date } = req.body;
+    const labour_id = req.params.id;
+
+    if (!new_rate || isNaN(parseFloat(new_rate))) {
+        return res.status(400).json({ error: 'Valid rate is required' });
+    }
+    const incrementDate = date || new Date().toISOString().split('T')[0];
+
+    try {
+        const db = await openDb();
+        const currentLabour = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
+        if (!currentLabour) {
+            return res.status(404).json({ error: 'Labour not found' });
+        }
+
+        if (parseFloat(new_rate) !== currentLabour.rate) {
+            await db.run(
+                `INSERT INTO salary_history (labour_id, previous_rate, new_rate, date, created_by) VALUES (?, ?, ?, ?, ?)`,
+                [labour_id, currentLabour.rate || 0, parseFloat(new_rate), incrementDate, req.user ? req.user.id : null]
+            );
+
+            await db.run(
+                `UPDATE labours SET rate = ? WHERE id = ?`,
+                [parseFloat(new_rate), labour_id]
+            );
+        }
+
+        const updated = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
+        res.status(201).json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

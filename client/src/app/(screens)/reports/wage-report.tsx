@@ -2,7 +2,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { CustomModal } from '../../../components/CustomModal';
 import { useTheme } from '../../../context/ThemeContext';
@@ -18,6 +19,20 @@ export default function WageReportScreen() {
     const [reportData, setReportData] = useState<any[]>([]);
 
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [userRole, setUserRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadUserRole = async () => {
+            const userData = await AsyncStorage.getItem("userData");
+            if (userData) {
+                try {
+                    const parsed = JSON.parse(userData);
+                    setUserRole(parsed.role);
+                } catch (e) { }
+            }
+        };
+        loadUserRole();
+    }, []);
 
     // Month Picker state
     const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -26,6 +41,12 @@ export default function WageReportScreen() {
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLabour, setSelectedLabour] = useState<any>(null);
+
+    const [showBonusModal, setShowBonusModal] = useState<any>(null);
+    const [showIncrementModal, setShowIncrementModal] = useState<any>(null);
+    const [amountStr, setAmountStr] = useState('');
+    const [notesStr, setNotesStr] = useState('');
+    const [dateStr, setDateStr] = useState(new Date().toISOString().split('T')[0]);
 
     // Month Selection
     const [date, setDate] = useState(new Date());
@@ -67,6 +88,47 @@ export default function WageReportScreen() {
         const newDate = new Date(date);
         newDate.setMonth(newDate.getMonth() + delta);
         setDate(newDate);
+    };
+
+    const handleAddBonus = async () => {
+        if (!showBonusModal || !amountStr) return;
+        try {
+            const res = await api.post(`/labours/${showBonusModal.id}/bonus`, {
+                amount: parseFloat(amountStr),
+                date: dateStr,
+                notes: notesStr
+            });
+            if (res.ok) {
+                 Alert.alert("Success", "Bonus recorded");
+                 setShowBonusModal(null);
+                 fetchReport();
+            } else {
+                 const d = await res.json();
+                 Alert.alert("Error", d.error || "Failed");
+            }
+        } catch (e) {
+             Alert.alert("Error", "Network error");
+        }
+    };
+
+    const handleUpdateWage = async () => {
+        if (!showIncrementModal || !amountStr) return;
+        try {
+            const res = await api.post(`/labours/${showIncrementModal.id}/increment`, {
+                new_rate: parseFloat(amountStr),
+                date: dateStr
+            });
+            if (res.ok) {
+                 Alert.alert("Success", "Wage Updated");
+                 setShowIncrementModal(null);
+                 fetchReport();
+            } else {
+                 const d = await res.json();
+                 Alert.alert("Error", d.error || "Failed");
+            }
+        } catch (e) {
+             Alert.alert("Error", "Network error");
+        }
     };
 
     const getFormattedFilename = (prefix: string) => {
@@ -513,15 +575,33 @@ export default function WageReportScreen() {
                                     <Text style={local.smallLabel}>Paid: <Text style={{ color: isDark ? '#81C784' : '#388E3C', fontWeight: 'bold' }}>₹{formatCurrency(item.salary_paid)}</Text></Text>
                                     <Text style={local.smallLabel}>Closing Bal: <Text style={{ color: isDark ? '#E57373' : '#D32F2F', fontWeight: 'bold' }}>₹{formatCurrency(item.closing_balance)}</Text></Text>
                                 </View>
-                                <TouchableOpacity
-                                    style={local.payBtn}
-                                    onPress={() => {
-                                        setSelectedLabour(item);
-                                        setModalVisible(true);
-                                    }}
-                                >
-                                    <Text style={local.payBtnText}>Record Payment</Text>
-                                </TouchableOpacity>
+                                <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: 10 }}>
+                                    {userRole === 'admin' && (
+                                        <>
+                                            <TouchableOpacity 
+                                                style={[local.payBtn, { backgroundColor: '#ffb74d' }]} 
+                                                onPress={() => { setShowBonusModal(item); setAmountStr(''); setNotesStr(''); setDateStr(new Date().toISOString().split('T')[0]); }}
+                                            >
+                                                <Text style={[local.payBtnText, { color: '#000' }]}>Add Bonus</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity 
+                                                style={[local.payBtn, { backgroundColor: '#4da6ff' }]} 
+                                                onPress={() => { setShowIncrementModal(item); setAmountStr(item.rate ? String(item.rate) : ''); setDateStr(new Date().toISOString().split('T')[0]); }}
+                                            >
+                                                <Text style={local.payBtnText}>Update Wage</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+                                    <TouchableOpacity
+                                        style={local.payBtn}
+                                        onPress={() => {
+                                            setSelectedLabour(item);
+                                            setModalVisible(true);
+                                        }}
+                                    >
+                                        <Text style={local.payBtnText}>Record Payment</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </View>
                     ))}
@@ -583,6 +663,49 @@ export default function WageReportScreen() {
                             );
                         })}
                     </View>
+                </View>
+            </CustomModal>
+
+            <CustomModal
+                title={`Add Bonus to ${showBonusModal?.name || ''}`}
+                visible={!!showBonusModal}
+                onClose={() => setShowBonusModal(null)}
+                actions={[
+                    { text: "Cancel", onPress: () => setShowBonusModal(null), style: "cancel" },
+                    { text: "Save Bonus", onPress: handleAddBonus, style: "default" }
+                ]}
+            >
+                <View style={{ padding: 10 }}>
+                    <Text style={local.modalLabel}>Date (YYYY-MM-DD)</Text>
+                    <TextInput style={local.modalInput} value={dateStr} onChangeText={setDateStr} />
+                    
+                    <Text style={local.modalLabel}>Amount (₹)</Text>
+                    <TextInput style={local.modalInput} value={amountStr} onChangeText={setAmountStr} keyboardType="numeric" />
+                    
+                    <Text style={local.modalLabel}>Notes</Text>
+                    <TextInput style={local.modalInput} value={notesStr} onChangeText={setNotesStr} />
+                </View>
+            </CustomModal>
+
+            <CustomModal
+                title={`Update Wage for ${showIncrementModal?.name || ''}`}
+                visible={!!showIncrementModal}
+                onClose={() => setShowIncrementModal(null)}
+                actions={[
+                    { text: "Cancel", onPress: () => setShowIncrementModal(null), style: "cancel" },
+                    { text: "Save Update", onPress: handleUpdateWage, style: "default" }
+                ]}
+            >
+                <View style={{ padding: 10 }}>
+                    <Text style={{color: isDark ? '#ddd' : '#555', marginBottom: 15, fontStyle: 'italic', fontSize: 13}}>
+                        Wages generated before the Effective Date will safely calculate using the previous rate.
+                    </Text>
+
+                    <Text style={local.modalLabel}>Effective Date (YYYY-MM-DD)</Text>
+                    <TextInput style={local.modalInput} value={dateStr} onChangeText={setDateStr} />
+                    
+                    <Text style={local.modalLabel}>New Hourly Rate (₹)</Text>
+                    <TextInput style={local.modalInput} value={amountStr} onChangeText={setAmountStr} keyboardType="numeric" />
                 </View>
             </CustomModal>
         </View>
@@ -674,5 +797,10 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
         fontSize: 14,
+    },
+    modalLabel: { fontSize: 14, color: isDark ? '#aaa' : '#555', marginBottom: 5, marginTop: 10 },
+    modalInput: {
+        borderWidth: 1, borderColor: isDark ? '#555' : '#ccc', borderRadius: 8,
+        padding: 10, fontSize: 16, color: isDark ? '#fff' : '#000', backgroundColor: isDark ? '#333' : '#fff'
     }
 });
