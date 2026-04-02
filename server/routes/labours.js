@@ -22,9 +22,9 @@ router.post('/filter', authorizeRole(['admin', 'supervisor']), async (req, res) 
 
         // Status filtering
         if (status === 'active' || status === 'assigned') {
-            conditions.push("status = 'active'");
+            conditions.push("site_id IS NOT NULL AND status != 'pending'");
         } else if (status === 'unassigned') {
-            conditions.push("status = 'unassigned'");
+            conditions.push("site_id IS NULL AND status != 'pending'");
         } else if (status === 'pending') {
             conditions.push("status = 'pending'");
         } else {
@@ -133,8 +133,8 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
         const password_hash = await bcrypt.hash(password, 10);
 
-        // If supervisor is creating, status is pending
-        const initialStatus = req.user && req.user.role === 'supervisor' ? 'pending' : 'active';
+        // If supervisor is creating, status is pending. If admin creates without a site, it's unassigned.
+        const initialStatus = req.user && req.user.role === 'supervisor' ? 'pending' : (site_id ? 'active' : 'unassigned');
 
         const result = await db.run(
             `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
@@ -233,9 +233,16 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             );
         }
 
+        let newStatus = currentLabour.status;
+        if (site_id && currentLabour.status === 'unassigned') {
+            newStatus = 'active';
+        } else if (!site_id && currentLabour.status === 'active') {
+            newStatus = 'unassigned';
+        }
+
         await db.run(
-            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, notes = ?, trade = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ? WHERE id = ?`,
-            [name, phone, aadhaar, site, site_id, rate, notes, trade, profile_image, date_of_birth, emergency_phone, req.params.id]
+            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, notes = ?, trade = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ? WHERE id = ?`,
+            [name, phone, aadhaar, site, site_id, rate, notes, trade, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
         );
 
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
@@ -266,10 +273,17 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
 
     try {
         const db = await openDb();
-        await db.run(
-            'UPDATE labours SET status = ? WHERE id = ?',
-            [status, req.params.id]
-        );
+        if (status === 'unassigned') {
+            await db.run(
+                'UPDATE labours SET status = ?, site_id = NULL, site = NULL WHERE id = ?',
+                [status, req.params.id]
+            );
+        } else {
+            await db.run(
+                'UPDATE labours SET status = ? WHERE id = ?',
+                [status, req.params.id]
+            );
+        }
 
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
         res.json(updated);

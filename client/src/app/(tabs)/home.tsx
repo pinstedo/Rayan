@@ -186,7 +186,7 @@ export default function HomeScreen() {
 			value: stats.jobs,
 			icon: "account-hard-hat",
 			color: colors.primary,
-			onPress: () => router.push({ pathname: "/(screens)/labours", params: { status: 'active' } } as any)
+			onPress: () => router.push({ pathname: "/(screens)/labours", params: { status: 'assigned' } } as any)
 		},
 		{
 			key: "attendance",
