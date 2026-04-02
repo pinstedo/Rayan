@@ -301,7 +301,7 @@ export default function SiteDetailsScreen() {
 
     const fetchAvailableLabours = async () => {
         try {
-            const response = await api.get("/labours");
+            const response = await api.get("/labours?status=unassigned");
             const data = await response.json();
             if (response.ok) {
                 const assignedIds = site?.labours.map(l => l.id) || [];

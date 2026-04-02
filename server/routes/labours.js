@@ -9,12 +9,11 @@ const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
 
-// List all labours
 // List all labours or filter by supervisor
-router.post('/filter', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { supervisor_id, status } = req.body;
+        const { supervisor_id, status } = req.query;
 
         let query = 'SELECT * FROM labours';
         const params = [];
@@ -28,17 +27,10 @@ router.post('/filter', authorizeRole(['admin', 'supervisor']), async (req, res) 
         } else if (status === 'pending') {
             conditions.push("status = 'pending'");
         } else {
-            // Default behavior: if no status provided, maybe return all? 
-            // Or typically default to active if not specified? 
-            // Let's stick to returning all if not specified, 
-            // BUT for the "Manage Labours" screen, we probably want to default to active 
-            // if the user lands there. 
-            // However, the frontend will explicitly request status=active or status=inactive.
-            // So if omitted, we return everything (which is current behavior).
+            // Default behavior: return all if not specified
         }
 
         if (supervisor_id) {
-            // Get sites assigned to supervisor first
             query = `
                 SELECT l.* 
                 FROM labours l
@@ -46,36 +38,21 @@ router.post('/filter', authorizeRole(['admin', 'supervisor']), async (req, res) 
             `;
             conditions.push('ss.supervisor_id = ?');
             params.push(supervisor_id);
-            // Supervisor should only see active labours, typically. 
-            // But if we want to confirm, the requirement was "terminated and blacklisted labours are consistently hidden from all supervisor-facing screens".
-            // So we enforce status='active' for supervisors.
             conditions.push("l.status = 'active'");
         }
 
         if (conditions.length > 0) {
-            // For the join query, we need to be careful about WHERE clause placement
-            // If it's the supervisor query, we append WHERE to the join
-            // If it's the basic query, we append WHERE
-            // The supervisor query above replaces 'query', but doesn't have WHERE yet (except in my previous thought).
-            // Let's restructure to be cleaner.
-
             if (supervisor_id) {
-                // Re-write query for supervisor case
                 query = `
                     SELECT l.* 
                     FROM labours l
                     JOIN site_supervisors ss ON l.site_id = ss.site_id
                     WHERE ss.supervisor_id = ? AND l.status = 'active'
                 `;
-                // calling code passed supervisor_id, we just use it.
-                // Reset params to just supervisor_id because the query is hardcoded for this case
                 params.length = 0;
                 params.push(supervisor_id);
             } else {
-                // Admin case
-                if (conditions.length > 0) {
-                    query += ' WHERE ' + conditions.join(' AND ');
-                }
+                query += ' WHERE ' + conditions.join(' AND ');
             }
         }
 

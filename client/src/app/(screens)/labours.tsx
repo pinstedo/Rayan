@@ -95,10 +95,18 @@ export default function Labours() {
 			} else {
 				setLoading(true);
 			}
-			const response = await api.post('/labours/filter', {
-				status: viewType,
-				supervisor_id: supId || undefined
-			});
+			let queryString = '?';
+			if (viewType) queryString += `status=${viewType}&`;
+			if (supId) queryString += `supervisor_id=${supId}`;
+			// remove trailing & or ?
+			if (queryString.endsWith('&') || queryString === '?') {
+				queryString = queryString.slice(0, queryString.length - 1);
+				if (queryString === '') queryString = ''; // just empty string if no params
+			} else {
+				// it's fine
+			}
+
+			const response = await api.get(`/labours${queryString}`);
 			const data = await response.json();
 			if (response.ok) {
 				setLabours(data);

@@ -182,7 +182,7 @@ router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async 
         const db = await openDb();
         const site = await db.get('SELECT name FROM sites WHERE id = ?', [req.params.id]);
         if (!site) return res.status(404).json({ error: 'Site not found' });
-        await db.run('UPDATE labours SET site_id = ?, site = ? WHERE id = ?', [req.params.id, site.name, labour_id]);
+        await db.run('UPDATE labours SET site_id = ?, site = ?, status = "active" WHERE id = ?', [req.params.id, site.name, labour_id]);
         res.json({ message: 'Labour assigned to site' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -193,7 +193,7 @@ router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async 
 router.delete('/:id/unassign-labour/:labourId', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        await db.run('UPDATE labours SET site_id = NULL, site = NULL WHERE id = ?', [req.params.labourId]);
+        await db.run('UPDATE labours SET site_id = NULL, site = NULL, status = "unassigned" WHERE id = ?', [req.params.labourId]);
         res.json({ message: 'Labour removed from site' });
     } catch (err) {
         res.status(500).json({ error: err.message });
