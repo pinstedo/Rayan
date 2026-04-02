@@ -43,7 +43,7 @@ export default function WageReportScreen() {
             } else {
                 setLoading(true);
             }
-            const res = await api.get(`/reports/wage-month?month=${monthStr}`);
+            const res = await api.post(`/reports/wage-month`, { month: monthStr });
             const data = await res.json();
             if (res.ok) {
                 setReportData(data);

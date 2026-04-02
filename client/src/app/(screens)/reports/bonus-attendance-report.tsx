@@ -80,7 +80,7 @@ export default function BonusAttendanceReportScreen() {
             } else {
                 setLoading(true);
             }
-            const res = await api.get(`/reports/bonus-attendance-range?startDate=${startDate}&endDate=${endDate}`);
+            const res = await api.post(`/reports/bonus-attendance-range`, { startDate, endDate });
             const data = await res.json();
             if (res.ok) {
                 setReportData(data);

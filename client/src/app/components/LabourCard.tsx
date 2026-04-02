@@ -10,7 +10,7 @@ interface Labour {
     rate?: number;
     site: string;
     site_id?: number;
-    status?: 'active' | 'terminated' | 'blacklisted';
+    status?: 'active' | 'unassigned';
     profile_image?: string;
     date_of_birth?: string;
     emergency_phone?: string;
@@ -19,8 +19,7 @@ interface Labour {
 interface LabourCardProps {
     labour: Labour;
     onMove?: (labour: Labour) => void;
-    onTerminate?: (labour: Labour) => void;
-    onBlacklist?: (labour: Labour) => void;
+    onUnassign?: (labour: Labour) => void;
     onRevoke?: (labour: Labour) => void;
     onAdvance?: (labour: Labour) => void;
     showMoveAction?: boolean;
@@ -28,11 +27,10 @@ interface LabourCardProps {
     onPress?: (labour: Labour) => void;
 }
 
-export const LabourCard = ({ labour, onMove, onTerminate, onBlacklist, onRevoke, onAdvance, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
+export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
     const getStatusColor = (status?: string) => {
         switch (status) {
-            case 'terminated': return '#e53935';
-            case 'blacklisted': return '#424242';
+            case 'unassigned': return '#9e9e9e';
             default: return '#2e7d32'; // active
         }
     };
@@ -46,15 +44,13 @@ export const LabourCard = ({ labour, onMove, onTerminate, onBlacklist, onRevoke,
     };
 
     const age = calculateAge(labour.date_of_birth);
-    const isActionable = labour.status !== 'terminated' && labour.status !== 'blacklisted';
-    const isTerminated = labour.status === 'terminated';
-    const isBlacklisted = labour.status === 'blacklisted';
+    const isActionable = labour.status !== 'unassigned';
+    const isUnassigned = labour.status === 'unassigned';
 
     const CardContent = (
         <View style={[
             styles.card,
-            labour.status === 'terminated' && styles.terminatedCard,
-            labour.status === 'blacklisted' && styles.blacklistedCard
+            labour.status === 'unassigned' && styles.unassignedCard
         ]}>
             <View style={styles.headerRow}>
                 <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
@@ -136,18 +132,10 @@ export const LabourCard = ({ labour, onMove, onTerminate, onBlacklist, onRevoke,
 
                             <TouchableOpacity
                                 style={styles.actionBtn}
-                                onPress={() => onTerminate && onTerminate(labour)}
+                                onPress={() => onUnassign && onUnassign(labour)}
                             >
                                 <MaterialIcons name="block" size={16} color="#e53935" />
-                                <Text style={[styles.actionBtnText, { color: '#e53935' }]}>Terminate</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.actionBtn}
-                                onPress={() => onBlacklist && onBlacklist(labour)}
-                            >
-                                <MaterialIcons name="gavel" size={16} color="#333" />
-                                <Text style={[styles.actionBtnText, { color: '#333' }]}>Blacklist</Text>
+                                <Text style={[styles.actionBtnText, { color: '#e53935' }]}>Unassign</Text>
                             </TouchableOpacity>
                         </>
                     )}
@@ -162,23 +150,13 @@ export const LabourCard = ({ labour, onMove, onTerminate, onBlacklist, onRevoke,
                         </TouchableOpacity>
                     )}
 
-                    {isTerminated && showMoveAction && (
+                    {isUnassigned && showMoveAction && (
                         <TouchableOpacity
                             style={styles.actionBtn}
                             onPress={() => onRevoke && onRevoke(labour)}
                         >
-                            <MaterialIcons name="restore" size={16} color="#e53935" />
-                            <Text style={[styles.actionBtnText, { color: '#e53935' }]}>Revoke Termination</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {isBlacklisted && showMoveAction && (
-                        <TouchableOpacity
-                            style={styles.actionBtn}
-                            onPress={() => onRevoke && onRevoke(labour)}
-                        >
-                            <MaterialIcons name="restore" size={16} color="#333" />
-                            <Text style={[styles.actionBtnText, { color: '#333' }]}>Remove from Blacklist</Text>
+                            <MaterialIcons name="check-circle" size={16} color="#2e7d32" />
+                            <Text style={[styles.actionBtnText, { color: '#2e7d32' }]}>Make Active</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -210,12 +188,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
     },
-    terminatedCard: {
-        backgroundColor: '#ffebee',
-        borderColor: '#ef9a9a',
-        borderWidth: 1,
-    },
-    blacklistedCard: {
+    unassignedCard: {
         backgroundColor: '#eeeeee',
         borderColor: '#bdbdbd',
         borderWidth: 1,

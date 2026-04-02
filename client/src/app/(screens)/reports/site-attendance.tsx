@@ -37,7 +37,7 @@ export default function SiteAttendanceReport() {
         setLoading(true);
         try {
             const dateStr = selectedDate.toISOString().split("T")[0];
-            const response = await api.get(`/reports/site-attendance?date=${dateStr}`);
+            const response = await api.post(`/reports/site-attendance`, { date: dateStr });
             if (response.ok) {
                 const data = await response.json();
                 setReports(data);

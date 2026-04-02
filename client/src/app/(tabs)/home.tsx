@@ -71,7 +71,7 @@ export default function HomeScreen() {
 			if (userData) {
 				const user = JSON.parse(userData);
 				if (user.role === 'admin') {
-					const res = await api.get("/labours?status=pending");
+					const res = await api.post("/labours/filter", { status: 'pending' });
 					if (res.ok) {
 						const data = await res.json();
 						setPendingLabours(data);

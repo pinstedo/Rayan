@@ -121,7 +121,7 @@ export default function AttendanceScreen() {
 			const day = String(date.getDate()).padStart(2, '0');
 			const dateStr = `${year}-${month}-${day}`;
 
-			const response = await api.get(`/attendance/lock-status?site_id=${siteId}&date=${dateStr}`);
+			const response = await api.post(`/attendance/lock-status`, { site_id: siteId, date: dateStr });
 			if (response.ok) {
 				const data = await response.json();
 				setLocked(data.is_locked);
@@ -135,7 +135,7 @@ export default function AttendanceScreen() {
 	const fetchAttendanceSummary = async (month: number, year: number) => {
 		if (!siteId) return;
 		try {
-			const response = await api.get(`/attendance/summary?site_id=${siteId}&month=${month}&year=${year}`);
+			const response = await api.post(`/attendance/summary`, { site_id: siteId, month, year });
 			if (response.ok) {
 				const data = await response.json();
 				setMarkedDates(data.dates || []);
@@ -152,12 +152,7 @@ export default function AttendanceScreen() {
 			const day = String(date.getDate()).padStart(2, '0');
 			const dateStr = `${year}-${month}-${day}`;
 
-			let url = `${API_URL}/attendance?date=${dateStr}`;
-			if (siteId) {
-				url += `&site_id=${siteId}`;
-			}
-
-			const response = await api.fetch(url);
+			const response = await api.post('/attendance/fetch', { date: dateStr, site_id: siteId || undefined });
 			const data = await response.json();
 
 			if (response.ok && Array.isArray(data)) {
@@ -182,12 +177,7 @@ export default function AttendanceScreen() {
 			const day = String(date.getDate()).padStart(2, '0');
 			const dateStr = `${year}-${month}-${day}`;
 
-			let url = `${API_URL}/overtime?date=${dateStr}`;
-			if (siteId) {
-				url += `&site_id=${siteId}`;
-			}
-
-			const response = await api.fetch(url);
+			const response = await api.post('/overtime/fetch', { date: dateStr, site_id: siteId || undefined });
 			const data = await response.json();
 
 			if (response.ok && Array.isArray(data)) {

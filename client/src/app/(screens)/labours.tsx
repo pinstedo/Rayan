@@ -29,7 +29,7 @@ interface Labour {
 	rate?: number;
 	site: string;
 	site_id?: number;
-	status?: 'active' | 'terminated' | 'blacklisted';
+	status?: 'active' | 'unassigned';
 	created_at?: string;
 }
 
@@ -38,7 +38,7 @@ export default function Labours() {
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
 	const { newLabour, supervisorId, status } = useLocalSearchParams();
-	const [viewType, setViewType] = useState<'active' | 'inactive'>((status as 'active' | 'inactive') || 'active');
+	const [viewType, setViewType] = useState<'assigned' | 'unassigned'>((status as 'assigned' | 'unassigned') || 'assigned');
 	const [labours, setLabours] = useState<Labour[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [isAdmin, setIsAdmin] = useState(false);
@@ -96,11 +96,10 @@ export default function Labours() {
 			} else {
 				setLoading(true);
 			}
-			let url = `${API_URL}/labours?status=${viewType}`; // Add status param
-			if (supId) {
-				url += `&supervisor_id=${supId}`;
-			}
-			const response = await api.fetch(url);
+			const response = await api.post('/labours/filter', { 
+				status: viewType, 
+				supervisor_id: supId || undefined 
+			});
 			const data = await response.json();
 			if (response.ok) {
 				setLabours(data);
@@ -178,37 +177,18 @@ export default function Labours() {
 		}
 	};
 
-	const handleTerminate = (labour: Labour) => {
+	const handleUnassign = (labour: Labour) => {
 		showModal(
-			"Confirm Terminate",
-			`Are you sure you want to terminate ${labour.name}?`,
+			"Confirm Unassign",
+			`Are you sure you want to unassign ${labour.name}?`,
 			'confirmation',
 			[
 				{ text: "Cancel", onPress: () => setModalConfig(prev => ({ ...prev, visible: false })), style: "cancel" },
 				{
-					text: "Terminate",
+					text: "Unassign",
 					onPress: () => {
 						setModalConfig(prev => ({ ...prev, visible: false }));
-						handleStatusChange(labour, 'terminated');
-					},
-					style: "destructive"
-				}
-			]
-		);
-	};
-
-	const handleBlacklist = (labour: Labour) => {
-		showModal(
-			"Confirm Blacklist",
-			`Are you sure you want to blacklist ${labour.name}?`,
-			'confirmation',
-			[
-				{ text: "Cancel", onPress: () => setModalConfig(prev => ({ ...prev, visible: false })), style: "cancel" },
-				{
-					text: "Blacklist",
-					onPress: () => {
-						setModalConfig(prev => ({ ...prev, visible: false }));
-						handleStatusChange(labour, 'blacklisted');
+						handleStatusChange(labour, 'unassigned');
 					},
 					style: "destructive"
 				}
@@ -232,20 +212,19 @@ export default function Labours() {
 				) : <View style={{ width: 50 }} />}
 			</View>
 
-			{/* Toggle for Active/Inactive - Only for Admins or if we want supervisors to see inactive? Limit to Admin for now based on context */}
 			{isAdmin && !supervisorId && (
 				<View style={local.toggleContainer}>
 					<TouchableOpacity
-						style={[local.toggleBtn, viewType === 'active' && local.toggleBtnActive]}
-						onPress={() => setViewType('active')}
+						style={[local.toggleBtn, viewType === 'assigned' && local.toggleBtnActive]}
+						onPress={() => setViewType('assigned')}
 					>
-						<Text style={[local.toggleText, viewType === 'active' && local.toggleTextActive]}>Active</Text>
+						<Text style={[local.toggleText, viewType === 'assigned' && local.toggleTextActive]}>Assigned</Text>
 					</TouchableOpacity>
 					<TouchableOpacity
-						style={[local.toggleBtn, viewType === 'inactive' && local.toggleBtnActive]}
-						onPress={() => setViewType('inactive')}
+						style={[local.toggleBtn, viewType === 'unassigned' && local.toggleBtnActive]}
+						onPress={() => setViewType('unassigned')}
 					>
-						<Text style={[local.toggleText, viewType === 'inactive' && local.toggleTextActive]}>Inactive</Text>
+						<Text style={[local.toggleText, viewType === 'unassigned' && local.toggleTextActive]}>Unassigned</Text>
 					</TouchableOpacity>
 				</View>
 			)}
@@ -266,8 +245,7 @@ export default function Labours() {
 						showMoveAction={isAdmin}
 						hideRate={!isAdmin}
 						onMove={handleMove}
-						onTerminate={handleTerminate}
-						onBlacklist={handleBlacklist}
+						onUnassign={handleUnassign}
 						onRevoke={(labour) => handleStatusChange(labour, 'active')}
 						onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
 					/>

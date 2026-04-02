@@ -30,7 +30,7 @@ interface Labour {
     rate?: number;
     site: string;
     site_id?: number;
-    status?: 'active' | 'terminated' | 'blacklisted';
+    status?: 'active' | 'unassigned';
 }
 
 export default function Advance() {
@@ -79,11 +79,10 @@ export default function Advance() {
             } else {
                 setLoading(true);
             }
-            let url = `${API_URL}/labours?status=active`; // Only active labours can get advances
-            if (supId) {
-                url += `&supervisor_id=${supId}`;
-            }
-            const response = await api.fetch(url);
+            const response = await api.post('/labours/filter', { 
+                status: 'active', 
+                supervisor_id: supId || undefined 
+            });
             const data = await response.json();
             if (response.ok) {
                 setLabours(data);

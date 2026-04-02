@@ -27,7 +27,7 @@ interface Labour {
     rate: number;
     site: string;
     site_id: number;
-    status: 'active' | 'terminated' | 'blacklisted';
+    status: 'active' | 'unassigned';
     profile_image?: string;
     date_of_birth?: string;
     emergency_phone?: string;
@@ -258,7 +258,7 @@ export default function LabourDetailsScreen() {
                         <Text style={local.profileName}>{labour.name}</Text>
                         <Text style={local.profileId}>ID: {labour.id}</Text>
                         <View style={[local.statusBadge,
-                        { backgroundColor: labour.status === 'active' ? (isDark ? '#1b4323' : '#2e7d32') : labour.status === 'terminated' ? (isDark ? '#5c1919' : '#e53935') : (isDark ? '#222' : '#424242') }
+                        { backgroundColor: labour.status === 'active' ? (isDark ? '#1b4323' : '#2e7d32') : (isDark ? '#444' : '#9e9e9e') }
                         ]}>
                             <Text style={local.statusText}>{labour.status.toUpperCase()}</Text>
                         </View>

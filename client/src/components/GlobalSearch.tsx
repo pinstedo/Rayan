@@ -26,7 +26,7 @@ export default function GlobalSearch() {
 
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await api.get(`/search?q=${encodeURIComponent(query)}`);
+                const res = await api.post(`/search`, { q: query });
                 if (res.ok) {
                     const data = await res.json();
                     setResults(data);
