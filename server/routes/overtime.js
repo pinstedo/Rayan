@@ -4,8 +4,8 @@ const { openDb } = require('../database');
 const router = express.Router();
 
 // Get overtime for a specific date and site (optional)
-router.get('/', async (req, res) => {
-    const { date, site_id } = req.query;
+router.post('/fetch', async (req, res) => {
+    const { date, site_id } = req.body;
 
     if (!date) {
         return res.status(400).json({ error: 'Date is required' });

@@ -10,10 +10,10 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { useTheme } from "../../../context/ThemeContext";
-import { api } from "../../../services/api";
 import { Calendar } from "../../../components/Calendar";
 import { CustomModal } from "../../../components/CustomModal";
+import { useTheme } from "../../../context/ThemeContext";
+import { api } from "../../../services/api";
 
 interface SiteReport {
     site_id: number;
@@ -118,7 +118,7 @@ export default function SiteAttendanceReport() {
                     selectedDate={date}
                     onDateSelect={handleDateChange}
                     markedDates={[]}
-                    onMonthChange={() => {}}
+                    onMonthChange={() => { }}
                 />
             </CustomModal>
 

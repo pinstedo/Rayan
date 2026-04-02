@@ -658,8 +658,8 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
 		shadowOpacity: 0.05,
 		shadowRadius: 6,
 		elevation: 2,
-        borderWidth: 1,
-        borderColor: colors.border,
+		borderWidth: 1,
+		borderColor: colors.border,
 	},
 	actionText: {
 		color: colors.textSecondary,

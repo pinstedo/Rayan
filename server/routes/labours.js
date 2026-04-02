@@ -11,20 +11,20 @@ const { authorizeRole } = require('../middleware/auth');
 
 // List all labours
 // List all labours or filter by supervisor
-router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/filter', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { supervisor_id, status } = req.query;
+        const { supervisor_id, status } = req.body;
 
         let query = 'SELECT * FROM labours';
         const params = [];
         const conditions = [];
 
         // Status filtering
-        if (status === 'active') {
+        if (status === 'active' || status === 'assigned') {
             conditions.push("status = 'active'");
-        } else if (status === 'inactive') {
-            conditions.push("status IN ('terminated', 'blacklisted')");
+        } else if (status === 'unassigned') {
+            conditions.push("status = 'unassigned'");
         } else if (status === 'pending') {
             conditions.push("status = 'pending'");
         } else {
@@ -258,7 +258,7 @@ router.delete('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) =
 // Update labour status
 router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     const { status } = req.body;
-    const allowedStatuses = ['active', 'terminated', 'blacklisted', 'pending'];
+    const allowedStatuses = ['active', 'unassigned', 'pending'];
 
     if (!allowedStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });

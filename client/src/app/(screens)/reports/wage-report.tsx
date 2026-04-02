@@ -2,12 +2,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
+import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CustomModal } from '../../../components/CustomModal';
+import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
-import { Platform } from 'react-native';
 
 export default function WageReportScreen() {
     const router = useRouter();
@@ -188,11 +187,11 @@ export default function WageReportScreen() {
                 const iframe = document.createElement('iframe');
                 iframe.style.display = 'none';
                 document.body.appendChild(iframe);
-                
+
                 iframe.contentDocument?.write(html);
                 iframe.contentDocument?.close();
                 iframe.contentWindow?.focus();
-                
+
                 setTimeout(() => {
                     iframe.contentWindow?.print();
                     setTimeout(() => {
@@ -379,11 +378,11 @@ export default function WageReportScreen() {
                 const iframe = document.createElement('iframe');
                 iframe.style.display = 'none';
                 document.body.appendChild(iframe);
-                
+
                 iframe.contentDocument?.write(html);
                 iframe.contentDocument?.close();
                 iframe.contentWindow?.focus();
-                
+
                 setTimeout(() => {
                     iframe.contentWindow?.print();
                     setTimeout(() => {
@@ -565,9 +564,9 @@ export default function WageReportScreen() {
                         {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => {
                             const isSelected = date.getMonth() === i && date.getFullYear() === pickerYear;
                             return (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     key={m}
-                                    style={{ 
+                                    style={{
                                         paddingVertical: 12, width: '28%', alignItems: 'center',
                                         backgroundColor: isSelected ? '#0a84ff' : (isDark ? '#333' : '#eee'),
                                         borderRadius: 8

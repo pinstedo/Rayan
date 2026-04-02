@@ -11,7 +11,6 @@ import {
 	View
 } from "react-native";
 import { CustomModal, ModalType } from "../../components/CustomModal";
-import { API_URL } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
@@ -96,9 +95,9 @@ export default function Labours() {
 			} else {
 				setLoading(true);
 			}
-			const response = await api.post('/labours/filter', { 
-				status: viewType, 
-				supervisor_id: supId || undefined 
+			const response = await api.post('/labours/filter', {
+				status: viewType,
+				supervisor_id: supId || undefined
 			});
 			const data = await response.json();
 			if (response.ok) {

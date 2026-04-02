@@ -5,11 +5,11 @@ const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
 
-// GET /api/reports/site-attendance?date=YYYY-MM-DD
-router.get('/site-attendance', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+// POST /api/reports/site-attendance
+router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const date = req.query.date || new Date().toISOString().split('T')[0];
+        const date = req.body.date || new Date().toISOString().split('T')[0];
 
         const query = `
             SELECT 
@@ -31,11 +31,11 @@ router.get('/site-attendance', authorizeRole(['admin', 'supervisor']), async (re
     }
 });
 
-// GET /api/reports/labour-summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&site_id=1
-router.get('/labour-summary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+// POST /api/reports/labour-summary
+router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { startDate, endDate, site_id } = req.query;
+        const { startDate, endDate, site_id } = req.body;
 
         console.log('Fetching labour summary report for:', { startDate, endDate, site_id });
 
@@ -257,11 +257,11 @@ router.post('/payments/salary', authorizeRole(['admin', 'supervisor']), async (r
     }
 });
 
-// GET /api/reports/wage-month?month=YYYY-MM&site_id=OPTIONAL
-router.get('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+// POST /api/reports/wage-month
+router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { month, site_id } = req.query; // format: YYYY-MM
+        const { month, site_id } = req.body; // format: YYYY-MM
 
         if (!month) {
             return res.status(400).json({ error: 'Month is required (YYYY-MM)' });
@@ -568,11 +568,11 @@ router.delete('/complaints/:id', authorizeRole(['admin', 'supervisor']), async (
     }
 });
 
-// GET /api/reports/bonus-attendance-range?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&site_id=OPTIONAL
-router.get('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+// POST /api/reports/bonus-attendance-range
+router.post('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { startDate, endDate, site_id } = req.query;
+        const { startDate, endDate, site_id } = req.body;
 
         if (!startDate || !endDate) {
             return res.status(400).json({ error: 'startDate and endDate are required' });

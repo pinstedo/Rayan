@@ -5,7 +5,6 @@ import React, { useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
 import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
-import { API_URL } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 
@@ -361,8 +360,8 @@ export default function AttendanceScreen() {
 				<View style={local.overtimeContainer}>
 					<Text style={local.overtimeLabel}>OT Hours:</Text>
 					<View style={local.overtimeControls}>
-						<Pressable 
-							style={[local.otBtn, itemLocked && local.otBtnDisabled]} 
+						<Pressable
+							style={[local.otBtn, itemLocked && local.otBtnDisabled]}
 							onPress={() => handleOvertimeChange(item.id, -0.5)}
 							disabled={itemLocked || (overtimeData.get(item.id) || 0) <= 0}
 						>
@@ -371,8 +370,8 @@ export default function AttendanceScreen() {
 						<Text style={[local.otValue, itemLocked && local.otValueDisabled]}>
 							{overtimeData.get(item.id) || 0}
 						</Text>
-						<Pressable 
-							style={[local.otBtn, itemLocked && local.otBtnDisabled]} 
+						<Pressable
+							style={[local.otBtn, itemLocked && local.otBtnDisabled]}
 							onPress={() => handleOvertimeChange(item.id, 0.5)}
 							disabled={itemLocked}
 						>

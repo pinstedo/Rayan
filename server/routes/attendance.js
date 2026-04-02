@@ -6,8 +6,8 @@ const router = express.Router();
 const { authorizeRole } = require('../middleware/auth');
 
 // Get attendance for a specific site and date, or all sites if site_id is missing
-router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { site_id, date } = req.query;
+router.post('/fetch', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    const { site_id, date } = req.body;
 
     if (!date) {
         return res.status(400).json({ error: 'Date is required' });
@@ -57,8 +57,8 @@ router.get('/my-attendance', async (req, res) => {
 });
 
 // Get attendance summary (marked dates) for a site and month
-router.get('/summary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { site_id, month, year } = req.query;
+router.post('/summary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    const { site_id, month, year } = req.body;
 
     if (!site_id || !month || !year) {
         return res.status(400).json({ error: 'Site ID, month, and year are required' });
@@ -91,8 +91,8 @@ router.get('/summary', authorizeRole(['admin', 'supervisor']), async (req, res) 
 });
 
 // Get lock status for a specific site and date
-router.get('/lock-status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { site_id, date } = req.query;
+router.post('/lock-status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    const { site_id, date } = req.body;
 
     if (!site_id || !date) {
         return res.status(400).json({ error: 'Site ID and date are required' });

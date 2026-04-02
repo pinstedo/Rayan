@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
-import { API_URL } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 

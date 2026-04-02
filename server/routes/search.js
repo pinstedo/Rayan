@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { openDb } = require('../database');
 
-router.get('/', async (req, res) => {
+router.post('/', async (req, res) => {
     try {
-        const { q, type, limit = 20, offset = 0 } = req.query;
+        const { q, type, limit = 20, offset = 0 } = req.body;
         if (!q || q.trim() === '') {
             return res.status(400).json({ error: 'Search query is required' });
         }

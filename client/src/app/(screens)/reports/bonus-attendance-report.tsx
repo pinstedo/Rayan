@@ -2,10 +2,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, Modal } from 'react-native';
+import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { CustomModal } from '../../../components/CustomModal';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api';
-import { CustomModal } from '../../../components/CustomModal';
 
 export default function BonusAttendanceReportScreen() {
     const router = useRouter();
@@ -20,7 +20,7 @@ export default function BonusAttendanceReportScreen() {
     // Date Selection
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    
+
     // Format YYYY-MM-DD
     const formatDateStr = (d: Date) => {
         const y = d.getFullYear();
@@ -46,7 +46,7 @@ export default function BonusAttendanceReportScreen() {
         start.setDate(1); // avoid end of month shifting
         const end = new Date(endDate);
         end.setDate(1);
-        
+
         const current = new Date(start);
         while (current <= end) {
             const yyyy = current.getFullYear();
@@ -73,7 +73,7 @@ export default function BonusAttendanceReportScreen() {
 
     const fetchReport = async (isRefresh = false) => {
         if (!isValidDate(startDate) || !isValidDate(endDate)) return;
-        
+
         try {
             if (isRefresh) {
                 setRefreshing(true);
@@ -150,10 +150,10 @@ export default function BonusAttendanceReportScreen() {
             `;
 
             let tableRows = '';
-            
+
             reportData.forEach(item => {
                 let rowHtml = `<tr><td class="text-left">${escapeHtml(item.name)}</td>`;
-                
+
                 monthsList.forEach(m => {
                     const mData = item.monthly_data?.[m];
                     const att = mData ? mData.attendance : 0;
@@ -166,7 +166,7 @@ export default function BonusAttendanceReportScreen() {
                     <td>${item.total_bonus_months > 0 ? item.total_bonus_months : 0}</td>
                     <td>${item.total_increment_months > 0 ? item.total_increment_months : 0}</td>
                 </tr>`;
-                
+
                 tableRows += rowHtml;
             });
 
@@ -215,11 +215,11 @@ export default function BonusAttendanceReportScreen() {
                 const iframe = document.createElement('iframe');
                 iframe.style.display = 'none';
                 document.body.appendChild(iframe);
-                
+
                 iframe.contentDocument?.write(html);
                 iframe.contentDocument?.close();
                 iframe.contentWindow?.focus();
-                
+
                 setTimeout(() => {
                     iframe.contentWindow?.print();
                     setTimeout(() => {
@@ -259,7 +259,7 @@ export default function BonusAttendanceReportScreen() {
                         style={local.dateInput}
                         onPress={() => { setPickerYear(new Date(startDate).getFullYear()); setShowMonthPicker('start'); }}
                     >
-                        <Text style={{color: isDark ? '#fff' : '#000', textAlign: 'center'}}>
+                        <Text style={{ color: isDark ? '#fff' : '#000', textAlign: 'center' }}>
                             {new Date(startDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                         </Text>
                     </TouchableOpacity>
@@ -270,7 +270,7 @@ export default function BonusAttendanceReportScreen() {
                         style={local.dateInput}
                         onPress={() => { setPickerYear(new Date(endDate).getFullYear()); setShowMonthPicker('end'); }}
                     >
-                        <Text style={{color: isDark ? '#fff' : '#000', textAlign: 'center'}}>
+                        <Text style={{ color: isDark ? '#fff' : '#000', textAlign: 'center' }}>
                             {new Date(endDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                         </Text>
                     </TouchableOpacity>
@@ -322,7 +322,7 @@ export default function BonusAttendanceReportScreen() {
                                         <View style={[local.tableCell, local.nameColumn]}>
                                             <Text style={local.tableCellText} numberOfLines={1}>{item.name}</Text>
                                         </View>
-                                        
+
                                         {monthsList.map(m => {
                                             const mData = item.monthly_data?.[m];
                                             const bgColor = getCellColor(mData);
@@ -373,13 +373,13 @@ export default function BonusAttendanceReportScreen() {
                     </View>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
                         {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => {
-                            const isSelected = showMonthPicker === 'start' 
+                            const isSelected = showMonthPicker === 'start'
                                 ? new Date(startDate).getMonth() === i && new Date(startDate).getFullYear() === pickerYear
                                 : new Date(endDate).getMonth() === i && new Date(endDate).getFullYear() === pickerYear;
                             return (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     key={m}
-                                    style={{ 
+                                    style={{
                                         paddingVertical: 12, width: '28%', alignItems: 'center',
                                         backgroundColor: isSelected ? '#0a84ff' : (isDark ? '#333' : '#eee'),
                                         borderRadius: 8
@@ -438,7 +438,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     },
     disabledBtn: { opacity: 0.7 },
     btnText: { color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 10 },
-    
+
     legend: { flexDirection: 'row', justifyContent: 'center', gap: 15, marginBottom: 10 },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     box: { width: 14, height: 14, borderRadius: 3, borderWidth: 1, borderColor: isDark ? '#555' : '#ccc' },
@@ -492,7 +492,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     nameColumn: { width: 150, alignItems: 'flex-start' },
     monthColumn: { width: 50 },
     totalColumn: { width: 60 },
-    
+
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
