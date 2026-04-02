@@ -93,7 +93,7 @@ export default function AttendanceScreen() {
 			if (siteId) {
 				response = await api.get(`/sites/${siteId}/labours`);
 			} else {
-				response = await api.post('/labours/filter', { status: 'active' });
+				response = await api.get('/labours?status=active');
 			}
 			const data = await response.json();
 

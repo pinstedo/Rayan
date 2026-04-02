@@ -78,10 +78,9 @@ export default function OvertimeScreen() {
 						supId = userData.id;
 					}
 				}
-				response = await api.post('/labours/filter', {
-					status: 'active',
-					supervisor_id: supId
-				});
+				let queryString = '?status=active';
+				if (supId) queryString += `&supervisor_id=${supId}`;
+				response = await api.get(`/labours${queryString}`);
 			}
 			const data = await response.json();
 

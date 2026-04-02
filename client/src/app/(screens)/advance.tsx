@@ -78,10 +78,9 @@ export default function Advance() {
             } else {
                 setLoading(true);
             }
-            const response = await api.post('/labours/filter', {
-                status: 'active',
-                supervisor_id: supId || undefined
-            });
+            let queryString = '?status=active';
+            if (supId) queryString += `&supervisor_id=${supId}`;
+            const response = await api.get(`/labours${queryString}`);
             const data = await response.json();
             if (response.ok) {
                 setLabours(data);
