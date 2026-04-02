@@ -90,12 +90,12 @@ export default function AttendanceScreen() {
 	const fetchLabours = async (isRefresh = false) => {
 		try {
 			if (!isRefresh) setLoading(true);
-			let url = `${API_URL}/labours?status=active`;
+			let response;
 			if (siteId) {
-				url = `${API_URL}/sites/${siteId}/labours`;
+				response = await api.get(`/sites/${siteId}/labours`);
+			} else {
+				response = await api.post('/labours/filter', { status: 'active' });
 			}
-
-			const response = await api.fetch(url);
 			const data = await response.json();
 
 			if (response.ok) {

@@ -67,22 +67,23 @@ export default function OvertimeScreen() {
 	const fetchLabours = async (isRefresh = false) => {
 		try {
 			if (!isRefresh) setLoading(true);
-			let url = `${API_URL}/labours?status=active`;
-
-			const userDataStr = await AsyncStorage.getItem("userData");
-			if (userDataStr) {
-				const userData = JSON.parse(userDataStr);
-				if (userData.role === "supervisor") {
-					url += `&supervisor_id=${userData.id}`;
-				}
-			}
-
+			let response;
 			if (siteId) {
-				// If backend supports filtering by site
-				url = `${API_URL}/sites/${siteId}/labours`;
+				response = await api.get(`/sites/${siteId}/labours`);
+			} else {
+				let supId;
+				const userDataStr = await AsyncStorage.getItem("userData");
+				if (userDataStr) {
+					const userData = JSON.parse(userDataStr);
+					if (userData.role === "supervisor") {
+						supId = userData.id;
+					}
+				}
+				response = await api.post('/labours/filter', {
+					status: 'active',
+					supervisor_id: supId
+				});
 			}
-
-			const response = await api.fetch(url);
 			const data = await response.json();
 
 			if (response.ok) {
@@ -110,12 +111,7 @@ export default function OvertimeScreen() {
 	const fetchExistingOvertime = async () => {
 		try {
 			const dateStr = formatDate(date);
-			let url = `${API_URL}/overtime?date=${dateStr}`;
-			if (siteId) {
-				url += `&site_id=${siteId}`;
-			}
-
-			const response = await api.fetch(url);
+			const response = await api.post('/overtime/fetch', { date: dateStr, site_id: siteId || undefined });
 			const data = await response.json();
 
 			if (response.ok && Array.isArray(data)) {
