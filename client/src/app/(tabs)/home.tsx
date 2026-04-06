@@ -222,8 +222,8 @@ export default function HomeScreen() {
 		{ label: "Labours", icon: "account-group-outline", route: "/(screens)/labours", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Supervisors", icon: "account-tie-outline", route: "/(screens)/supervisors", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Wage Report", icon: "file-chart-outline", route: "/(screens)/reports/wage-report", color: colors.secondary, iconColor: colors.primary },
-		{ label: "Bonus & Attd.", icon: "calendar-star", route: "/(screens)/reports/bonus-attendance-report", color: colors.secondary, iconColor: colors.success },
-		{ label: "Add Site", icon: "office-building-outline", route: "/(screens)/add-site", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Bonus & Increment", icon: "calendar-star", route: "/(screens)/reports/bonus-attendance-report", color: colors.secondary, iconColor: colors.success },
+		{ label: "Sites", icon: "office-building-outline", route: "/(screens)/sites", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Pending Admins", icon: "account-clock-outline", route: "/(screens)/pending-admins", color: colors.secondary, iconColor: colors.warning },
 	];
 

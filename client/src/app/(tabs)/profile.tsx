@@ -241,45 +241,6 @@ export default function Profile() {
       setIsSavingFoodRate(false);
     }
   };
-
-  const handleClearDatabase = () => {
-    Alert.alert(
-      "Clear Database",
-      "Are you sure you want to clear the entire database? This action cannot be undone and will delete all labours, sites, attendances, and supervisors.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear System Data",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsClearingDatabase(true);
-              const token = await AsyncStorage.getItem("token");
-              const response = await fetch(`${API_URL}/auth/clear-database`, {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
-
-              const data = await response.json();
-              if (response.ok) {
-                Alert.alert("Success", "Database cleared successfully!");
-              } else {
-                Alert.alert("Error", data.error || "Failed to clear database");
-              }
-            } catch (error) {
-              console.error("Clear database error:", error);
-              Alert.alert("Error", "Unable to connect to server");
-            } finally {
-              setIsClearingDatabase(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const userName = user?.name || "User";
   const userPhone = user?.phone || "";
   const userRole = user?.role || "User";
@@ -333,7 +294,7 @@ export default function Profile() {
             <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
           </Pressable>
           <View style={styles.divider} />
-          
+
           {(userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'supervisor') && (
             <Pressable style={styles.menuItem} onPress={() => setIsPasswordModalVisible(true)}>
               <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#FFF4ED" }]}>
@@ -373,7 +334,7 @@ export default function Profile() {
             <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
           </Pressable>
           <View style={styles.divider} />
-          
+
           <Pressable style={styles.menuItem} onPress={() => router.push("/(screens)/settings/history" as any)}>
             <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#2D1B69" : "#EEF2FF" }]}>
               <MaterialIcons name="history" size={20} color="#6366F1" />
@@ -399,13 +360,6 @@ export default function Profile() {
                   <Text style={{ fontSize: 12, color: isDark ? '#64748B' : '#94A3B8', marginTop: 2 }}>₹{foodRate} per day (default)</Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
-              </Pressable>
-              <View style={styles.divider} />
-              <Pressable style={styles.menuItem} onPress={handleClearDatabase} disabled={isClearingDatabase}>
-                <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#331515" : "#FEF2F2" }]}>
-                  {isClearingDatabase ? <ActivityIndicator size="small" color="#EF4444" /> : <MaterialIcons name="delete-forever" size={20} color="#EF4444" />}
-                </View>
-                <Text style={[styles.menuText, { color: "#EF4444" }]}>Clear Application Data</Text>
               </Pressable>
               <View style={styles.divider} />
             </>

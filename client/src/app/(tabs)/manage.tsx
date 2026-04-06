@@ -6,7 +6,6 @@ import { useTheme } from "../../context/ThemeContext";
 import { styles } from "../style/stylesheet1";
 
 const options = [
-  { key: "manual-attendance", icon: "edit-calendar", title: "Manual Entry", desc: "Override attendance manually" },
   { key: "attendance", icon: "check-circle", title: "Attendance", desc: "Record and view attendance" },
   { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
   { key: "sites", icon: "location-city", title: "Sites", desc: "Manage job sites" },
@@ -39,10 +38,6 @@ export default function Manage(): JSX.Element {
     }
     if (key === "advance") {
       router.push("/(screens)/advance");
-      return;
-    }
-    if (key === "manual-attendance") {
-      router.push("/(screens)/manual-attendance" as any);
       return;
     }
     // navigate to dedicated management screen (ensure routes exist or create them)
