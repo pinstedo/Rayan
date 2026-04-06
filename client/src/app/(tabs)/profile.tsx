@@ -313,6 +313,23 @@ export default function Profile() {
         {/* System Data Menu */}
         <Text style={styles.sectionTitle}>System & Actions</Text>
         <View style={styles.menuCard}>
+          <Pressable style={styles.menuItem} onPress={() => router.push("/(screens)/completed-sites" as any)}>
+            <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1b4323" : "#e8fdf0" }]}>
+              <MaterialIcons name="domain-verification" size={20} color="#34c759" />
+            </View>
+            <Text style={styles.menuText}>Completed Sites</Text>
+            <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+          </Pressable>
+          <View style={styles.divider} />
+          
+          <Pressable style={styles.menuItem} onPress={() => router.push("/(screens)/settings/history" as any)}>
+            <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#2D1B69" : "#EEF2FF" }]}>
+              <MaterialIcons name="history" size={20} color="#6366F1" />
+            </View>
+            <Text style={styles.menuText}>System History</Text>
+            <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+          </Pressable>
+          <View style={styles.divider} />
           {userRole.toLowerCase() === 'admin' && (
             <>
               <Pressable style={styles.menuItem} onPress={handleClearDatabase} disabled={isClearingDatabase}>

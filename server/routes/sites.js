@@ -4,11 +4,22 @@ const { openDb } = require('../database');
 const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
+const { logHistory } = require('../utils/historyLogger');
 
-// List all sites
+// List all sites (supports ?status=active|inactive filter)
 router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
+        const { status } = req.query;
+
+        let whereClause = '';
+        const params = [];
+
+        if (status === 'active' || status === 'inactive') {
+            whereClause = 'WHERE s.status = ?';
+            params.push(status);
+        }
+
         const sites = await db.all(`
             SELECT 
                 s.*,
@@ -17,16 +28,17 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             FROM sites s
             LEFT JOIN site_supervisors ss ON s.id = ss.site_id
             LEFT JOIN labours l ON s.id = l.site_id
+            ${whereClause}
             GROUP BY s.id
-            ORDER BY s.created_at DESC
-        `);
+            ORDER BY s.name ASC
+        `, params);
         res.json(sites);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Get sites assigned to a supervisor - MUST be before /:id route
+// Get ACTIVE sites assigned to a supervisor - MUST be before /:id route
 router.get('/supervisor/:supervisorId', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
@@ -34,8 +46,8 @@ router.get('/supervisor/:supervisorId', authorizeRole(['admin', 'supervisor']), 
             SELECT s.*, ss.assigned_at
             FROM sites s
             JOIN site_supervisors ss ON s.id = ss.site_id
-            WHERE ss.supervisor_id = ?
-            ORDER BY ss.assigned_at DESC
+            WHERE ss.supervisor_id = ? AND s.status = 'active'
+            ORDER BY s.name ASC
         `, [req.params.supervisorId]);
         res.json(sites);
     } catch (err) {
@@ -54,11 +66,21 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
         const result = await db.run(
-            `INSERT INTO sites (name, address, description, created_by) VALUES (?, ?, ?, ?) RETURNING id`,
+            `INSERT INTO sites (name, address, description, created_by, status, completion_percentage) VALUES (?, ?, ?, ?, 'active', 0) RETURNING id`,
             [name, address, description, created_by]
         );
 
         const newSite = await db.get(`SELECT * FROM sites WHERE id = ?`, [result.lastID]);
+        
+        await logHistory({
+            type: 'site',
+            action: 'created',
+            reference_id: result.lastID,
+            name: name,
+            metadata: { address, description },
+            created_by: created_by || (req.user ? req.user.id : null)
+        });
+
         res.status(201).json(newSite);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -94,30 +116,116 @@ router.get('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     }
 });
 
-// Update site
+// Update site details (name, address, description, completion_percentage)
 router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { name, address, description } = req.body;
+    const { name, address, description, completion_percentage } = req.body;
 
     try {
         const db = await openDb();
         await db.run(
-            `UPDATE sites SET name = ?, address = ?, description = ? WHERE id = ?`,
-            [name, address, description, req.params.id]
+            `UPDATE sites SET name = ?, address = ?, description = ?, completion_percentage = ? WHERE id = ?`,
+            [name, address, description, completion_percentage ?? 0, req.params.id]
         );
 
         const updated = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        
+        await logHistory({
+            type: 'site',
+            action: 'updated',
+            reference_id: req.params.id,
+            name: name,
+            metadata: { address, description, completion_percentage },
+            created_by: req.user ? req.user.id : null
+        });
+
         res.json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Delete site
-router.delete('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+// Toggle site status (active <-> inactive <-> completed)
+router.put('/:id/status', authorizeRole(['admin']), async (req, res) => {
+    const { status, notes } = req.body;
+
+    if (!status || !['active', 'inactive', 'completed'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be "active", "inactive", or "completed"' });
+    }
+
     try {
         const db = await openDb();
-        await db.run('DELETE FROM sites WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Site deleted' });
+
+        const site = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        if (!site) {
+            return res.status(404).json({ error: 'Site not found' });
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        const lastActiveDate = (status === 'active' || status === 'completed') ? today : site.last_active_date;
+        // If status is completed manually via this endpoint, ensure percentage is 100
+        const completionPercentage = status === 'completed' ? 100 : site.completion_percentage;
+
+        await db.run(
+            `UPDATE sites SET status = ?, notes = COALESCE(?, notes), last_active_date = ?, completion_percentage = ? WHERE id = ?`,
+            [status, notes || null, lastActiveDate, completionPercentage, req.params.id]
+        );
+
+        const updated = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        
+        await logHistory({
+            type: 'site',
+            action: 'status_changed',
+            reference_id: req.params.id,
+            name: updated.name,
+            metadata: { status, notes, completion_percentage: completionPercentage },
+            created_by: req.user ? req.user.id : null
+        });
+
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update site completion progress
+router.put('/:id/progress', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    let { progress } = req.body;
+
+    if (progress === undefined || isNaN(progress)) {
+        return res.status(400).json({ error: 'Valid progress value is required' });
+    }
+
+    progress = Math.max(0, Math.min(100, parseFloat(progress)));
+
+    try {
+        const db = await openDb();
+        const site = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        if (!site) return res.status(404).json({ error: 'Site not found' });
+
+        let newStatus = site.status;
+        if (progress === 100) {
+            newStatus = 'completed';
+        } else if (newStatus === 'completed') {
+            newStatus = 'active'; // REVERT back to active if progress drops below 100
+        }
+
+        await db.run(
+            `UPDATE sites SET completion_percentage = ?, status = ? WHERE id = ?`,
+            [progress, newStatus, req.params.id]
+        );
+
+        const updated = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        
+        await logHistory({
+            type: 'site',
+            action: 'progress_updated',
+            reference_id: req.params.id,
+            name: updated.name,
+            metadata: { progress },
+            created_by: req.user ? req.user.id : null
+        });
+
+        res.json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -172,7 +280,7 @@ router.delete('/:id/unassign/:supervisorId', authorizeRole(['admin', 'supervisor
     }
 });
 
-// Assign labour to site
+// Assign labour to site — blocked for inactive sites
 router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     const { labour_id } = req.body;
     if (!labour_id) {
@@ -180,8 +288,14 @@ router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async 
     }
     try {
         const db = await openDb();
-        const site = await db.get('SELECT name FROM sites WHERE id = ?', [req.params.id]);
+        const site = await db.get('SELECT name, status FROM sites WHERE id = ?', [req.params.id]);
         if (!site) return res.status(404).json({ error: 'Site not found' });
+
+        // Guard: cannot assign labour to inactive or completed site
+        if (site.status === 'inactive' || site.status === 'completed') {
+            return res.status(400).json({ error: `Cannot assign labour to a ${site.status} site.` });
+        }
+
         await db.run('UPDATE labours SET site_id = ?, site = ?, status = "active" WHERE id = ?', [req.params.id, site.name, labour_id]);
         res.json({ message: 'Labour assigned to site' });
     } catch (err) {

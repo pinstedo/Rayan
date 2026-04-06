@@ -89,4 +89,26 @@ router.post('/', async (req, res) => {
     }
 });
 
+// Get all overtime records for a specific labour
+router.get('/labour/:id', async (req, res) => {
+    try {
+        const db = await openDb();
+        const records = await db.all(
+            `SELECT o.id, o.date, o.hours, o.amount, o.notes, o.created_at,
+                    s.id as site_id, s.name as site_name
+             FROM overtime o
+             LEFT JOIN sites s ON o.site_id = s.id
+             WHERE o.labour_id = ?
+             ORDER BY o.date DESC
+             LIMIT 100`,
+            [req.params.id]
+        );
+        res.json(records);
+    } catch (err) {
+        console.error('Error fetching labour overtime:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
+

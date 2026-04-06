@@ -13,6 +13,7 @@ import {
     View
 } from "react-native";
 import { api } from "../../services/api";
+import { sortByName } from "../../utils/sort";
 
 interface Supervisor {
     id: number;
@@ -37,7 +38,7 @@ export default function SupervisorsScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                setSupervisors(data);
+                setSupervisors(sortByName(data));
             } else {
                 console.error("Fetch supervisors failed:", data);
                 Alert.alert("Error", data.error || "Failed to fetch supervisors");

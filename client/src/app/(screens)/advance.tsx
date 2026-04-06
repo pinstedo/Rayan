@@ -20,6 +20,7 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
+import { sortByName } from "../../utils/sort";
 
 interface Labour {
     id: number;
@@ -83,7 +84,7 @@ export default function Advance() {
             const response = await api.get(`/labours${queryString}`);
             const data = await response.json();
             if (response.ok) {
-                setLabours(data);
+                setLabours(sortByName(data));
             }
         } catch (error) {
             console.error("Failed to fetch labours", error);

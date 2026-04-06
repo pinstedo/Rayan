@@ -7,6 +7,7 @@ import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Tex
 import GlobalSearch from "../../../components/GlobalSearch";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
+import { sortByName } from "../../../utils/sort";
 
 interface Site {
     id: number;
@@ -56,7 +57,7 @@ export default function SupervisorHome(): JSX.Element {
             const data = await response.json();
 
             if (response.ok) {
-                setAssignedSites(data);
+                setAssignedSites(sortByName(data));
                 if (data.length > 0 && !hasUserSelectedSite.current) {
                     // Only auto-select the first site if the user hasn't
                     // manually picked one yet.

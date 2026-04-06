@@ -29,17 +29,13 @@ interface Site {
     created_at: string;
 }
 
-type FilterType = "all" | "active" | "inactive";
-
-export default function SitesScreen() {
+export default function CompletedSitesScreen() {
     const router = useRouter();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [sites, setSites] = useState<Site[]>([]);
-    const [allSites, setAllSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [filter, setFilter] = useState<FilterType>("all");
 
     const fetchSites = async (isRefresh = false) => {
         try {
@@ -48,13 +44,11 @@ export default function SitesScreen() {
             } else {
                 setLoading(true);
             }
-            const response = await api.get("/sites");
+            const response = await api.get("/sites?status=completed");
             const data = await response.json();
 
             if (response.ok) {
-                const sorted = sortByName(data);
-                setAllSites(sorted);
-                applyFilter(sorted, filter);
+                setSites(sortByName(data) as any);
             } else {
                 Alert.alert("Error", data.error || "Failed to fetch sites");
             }
@@ -67,21 +61,6 @@ export default function SitesScreen() {
         }
     };
 
-    const applyFilter = (data: Site[], f: FilterType) => {
-        // Only show non-completed sites for all, or explicitly match status
-        const visibleSites = data.filter(s => s.status !== "completed");
-        if (f === "all") {
-            setSites(visibleSites);
-        } else {
-            setSites(visibleSites.filter(s => (s.status ?? "active") === f));
-        }
-    };
-
-    const handleFilterChange = (f: FilterType) => {
-        setFilter(f);
-        applyFilter(allSites, f);
-    };
-
     const onRefresh = () => {
         fetchSites(true);
     };
@@ -92,16 +71,7 @@ export default function SitesScreen() {
         }, [])
     );
 
-    const getStatusColor = (status: string) => {
-        if ((status ?? "active") === "inactive") {
-            return { bg: isDark ? "#3b2a00" : "#fff8e1", text: isDark ? "#ffb74d" : "#e65100" };
-        }
-        return { bg: isDark ? "#0d2b1c" : "#e8f5e9", text: isDark ? "#66bb6a" : "#2e7d32" };
-    };
-
     const renderSite = ({ item }: { item: Site }) => {
-        const status = item.status ?? "active";
-        const statusColors = getStatusColor(status);
         const pct = Math.min(100, Math.max(0, item.completion_percentage || 0));
 
         return (
@@ -110,25 +80,21 @@ export default function SitesScreen() {
                 onPress={() => router.push(`/(screens)/site-details?id=${item.id}` as any)}
             >
                 {/* Status badge */}
-                <View style={[local.statusBadge, { backgroundColor: statusColors.bg }]}>
-                    <View style={[local.statusDot, { backgroundColor: statusColors.text }]} />
-                    <Text style={[local.statusBadgeText, { color: statusColors.text }]}>
-                        {status === "inactive" ? "Inactive" : "Active"}
-                    </Text>
+                <View style={[local.statusBadge, { backgroundColor: isDark ? "#0d2b1c" : "#e8fdf0" }]}>
+                    <View style={[local.statusDot, { backgroundColor: "#34c759" }]} />
+                    <Text style={[local.statusBadgeText, { color: "#34c759" }]}>Completed</Text>
                 </View>
 
                 <View style={local.cardMain}>
-                    <View style={[local.iconWrap, status === "inactive" && local.iconWrapInactive]}>
+                    <View style={local.iconWrap}>
                         <MaterialIcons
-                            name="location-city"
+                            name="domain-verification"
                             size={24}
-                            color={status === "inactive" ? (isDark ? "#aaa" : "#999") : (isDark ? "#64b5f6" : "#0a84ff")}
+                            color="#34c759"
                         />
                     </View>
                     <View style={local.info}>
-                        <Text style={[local.name, status === "inactive" && local.nameInactive]}>
-                            {item.name}
-                        </Text>
+                        <Text style={local.name}>{item.name}</Text>
                         {item.address && <Text style={local.address}>{item.address}</Text>}
                         <View style={local.statsRow}>
                             <View style={local.stat}>
@@ -145,7 +111,7 @@ export default function SitesScreen() {
                         {pct > 0 && (
                             <View style={local.progressRow}>
                                 <View style={local.progressTrack}>
-                                    <View style={[local.progressFill, { width: `${pct}%` as any, backgroundColor: pct >= 100 ? "#34c759" : (isDark ? "#64b5f6" : "#0a84ff") }]} />
+                                    <View style={[local.progressFill, { width: `${pct}%` as any, backgroundColor: "#34c759" }]} />
                                 </View>
                                 <Text style={local.progressText}>{Math.round(pct)}%</Text>
                             </View>
@@ -157,63 +123,22 @@ export default function SitesScreen() {
         );
     };
 
-    const visibleAllSites = allSites.filter(s => s.status !== "completed");
-    const filterCounts = {
-        all: visibleAllSites.length,
-        active: visibleAllSites.filter(s => (s.status ?? "active") === "active").length,
-        inactive: visibleAllSites.filter(s => s.status === "inactive").length,
-    };
-
     return (
         <View style={local.container}>
             <View style={local.header}>
                 <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
-                <Text style={local.title}>Sites</Text>
-                <TouchableOpacity
-                    onPress={() => router.push("/(screens)/add-site" as any)}
-                    style={local.addButton}
-                >
-                    <MaterialIcons name="add" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
-                </TouchableOpacity>
-            </View>
-
-            {/* Filter Tabs */}
-            <View style={local.filterBar}>
-                {(["all", "active", "inactive"] as FilterType[]).map(f => (
-                    <TouchableOpacity
-                        key={f}
-                        style={[local.filterTab, filter === f && local.filterTabActive]}
-                        onPress={() => handleFilterChange(f)}
-                    >
-                        <Text style={[local.filterTabText, filter === f && local.filterTabTextActive]}>
-                            {f.charAt(0).toUpperCase() + f.slice(1)}
-                            {" "}
-                            <Text style={[local.filterCount, filter === f && local.filterCountActive]}>
-                                ({filterCounts[f]})
-                            </Text>
-                        </Text>
-                    </TouchableOpacity>
-                ))}
+                <Text style={local.title}>Completed Sites</Text>
+                <View style={{ width: 40 }} />
             </View>
 
             {loading && !refreshing ? (
                 <ActivityIndicator size="large" color="#0a84ff" style={local.loader} />
             ) : sites.length === 0 ? (
                 <View style={local.emptyState}>
-                    <MaterialIcons name="location-city" size={64} color={isDark ? "#555" : "#ccc"} />
-                    <Text style={local.emptyText}>
-                        {filter === "all" ? "No sites added yet" : `No ${filter} sites`}
-                    </Text>
-                    {filter === "all" && (
-                        <TouchableOpacity
-                            onPress={() => router.push("/(screens)/add-site" as any)}
-                            style={local.addFirstButton}
-                        >
-                            <Text style={local.addFirstText}>Add First Site</Text>
-                        </TouchableOpacity>
-                    )}
+                    <MaterialIcons name="domain-verification" size={64} color={isDark ? "#555" : "#ccc"} />
+                    <Text style={local.emptyText}>No completed sites</Text>
                 </View>
             ) : (
                 <FlatList
@@ -250,40 +175,6 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontSize: 18,
         fontWeight: "600",
         color: isDark ? "#fff" : "#333",
-    },
-    addButton: { padding: 8 },
-    filterBar: {
-        flexDirection: "row",
-        backgroundColor: isDark ? "#1e1e1e" : "#fff",
-        borderBottomWidth: 1,
-        borderBottomColor: isDark ? "#333" : "#eee",
-        paddingHorizontal: 8,
-    },
-    filterTab: {
-        flex: 1,
-        paddingVertical: 10,
-        alignItems: "center",
-        borderBottomWidth: 2,
-        borderBottomColor: "transparent",
-    },
-    filterTabActive: {
-        borderBottomColor: isDark ? "#4da6ff" : "#0a84ff",
-    },
-    filterTabText: {
-        fontSize: 14,
-        fontWeight: "500",
-        color: isDark ? "#888" : "#666",
-    },
-    filterTabTextActive: {
-        color: isDark ? "#4da6ff" : "#0a84ff",
-        fontWeight: "700",
-    },
-    filterCount: {
-        fontSize: 12,
-        color: isDark ? "#666" : "#999",
-    },
-    filterCountActive: {
-        color: isDark ? "#4da6ff" : "#0a84ff",
     },
     loader: {
         flex: 1,
@@ -334,13 +225,10 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: isDark ? "#1a3b5c" : "#e8f4ff",
+        backgroundColor: isDark ? "#1b4323" : "#e8fdf0",
         justifyContent: "center",
         alignItems: "center",
         marginRight: 12,
-    },
-    iconWrapInactive: {
-        backgroundColor: isDark ? "#2a2a2a" : "#f0f0f0",
     },
     info: { flex: 1 },
     name: {
@@ -348,9 +236,6 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontWeight: "600",
         color: isDark ? "#fff" : "#333",
         marginBottom: 4,
-    },
-    nameInactive: {
-        color: isDark ? "#aaa" : "#999",
     },
     address: {
         fontSize: 14,
@@ -406,16 +291,5 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: isDark ? "#888" : "#999",
         marginTop: 16,
         marginBottom: 24,
-    },
-    addFirstButton: {
-        backgroundColor: "#0a84ff",
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 8,
-    },
-    addFirstText: {
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "600",
     },
 });

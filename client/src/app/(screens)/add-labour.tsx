@@ -87,8 +87,8 @@ export default function AddLabour() {
 
         // Fetch sites based on role
         if (userData.role === "admin") {
-          // Admin can see all sites
-          const response = await api.get("/sites");
+          // Admin can see active sites only for assignment
+          const response = await api.get("/sites?status=active");
           const data = await response.json();
           if (response.ok) {
             setSites(data);

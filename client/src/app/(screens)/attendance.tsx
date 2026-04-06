@@ -7,6 +7,7 @@ import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { sortByName } from "../../utils/sort";
 
 interface Labour {
 	id: number;
@@ -98,7 +99,7 @@ export default function AttendanceScreen() {
 			const data = await response.json();
 
 			if (response.ok) {
-				setLabours(data);
+				setLabours(sortByName(data));
 				// fetchExistingAttendance(data); // Removed argument as it's not used in implementation, and useEffect calls it anyway
 			} else {
 				showModal("Error", "Failed to fetch labours", 'error');

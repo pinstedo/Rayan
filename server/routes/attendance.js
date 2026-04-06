@@ -4,6 +4,7 @@ const { openDb } = require('../database');
 const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
+const { logHistory } = require('../utils/historyLogger');
 
 // Get attendance for a specific site and date, or all sites if site_id is missing
 router.post('/fetch', authorizeRole(['admin', 'supervisor']), async (req, res) => {
@@ -211,6 +212,15 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         }
 
         await db.exec('COMMIT');
+        
+        await logHistory({
+            type: 'attendance',
+            action: 'marked',
+            reference_id: site_id,
+            name: `Attendance for Site ${site_id} (${date})`,
+            metadata: { records_count: records.length, date, food_provided: !!food_provided },
+            created_by: req.user ? req.user.id : null
+        });
 
         res.json({ message: 'Attendance marked successfully' });
     } catch (err) {
@@ -222,4 +232,26 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     }
 });
 
+// Get all attendance records for a specific labour
+router.get('/labour/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const db = await openDb();
+        const records = await db.all(
+            `SELECT a.id, a.date, a.status, a.created_at,
+                    s.id as site_id, s.name as site_name
+             FROM attendance a
+             LEFT JOIN sites s ON a.site_id = s.id
+             WHERE a.labour_id = ?
+             ORDER BY a.date DESC
+             LIMIT 100`,
+            [req.params.id]
+        );
+        res.json(records);
+    } catch (err) {
+        console.error('Error fetching labour attendance:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
+

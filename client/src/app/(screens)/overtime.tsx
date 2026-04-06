@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { sortByName } from "../../utils/sort";
 
 // Helper for date formatting
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
@@ -85,7 +86,7 @@ export default function OvertimeScreen() {
 			const data = await response.json();
 
 			if (response.ok) {
-				setLabours(data);
+				setLabours(sortByName(data));
 			} else {
 				Alert.alert("Error", "Failed to fetch labours");
 			}

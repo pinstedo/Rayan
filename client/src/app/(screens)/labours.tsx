@@ -14,6 +14,7 @@ import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
+import { sortByName } from "../../utils/sort";
 
 interface Site {
 	id: number;
@@ -109,7 +110,7 @@ export default function Labours() {
 			const response = await api.get(`/labours${queryString}`);
 			const data = await response.json();
 			if (response.ok) {
-				setLabours(data);
+				setLabours(sortByName(data));
 			}
 		} catch (error) {
 			console.error("Failed to fetch labours", error);
@@ -125,10 +126,10 @@ export default function Labours() {
 
 	const fetchSites = async () => {
 		try {
-			const response = await api.get("/sites");
+			const response = await api.get("/sites?status=active");
 			const data = await response.json();
 			if (response.ok) {
-				setSites(data);
+				setSites(sortByName(data));
 			}
 		} catch (error) {
 			console.error("Failed to fetch sites", error);

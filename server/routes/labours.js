@@ -8,6 +8,7 @@ const router = express.Router();
 // For this proto, we might skip strict token verification on every route or add it later
 
 const { authorizeRole } = require('../middleware/auth');
+const { logHistory } = require('../utils/historyLogger');
 
 // List all labours or filter by supervisor
 router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
@@ -119,6 +120,16 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         );
 
         const newLabour = await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]);
+        
+        await logHistory({
+            type: 'labour',
+            action: 'created',
+            reference_id: result.lastID,
+            name: name,
+            metadata: { phone, site, trade, status: initialStatus },
+            created_by: req.user ? req.user.id : null
+        });
+
         res.status(201).json(newLabour);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -223,6 +234,16 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         );
 
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
+        
+        await logHistory({
+            type: 'labour',
+            action: 'updated',
+            reference_id: req.params.id,
+            name: name,
+            metadata: { phone, site, trade, rate },
+            created_by: req.user ? req.user.id : null
+        });
+
         res.json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -263,6 +284,16 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
         }
 
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
+        
+        await logHistory({
+            type: 'labour',
+            action: 'status_changed',
+            reference_id: req.params.id,
+            name: updated.name,
+            metadata: { status },
+            created_by: req.user ? req.user.id : null
+        });
+
         res.json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });

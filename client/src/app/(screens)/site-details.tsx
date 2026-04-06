@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { sortByName } from "../../utils/sort";
 
 interface Supervisor {
     id: number;
@@ -38,6 +39,8 @@ interface SiteDetails {
     name: string;
     address: string;
     description: string;
+    status: string;
+    completion_percentage: number;
     supervisors: Supervisor[];
     labours: Labour[];
 }
@@ -87,6 +90,9 @@ export default function SiteDetailsScreen() {
             const data = await response.json();
 
             if (response.ok) {
+                // Sort supervisors and labours before storing
+                data.supervisors = sortByName(data.supervisors || []);
+                data.labours = sortByName(data.labours || []);
                 setSite(data);
                 setEditName(data.name);
                 setEditAddress(data.address || "");
@@ -115,7 +121,7 @@ export default function SiteDetailsScreen() {
                 // Filter out already assigned supervisors
                 const assignedIds = site?.supervisors.map(s => s.id) || [];
                 const available = data.filter((s: Supervisor) => !assignedIds.includes(s.id));
-                setAvailableSupervisors(available);
+                setAvailableSupervisors(sortByName(available));
             }
         } catch (error) {
             console.error("Fetch supervisors error:", error);
@@ -161,48 +167,25 @@ export default function SiteDetailsScreen() {
         }
     };
 
-    const handleDelete = () => {
-        const executeDelete = async () => {
-            try {
-                const response = await api.delete(`/sites/${id}`);
-
-                if (response.ok) {
-                    if (Platform.OS === 'web') {
-                        window.alert("Site deleted");
-                    } else {
-                        Alert.alert("Success", "Site deleted");
-                    }
-                    router.back();
-                } else {
-                    const data = await response.json();
-                    if (Platform.OS === 'web') {
-                        window.alert(data.error || "Failed to delete site");
-                    } else {
-                        Alert.alert("Error", data.error || "Failed to delete site");
-                    }
-                }
-            } catch (error) {
+    const handleUpdateProgress = async (newProgress: number) => {
+        try {
+            const response = await api.put(`/sites/${id}/progress`, { progress: newProgress });
+            if (response.ok) {
+                fetchSiteDetails(); // refresh to get updated status and percentage
+            } else {
+                const data = await response.json();
                 if (Platform.OS === 'web') {
-                    window.alert("Failed to connect to server");
+                    window.alert(data.error || "Failed to update progress");
                 } else {
-                    Alert.alert("Error", "Failed to connect to server");
+                    Alert.alert("Error", data.error || "Failed to update progress");
                 }
             }
-        };
-
-        if (Platform.OS === 'web') {
-            if (window.confirm("Are you sure you want to delete this site? This action cannot be undone.")) {
-                executeDelete();
+        } catch (error) {
+            if (Platform.OS === 'web') {
+                window.alert("Failed to connect to server");
+            } else {
+                Alert.alert("Error", "Failed to connect to server");
             }
-        } else {
-            Alert.alert(
-                "Delete Site",
-                "Are you sure you want to delete this site? This action cannot be undone.",
-                [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: executeDelete }
-                ]
-            );
         }
     };
 
@@ -306,7 +289,7 @@ export default function SiteDetailsScreen() {
             if (response.ok) {
                 const assignedIds = site?.labours.map(l => l.id) || [];
                 const available = data.filter((l: Labour) => !assignedIds.includes(l.id));
-                setAvailableLabours(available);
+                setAvailableLabours(sortByName(available));
             }
         } catch (error) {
             console.error("Fetch labours error:", error);
@@ -470,13 +453,109 @@ export default function SiteDetailsScreen() {
                                     </TouchableOpacity>
                                 </View>
                             ) : (
-                                <View style={local.infoCard}>
-                                    <Text style={local.siteName}>{site.name}</Text>
-                                    {site.address && <Text style={local.siteAddress}>{site.address}</Text>}
-                                    {site.description && <Text style={local.siteDesc}>{site.description}</Text>}
+                                    <View style={local.infoCard}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={local.siteName}>{site.name}</Text>
+                                                {site.address && <Text style={local.siteAddress}>{site.address}</Text>}
+                                            </View>
+                                            {/* Status Badge */}
+                                            <View style={[
+                                                local.statusBadge, 
+                                                { 
+                                                    backgroundColor: site.status === 'completed' ? (isDark ? '#0d2b1c' : '#e8fdf0') : 
+                                                                     site.status === 'inactive' ? (isDark ? '#3b2a00' : '#fff8e1') :
+                                                                     (isDark ? '#1a3b5c' : '#e8f4ff')
+                                                }
+                                            ]}>
+                                                <View style={[
+                                                    local.statusDot, 
+                                                    { 
+                                                        backgroundColor: site.status === 'completed' ? '#34c759' : 
+                                                                         site.status === 'inactive' ? '#ff9500' : '#0a84ff' 
+                                                    }
+                                                ]} />
+                                                <Text style={[
+                                                    local.statusBadgeText, 
+                                                    { 
+                                                        color: site.status === 'completed' ? '#34c759' : 
+                                                               site.status === 'inactive' ? '#ff9500' : '#0a84ff' 
+                                                    }
+                                                ]}>
+                                                    {site.status === 'completed' ? 'Completed' : 
+                                                     site.status === 'inactive' ? 'Inactive' : 'Active'}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                        {site.description && <Text style={local.siteDesc}>{site.description}</Text>}
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* Progress Section */}
+                            <View style={local.section}>
+                                <Text style={local.sectionTitle}>Site Progress</Text>
+                                <View style={local.progressCard}>
+                                    <View style={local.progressHeaderRow}>
+                                        <Text style={local.progressLabel}>Completion</Text>
+                                        <Text style={local.progressValueText}>{Math.round(site.completion_percentage || 0)}%</Text>
+                                    </View>
+                                    
+                                    <View style={local.largeProgressTrack}>
+                                        <View style={[local.largeProgressFill, { 
+                                            width: `${Math.min(100, Math.max(0, site.completion_percentage || 0))}%` as any, 
+                                            backgroundColor: site.status === 'completed' ? '#34c759' : (isDark ? '#4da6ff' : '#0a84ff')
+                                        }]} />
+                                    </View>
+                                    
+                                    {(userRole === 'admin' || userRole === 'supervisor') && site.status !== 'completed' && (
+                                        <View style={local.progressControls}>
+                                            <Text style={local.updateProgressLabel}>Update Progress:</Text>
+                                            <View style={local.progressActionsRow}>
+                                                {[25, 50, 75, 100].map(val => (
+                                                    <TouchableOpacity 
+                                                        key={val}
+                                                        style={val === 100 ? local.completeBtn : local.progressBtn}
+                                                        onPress={() => {
+                                                            if (val === 100) {
+                                                                if (Platform.OS === 'web') {
+                                                                    if (window.confirm("Marking progress at 100% will complete this site and prevent further labour assignments. Continue?")) {
+                                                                        handleUpdateProgress(100);
+                                                                    }
+                                                                } else {
+                                                                    Alert.alert(
+                                                                        "Complete Site",
+                                                                        "Marking progress at 100% will complete this site and prevent further labour assignments. Continue?",
+                                                                        [
+                                                                            { text: "Cancel", style: "cancel" },
+                                                                            { text: "Complete", style: "default", onPress: () => handleUpdateProgress(100) }
+                                                                        ]
+                                                                    );
+                                                                }
+                                                            } else {
+                                                                handleUpdateProgress(val);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={val === 100 ? local.completeBtnText : local.progressBtnText}>
+                                                            {val === 100 ? "Complete Site" : `Set ${val}%`}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+                                    {(userRole === 'admin' || userRole === 'supervisor') && site.status === 'completed' && (
+                                        <TouchableOpacity 
+                                            style={local.revertProgressBtn}
+                                            onPress={() => handleUpdateProgress(99)} // Drops to 99% to reopen site
+                                        >
+                                            <MaterialIcons name="refresh" size={16} color={isDark ? "#aaa" : "#666"} />
+                                            <Text style={local.revertProgressText}>Reopen Site (set to 99%)</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-                            )}
-                        </View>
+                            </View>
 
                         {/* Supervisors Section */}
                         <View style={local.section}>
@@ -550,14 +629,7 @@ export default function SiteDetailsScreen() {
                             )}
                         </View>
 
-                        {/* Delete Button - Admin Only */}
-                        {userRole === 'admin' && (
-                            <TouchableOpacity style={local.deleteBtn} onPress={handleDelete}>
-                                <MaterialIcons name="delete" size={20} color="#fff" />
-                                <Text style={local.deleteBtnText}>Delete Site</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
+                        </View>
                 )}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
@@ -712,6 +784,114 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: isDark ? "#888" : "#888",
         marginTop: 8,
     },
+    statusBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginLeft: 12,
+        gap: 6,
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    statusBadgeText: {
+        fontSize: 12,
+        fontWeight: "700",
+        letterSpacing: 0.5,
+        textTransform: "uppercase",
+    },
+    progressCard: {
+        backgroundColor: isDark ? "#1e1e1e" : "#fff",
+        padding: 16,
+        borderRadius: 12,
+    },
+    progressHeaderRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 12,
+    },
+    progressLabel: {
+        fontSize: 14,
+        fontWeight: "500",
+        color: isDark ? "#ccc" : "#333",
+    },
+    progressValueText: {
+        fontSize: 18,
+        fontWeight: "800",
+        color: isDark ? "#fff" : "#333",
+    },
+    largeProgressTrack: {
+        height: 12,
+        backgroundColor: isDark ? "#333" : "#e0e0e0",
+        borderRadius: 6,
+        overflow: "hidden",
+        marginBottom: 16,
+    },
+    largeProgressFill: {
+        height: "100%",
+        borderRadius: 6,
+    },
+    progressControls: {
+        marginTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: isDark ? "#333" : "#f0f0f0",
+        paddingTop: 16,
+    },
+    updateProgressLabel: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: isDark ? "#888" : "#666",
+        marginBottom: 12,
+    },
+    progressActionsRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+    progressBtn: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: isDark ? "#2a2a2a" : "#f0f0f0",
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: isDark ? "#444" : "#e0e0e0",
+    },
+    progressBtnText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: isDark ? "#ccc" : "#555",
+    },
+    completeBtn: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: "#1b4323",
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#34c759",
+    },
+    completeBtnText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#34c759",
+    },
+    revertProgressBtn: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
+        marginTop: 8,
+        gap: 8,
+    },
+    revertProgressText: {
+        fontSize: 14,
+        color: isDark ? "#aaa" : "#666",
+        fontWeight: "500",
+    },
     editForm: {
         backgroundColor: isDark ? "#1e1e1e" : "#fff",
         padding: 16,
@@ -799,20 +979,6 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     },
     removeBtn: {
         padding: 4,
-    },
-    deleteBtn: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#ff3b30",
-        padding: 14,
-        borderRadius: 8,
-        gap: 8,
-        marginTop: 16,
-    },
-    deleteBtnText: {
-        color: "#fff",
-        fontWeight: "700",
     },
     modalOverlay: {
         flex: 1,

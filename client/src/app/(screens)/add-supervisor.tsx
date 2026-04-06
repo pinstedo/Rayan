@@ -102,7 +102,7 @@ export default function AddSupervisorScreen() {
                             <Ionicons name="person-outline" size={20} color={isDark ? "#aaa" : "#666"} style={local.inputIcon} />
                             <TextInput
                                 style={local.input}
-                                placeholder="Ex: John Doe"
+                                placeholder="full name"
                                 placeholderTextColor={isDark ? "#888" : "#999"}
                                 onChangeText={setName}
                                 value={name}
@@ -116,7 +116,7 @@ export default function AddSupervisorScreen() {
                             <Ionicons name="call-outline" size={20} color={isDark ? "#aaa" : "#666"} style={local.inputIcon} />
                             <TextInput
                                 style={local.input}
-                                placeholder="10 digit number"
+                                placeholder="phone number"
                                 placeholderTextColor={isDark ? "#888" : "#999"}
                                 onChangeText={setPhone}
                                 value={phone}
@@ -132,7 +132,7 @@ export default function AddSupervisorScreen() {
                             <Ionicons name="lock-closed-outline" size={20} color={isDark ? "#aaa" : "#666"} style={local.inputIcon} />
                             <TextInput
                                 style={local.input}
-                                placeholder="Min 6 characters"
+                                placeholder="password"
                                 placeholderTextColor={isDark ? "#888" : "#999"}
                                 onChangeText={setPassword}
                                 value={password}
