@@ -417,7 +417,7 @@ export default function AttendanceScreen() {
 								</Text>
 							</View>
 							<View style={local.foodAllowRight}>
-								{fa.enabled && (
+								{fa.enabled && isAdmin && (
 									<View style={local.foodAmountInputWrap}>
 										<Text style={local.rupeeSign}>₹</Text>
 										<TextInput
