@@ -19,7 +19,6 @@ const options = [
     { key: "attendance", icon: "check-circle", title: "Attendance", desc: "Record and view attendance" },
     { key: "labours", icon: "group", title: "Labours", desc: "View assigned labours" },
     { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
-    { key: "add-labour", icon: "person-add", title: "Add Labours", desc: "Add new labours to the system" },
 ];
 
 export default function SupervisorHome(): JSX.Element {
@@ -98,15 +97,6 @@ export default function SupervisorHome(): JSX.Element {
     );
 
     const onPress = (key: string) => {
-        if (key === "add-labour") {
-            // Pass selected site ID if available
-            if (selectedSite) {
-                router.push(`/(screens)/add-labour?siteId=${selectedSite.id}&siteName=${encodeURIComponent(selectedSite.name)}` as any);
-            } else {
-                router.push("/(screens)/add-labour");
-            }
-            return;
-        }
         if (key === "attendance") {
             if (selectedSite) {
                 router.push(`/(screens)/attendance?siteId=${selectedSite.id}&siteName=${encodeURIComponent(selectedSite.name)}` as any);

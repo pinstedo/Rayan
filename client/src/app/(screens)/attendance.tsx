@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
@@ -25,6 +25,8 @@ export default function AttendanceScreen() {
 	const [labours, setLabours] = useState<Labour[]>([]);
 	const [attendance, setAttendance] = useState<Map<number, 'full' | 'half' | 'absent'>>(new Map());
 	const [overtimeData, setOvertimeData] = useState<Map<number, number>>(new Map());
+	const [foodAllowanceData, setFoodAllowanceData] = useState<Map<number, { enabled: boolean; amount: string }>>(new Map());
+	const [globalFoodRate, setGlobalFoodRate] = useState(70);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [date, setDate] = useState(dateStr && typeof dateStr === 'string' ? new Date(dateStr) : new Date());
@@ -68,6 +70,17 @@ export default function AttendanceScreen() {
 			}
 		};
 		checkAdmin();
+		// Fetch global food allowance rate
+		const fetchRate = async () => {
+			try {
+				const res = await api.get('/settings/food-allowance-rate');
+				if (res.ok) {
+					const data = await res.json();
+					setGlobalFoodRate(data.rate ?? 70);
+				}
+			} catch { /* use default */ }
+		};
+		fetchRate();
 	}, []);
 
 	useEffect(() => {
@@ -157,13 +170,19 @@ export default function AttendanceScreen() {
 
 			if (response.ok && Array.isArray(data)) {
 				const newAttendance = new Map();
+				const newFoodAllowance = new Map<number, { enabled: boolean; amount: string }>();
 				data.forEach((record: any) => {
 					newAttendance.set(record.labour_id, record.status);
+					newFoodAllowance.set(record.labour_id, {
+						enabled: !!record.food_allowance,
+						amount: record.food_allowance ? String(record.food_allowance_amount ?? globalFoodRate) : String(globalFoodRate),
+					});
 				});
 				setAttendance(newAttendance);
+				setFoodAllowanceData(newFoodAllowance);
 			} else {
-				// If fetching fails or empty (new day), clear attendance map
 				setAttendance(new Map());
+				setFoodAllowanceData(new Map());
 			}
 		} catch (error) {
 			console.error("Fetch existing attendance error", error);
@@ -254,13 +273,18 @@ export default function AttendanceScreen() {
 			const day = String(date.getDate()).padStart(2, '0');
 			const dateStr = `${year}-${month}-${day}`;
 
-			const records = Array.from(attendance.entries()).map(([labourId, status]) => ({
-				labour_id: labourId,
-				site_id: siteId,
-				supervisor_id: userData.id,
-				date: dateStr,
-				status
-			}));
+			const records = Array.from(attendance.entries()).map(([labourId, status]) => {
+				const fa = foodAllowanceData.get(labourId);
+				return {
+					labour_id: labourId,
+					site_id: siteId,
+					supervisor_id: userData.id,
+					date: dateStr,
+					status,
+					food_allowance: fa?.enabled ?? false,
+					food_allowance_amount: fa?.enabled ? (parseFloat(fa.amount) || 0) : 0,
+				};
+			});
 
 			const response = await api.post("/attendance", { records, food_provided: foodProvided });
 
@@ -380,6 +404,59 @@ export default function AttendanceScreen() {
 						</Pressable>
 					</View>
 				</View>
+
+				{/* Per-Labour Food Allowance */}
+				{!isGlobalView && (() => {
+					const fa = foodAllowanceData.get(item.id) ?? { enabled: false, amount: String(globalFoodRate) };
+					return (
+						<View style={local.foodAllowRow}>
+							<View style={local.foodAllowLeft}>
+								<MaterialIcons name="restaurant" size={16} color={fa.enabled ? (isDark ? '#81C784' : '#388E3C') : (isDark ? '#555' : '#bbb')} />
+								<Text style={[local.foodAllowLabel, fa.enabled && local.foodAllowLabelActive]}>
+									Food Allowance
+								</Text>
+							</View>
+							<View style={local.foodAllowRight}>
+								{fa.enabled && (
+									<View style={local.foodAmountInputWrap}>
+										<Text style={local.rupeeSign}>₹</Text>
+										<TextInput
+											style={local.foodAmountInput}
+											value={fa.amount}
+											onChangeText={(val) => {
+												if (!itemLocked) {
+													setFoodAllowanceData(prev => {
+														const m = new Map(prev);
+														m.set(item.id, { enabled: true, amount: val });
+														return m;
+													});
+												}
+											}}
+											keyboardType="numeric"
+											editable={!itemLocked}
+											selectTextOnFocus
+										/>
+									</View>
+								)}
+								<Switch
+									value={fa.enabled}
+									onValueChange={(val) => {
+										if (!itemLocked) {
+											setFoodAllowanceData(prev => {
+												const m = new Map(prev);
+												m.set(item.id, { enabled: val, amount: String(globalFoodRate) });
+												return m;
+											});
+										}
+									}}
+									disabled={itemLocked}
+									trackColor={{ false: isDark ? '#444' : '#ccc', true: isDark ? '#2E7D32' : '#81C784' }}
+									thumbColor={fa.enabled ? '#4CAF50' : (isDark ? '#888' : '#f4f3f4')}
+								/>
+							</View>
+						</View>
+					);
+				})()}
 			</View>
 		);
 	};
@@ -731,7 +808,62 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		minWidth: 24,
 		textAlign: "center",
 	},
+	foodAllowRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		marginTop: 10,
+		paddingTop: 10,
+		borderTopWidth: 1,
+		borderTopColor: isDark ? '#333' : '#eee',
+	},
+	foodAllowLeft: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		flex: 1,
+	},
+	foodAllowLabel: {
+		fontSize: 14,
+		fontWeight: '500',
+		color: isDark ? '#aaa' : '#666',
+	},
+	foodAllowLabelActive: {
+		color: isDark ? '#81C784' : '#388E3C',
+		fontWeight: '600',
+	},
+	foodAllowRight: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	foodAmountInputWrap: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		backgroundColor: isDark ? '#1a3320' : '#f0faf2',
+		borderRadius: 8,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderWidth: 1,
+		borderColor: isDark ? '#2e7d32' : '#81C784',
+	},
+	rupeeSign: {
+		fontSize: 14,
+		color: isDark ? '#81C784' : '#388E3C',
+		fontWeight: '700',
+		marginRight: 2,
+	},
+	foodAmountInput: {
+		fontSize: 15,
+		fontWeight: '700',
+		color: isDark ? '#fff' : '#333',
+		minWidth: 52,
+		maxWidth: 80,
+		textAlign: 'right',
+		paddingVertical: 2,
+	},
 	otValueDisabled: {
 		color: isDark ? "#666" : "#aaa",
 	}
 });
+

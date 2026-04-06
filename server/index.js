@@ -35,6 +35,8 @@ app.use('/api/overtime', authenticateToken, require('./routes/overtime'));
 app.use('/api/reports', authenticateToken, require('./routes/reports'));
 app.use('/api/search', authenticateToken, searchRoutes);
 app.use('/api/history', authenticateToken, require('./routes/history'));
+app.use('/api/manual-attendance', authenticateToken, require('./routes/manual_attendance'));
+app.use('/api/settings', authenticateToken, require('./routes/settings'));
 
 app.get('/', (req, res) => {
     res.send('Welcome to the Labour Management Server');

@@ -16,7 +16,7 @@ router.post('/fetch', authorizeRole(['admin', 'supervisor']), async (req, res) =
 
     try {
         const db = await openDb();
-        let query = 'SELECT * FROM attendance WHERE date = ?';
+        let query = 'SELECT id, labour_id, site_id, supervisor_id, date, status, food_allowance, allowance as food_allowance_amount, entry_mode, created_at FROM attendance WHERE date = ?';
         const params = [date];
 
         if (site_id) {
@@ -180,15 +180,17 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         await db.exec('BEGIN TRANSACTION');
 
         const stmt = await db.prepare(
-            `INSERT INTO attendance (labour_id, site_id, supervisor_id, date, status) 
-             VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT(labour_id, date) DO UPDATE SET status = excluded.status`
+            `INSERT INTO attendance (labour_id, site_id, supervisor_id, date, status, food_allowance, allowance) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(labour_id, date) DO UPDATE SET status = excluded.status,
+               food_allowance = excluded.food_allowance, allowance = excluded.allowance`
         );
 
         let supervisor_id_to_lock = null;
 
         for (const record of records) {
-            const { labour_id, site_id: r_site_id, supervisor_id, date: r_date, status } = record;
+            const { labour_id, site_id: r_site_id, supervisor_id, date: r_date, status,
+                    food_allowance = false, food_allowance_amount = 0 } = record;
             if (!labour_id || !r_site_id || !supervisor_id || !r_date || !status) {
                 throw new Error('Missing fields in attendance record');
             }
@@ -196,7 +198,8 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
                 throw new Error('All records must be for the same site and date');
             }
             supervisor_id_to_lock = supervisor_id;
-            await stmt.run(labour_id, r_site_id, supervisor_id, r_date, status);
+            await stmt.run(labour_id, r_site_id, supervisor_id, r_date, status,
+                           !!food_allowance, food_allowance ? Number(food_allowance_amount) || 0 : 0);
         }
 
         await stmt.finalize();
@@ -238,6 +241,7 @@ router.get('/labour/:id', authorizeRole(['admin', 'supervisor']), async (req, re
         const db = await openDb();
         const records = await db.all(
             `SELECT a.id, a.date, a.status, a.created_at,
+                    a.food_allowance, a.allowance as food_allowance_amount,
                     s.id as site_id, s.name as site_name
              FROM attendance a
              LEFT JOIN sites s ON a.site_id = s.id

@@ -39,6 +39,10 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
         console.log('Fetching labour summary report for:', { startDate, endDate, site_id });
 
+        // Fetch global food allowance rate
+        const rateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'food_allowance_rate'`);
+        const globalFoodRate = rateRow ? parseFloat(rateRow.value) : 70;
+
         let labourQuery = `SELECT * FROM labours`;
         const labourParams = [];
 
@@ -49,8 +53,7 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
         const labours = await db.all(labourQuery, labourParams);
 
-        // Fetch food_provided status for all dates in range (or all dates if no range)
-        // We'll create a map: key="site_id:date" -> value=food_provided(boolean)
+        // Fetch food_provided status for all dates in range
         let foodStatusQuery = `SELECT site_id, date, food_provided FROM daily_site_attendance_status`;
         const foodStatusParams = [];
         const conditions = [];
@@ -82,7 +85,6 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
         for (const labour of labours) {
             // Attendance Stats
-            // We need to count full days and half days within the range
             let attendanceQuery = `
                 SELECT status, COUNT(*) as count 
                 FROM attendance 
@@ -99,7 +101,7 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 attendanceParams.push(endDate);
             }
             if (site_id) {
-                attendanceQuery += ` AND site_id = ?`; // Should we filter attendance by site too? Yes usually.
+                attendanceQuery += ` AND site_id = ?`;
                 attendanceParams.push(site_id);
             }
 
@@ -133,8 +135,6 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 overtimeQuery += ` AND date <= ?`;
                 overtimeParams.push(endDate);
             }
-            // Overtime is usually site specific too, but maybe we want all overtime for the labour?
-            // If filtering by site, yes.
             if (site_id) {
                 overtimeQuery += ` AND site_id = ?`;
                 overtimeParams.push(site_id);
@@ -159,22 +159,13 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 advanceQuery += ` AND date <= ?`;
                 advanceParams.push(endDate);
             }
-            // Advances are not necessarily site specific in the schema (no site_id in advances table), 
-            // but conceptually they might be. 
-            // In the schema dump: `labour_id`, `amount`, `date`, `notes`, `created_by`, `created_at`.
-            // No site_id in advances table. So we CANNOT filter advances by site_id directly.
-            // We will include all advances for the labour in the period.
 
             const advanceResult = await db.get(advanceQuery, advanceParams);
             const advanceAmount = advanceResult.total_amount || 0;
 
-            // Food Allowance Calculation
-            // We need to fetch the specific attendance records to check dates and sites
-            // attendanceStats only gave us counts by status. 
-            // We need the actual dates and site_ids to check against foodProvidedMap.
-
+            // Food Allowance Calculation (site-level + per-labour)
             let detailedAttendanceQuery = `
-                SELECT date, site_id, status
+                SELECT date, site_id, status, food_allowance, allowance as food_allowance_amount
                 FROM attendance
                 WHERE labour_id = ? AND status IN ('full', 'half')
             `;
@@ -194,20 +185,27 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
             const detailedAttendance = await db.all(detailedAttendanceQuery, detailedParams);
 
-            let foodAllowanceCount = 0;
+            let perLabourFoodAmount = 0;  // Explicit per-labour food allowance
+            let siteLevelFoodCount = 0;   // Days food NOT provided by supervisor at site
+
             detailedAttendance.forEach(record => {
-                const key = `${record.site_id}:${record.date}`;
-                // If food was NOT provided (i.e. not in map), add allowance
-                if (!foodProvidedMap.has(key)) {
-                    foodAllowanceCount++;
+                if (record.food_allowance) {
+                    // Per-labour food allowance explicitly set
+                    perLabourFoodAmount += Number(record.food_allowance_amount) || 0;
+                } else {
+                    // Fall back to site-level: if food not provided, add global rate
+                    const key = `${record.site_id}:${record.date}`;
+                    if (!foodProvidedMap.has(key)) {
+                        siteLevelFoodCount++;
+                    }
                 }
             });
 
-            const foodAllowanceAmount = foodAllowanceCount * 70;
+            const siteLevelFoodAmount = siteLevelFoodCount * globalFoodRate;
+            const foodAllowanceAmount = perLabourFoodAmount + siteLevelFoodAmount;
 
             // Calculation
             const hourlyRate = labour.rate || 0;
-            // Full Day = 8 hours, Half Day = 4 hours
             const wage = (fullDays * 8 * hourlyRate) + (halfDays * 4 * hourlyRate);
             const netPayable = wage + overtimeAmount - advanceAmount + foodAllowanceAmount;
 
@@ -222,6 +220,8 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 overtime_amount: overtimeAmount,
                 advance_amount: advanceAmount,
                 food_allowance_amount: foodAllowanceAmount,
+                per_labour_food_amount: perLabourFoodAmount,
+                site_level_food_amount: siteLevelFoodAmount,
                 net_payable: netPayable
             });
         }
@@ -294,6 +294,10 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             }
         });
 
+        // 3. Fetch global food allowance rate
+        const rateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'food_allowance_rate'`);
+        const globalFoodRate = rateRow ? parseFloat(rateRow.value) : 70;
+
         // Helper to calculate financials for a date range
         // If rangeEnd is null, it means "Before rangeStart" (Previous Balance)
         // If rangeEnd is set, it means "Between rangeStart and rangeEnd" (Current Month)
@@ -304,7 +308,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             let wage = 0;
 
             // -- Attendance --
-            let attQuery = `SELECT date, site_id, status FROM attendance WHERE labour_id = ?`;
+            let attQuery = `SELECT date, site_id, status, food_allowance, allowance FROM attendance WHERE labour_id = ?`;
             const attParams = [labour.id];
 
             if (isPrevious) {
@@ -323,14 +327,21 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 if (rec.status === 'half') halfDays++;
 
                 // Food Allowance Logic
-                if ((rec.status === 'full' || rec.status === 'half') && !allowMap.has(`${rec.site_id}:${rec.date}`)) {
-                    foodAllowanceCount++;
+                // Per-labour explicit allowance takes priority; otherwise site-level fallback
+                if (rec.status === 'full' || rec.status === 'half') {
+                    if (rec.food_allowance) {
+                        // Per-labour food allowance explicitly set
+                        foodAllowanceCount += Number(rec.allowance) || 0;
+                    } else if (!allowMap.has(`${rec.site_id}:${rec.date}`)) {
+                        // Site-level: food not provided, add global rate
+                        foodAllowanceCount += globalFoodRate;
+                    }
                 }
             });
 
             const rate = labour.rate || 0;
             wage = (fullDays * 8 * rate) + (halfDays * 4 * rate);
-            const foodAmount = foodAllowanceCount * 70;
+            const foodAmount = foodAllowanceCount;
 
             // -- Overtime --
             let otQuery = `SELECT SUM(amount) as total FROM overtime WHERE labour_id = ?`;

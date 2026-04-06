@@ -44,6 +44,12 @@ export default function Profile() {
   // Clear Database States
   const [isClearingDatabase, setIsClearingDatabase] = useState(false);
 
+  // Food Allowance Rate States (admin only)
+  const [isFoodRateModalVisible, setIsFoodRateModalVisible] = useState(false);
+  const [foodRate, setFoodRate] = useState('70');
+  const [editFoodRate, setEditFoodRate] = useState('70');
+  const [isSavingFoodRate, setIsSavingFoodRate] = useState(false);
+
   const fetchUser = async (isRefresh = false) => {
     try {
       const userData = await AsyncStorage.getItem("userData");
@@ -57,9 +63,25 @@ export default function Profile() {
     }
   };
 
+  const fetchFoodRate = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const res = await fetch(`${API_URL}/settings/food-allowance-rate`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rate = String(data.rate ?? 70);
+        setFoodRate(rate);
+        setEditFoodRate(rate);
+      }
+    } catch { /* ignore */ }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchUser();
+      fetchFoodRate();
     }, [])
   );
 
@@ -187,6 +209,36 @@ export default function Profile() {
       Alert.alert("Error", "Unable to connect to server");
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  const handleSaveFoodRate = async () => {
+    const rateNum = parseFloat(editFoodRate);
+    if (isNaN(rateNum) || rateNum < 0) {
+      Alert.alert('Validation', 'Please enter a valid non-negative amount.');
+      return;
+    }
+    try {
+      setIsSavingFoodRate(true);
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/settings/food-allowance-rate`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rate: rateNum }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setFoodRate(String(rateNum));
+        setEditFoodRate(String(rateNum));
+        setIsFoodRateModalVisible(false);
+        Alert.alert('Success', `Food allowance rate updated to ₹${rateNum}`);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to update rate');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Unable to connect to server');
+    } finally {
+      setIsSavingFoodRate(false);
     }
   };
 
@@ -332,6 +384,23 @@ export default function Profile() {
           <View style={styles.divider} />
           {userRole.toLowerCase() === 'admin' && (
             <>
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setEditFoodRate(foodRate);
+                  setIsFoodRateModalVisible(true);
+                }}
+              >
+                <View style={[styles.menuIconBg, { backgroundColor: isDark ? '#1a3320' : '#f0faf2' }]}>
+                  <MaterialIcons name="restaurant" size={20} color="#4CAF50" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuText}>Food Allowance Rate</Text>
+                  <Text style={{ fontSize: 12, color: isDark ? '#64748B' : '#94A3B8', marginTop: 2 }}>₹{foodRate} per day (default)</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+              </Pressable>
+              <View style={styles.divider} />
               <Pressable style={styles.menuItem} onPress={handleClearDatabase} disabled={isClearingDatabase}>
                 <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#331515" : "#FEF2F2" }]}>
                   {isClearingDatabase ? <ActivityIndicator size="small" color="#EF4444" /> : <MaterialIcons name="delete-forever" size={20} color="#EF4444" />}
@@ -467,6 +536,54 @@ export default function Profile() {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.saveBtnText}>Save Password</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Food Allowance Rate Modal */}
+        <Modal
+          visible={isFoodRateModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsFoodRateModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Food Allowance Rate</Text>
+                <Pressable onPress={() => setIsFoodRateModalVisible(false)} style={styles.closeBtn}>
+                  <MaterialIcons name="close" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                </Pressable>
+              </View>
+
+              <Text style={[styles.label, { marginBottom: 4 }]}>
+                This amount is added per labour per day when no food is provided at site level and no per-labour override is set.
+              </Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Amount per day (₹)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 70"
+                  placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
+                  keyboardType="numeric"
+                  value={editFoodRate}
+                  onChangeText={setEditFoodRate}
+                  selectTextOnFocus
+                />
+              </View>
+
+              <Pressable
+                style={styles.saveBtn}
+                onPress={handleSaveFoodRate}
+                disabled={isSavingFoodRate}
+              >
+                {isSavingFoodRate ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Rate</Text>
                 )}
               </Pressable>
             </View>

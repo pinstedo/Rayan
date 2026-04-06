@@ -241,7 +241,20 @@ async function initDb() {
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_by INTEGER REFERENCES users(id),
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Seed default food allowance rate if not set
+  await db.run(
+    `INSERT INTO app_settings (key, value) VALUES ('food_allowance_rate', '70')
+     ON CONFLICT (key) DO NOTHING`
+  );
 
   // Site status migration — safe for existing deployments
   const alterSafe = async (sql) => {
@@ -253,6 +266,17 @@ async function initDb() {
   await alterSafe(`ALTER TABLE sites ADD COLUMN IF NOT EXISTS last_active_date TEXT DEFAULT NULL`);
   await alterSafe(`ALTER TABLE sites ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT NULL`);
   await alterSafe(`ALTER TABLE sites ADD COLUMN IF NOT EXISTS completion_percentage REAL DEFAULT 0`);
+
+  // Manual attendance migration — additive, does not affect existing auto-attendance
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS entry_mode TEXT DEFAULT 'auto'`);
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS allowance REAL DEFAULT 0`);
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS overtime_amount REAL DEFAULT 0`);
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS balance_adjustment REAL DEFAULT 0`);
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS balance_type TEXT DEFAULT 'none'`);
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS manual_note TEXT`);
+
+  // Food allowance per-labour migration — additive
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS food_allowance BOOLEAN DEFAULT false`);
 
   // Search Indexes - PostgreSQL doesn't support IF NOT EXISTS for indexes directly in standard CREATE INDEX syntax 
   // without a slightly different query or just catching the error.
@@ -276,6 +300,8 @@ async function initDb() {
   await createIndexSafe('idx_history_logs_type', 'CREATE INDEX idx_history_logs_type ON history_logs(type);');
   await createIndexSafe('idx_history_logs_action', 'CREATE INDEX idx_history_logs_action ON history_logs(action);');
   await createIndexSafe('idx_history_logs_created_at', 'CREATE INDEX idx_history_logs_created_at ON history_logs(created_at);');
+  await createIndexSafe('idx_attendance_entry_mode', 'CREATE INDEX idx_attendance_entry_mode ON attendance(entry_mode);');
+  await createIndexSafe('idx_attendance_date_labour_site', 'CREATE INDEX idx_attendance_date_labour_site ON attendance(date, labour_id, site_id);');
 
   console.log('Database initialized.');
   return db;
