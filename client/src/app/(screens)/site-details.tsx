@@ -167,6 +167,49 @@ export default function SiteDetailsScreen() {
         }
     };
 
+    const handleToggleStatus = async () => {
+        if (!site) return;
+        const newStatus = site.status === 'inactive' ? 'active' : 'inactive';
+        const confirmMsg = newStatus === 'inactive'
+            ? 'Mark this site as Inactive? Labour assignments will be blocked.'
+            : 'Reactivate this site?';
+
+        const execute = async () => {
+            try {
+                const response = await api.put(`/sites/${id}/status`, { status: newStatus });
+                if (response.ok) {
+                    fetchSiteDetails();
+                } else {
+                    const data = await response.json();
+                    if (Platform.OS === 'web') {
+                        window.alert(data.error || 'Failed to update status');
+                    } else {
+                        Alert.alert('Error', data.error || 'Failed to update status');
+                    }
+                }
+            } catch {
+                if (Platform.OS === 'web') {
+                    window.alert('Failed to connect to server');
+                } else {
+                    Alert.alert('Error', 'Failed to connect to server');
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(confirmMsg)) execute();
+        } else {
+            Alert.alert(
+                newStatus === 'inactive' ? 'Mark as Inactive' : 'Reactivate Site',
+                confirmMsg,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: newStatus === 'inactive' ? 'Inactive' : 'Activate', style: newStatus === 'inactive' ? 'destructive' : 'default', onPress: execute }
+                ]
+            );
+        }
+    };
+
     const handleUpdateProgress = async (newProgress: number) => {
         try {
             const response = await api.put(`/sites/${id}/progress`, { progress: newProgress });
@@ -488,6 +531,31 @@ export default function SiteDetailsScreen() {
                                             </View>
                                         </View>
                                         {site.description && <Text style={local.siteDesc}>{site.description}</Text>}
+
+                                        {/* Inactive / Activate toggle — admin only, non-completed */}
+                                        {userRole === 'admin' && site.status !== 'completed' && (
+                                            <TouchableOpacity
+                                                style={[
+                                                    local.toggleStatusBtn,
+                                                    site.status === 'inactive'
+                                                        ? local.toggleStatusBtnActivate
+                                                        : local.toggleStatusBtnInactive,
+                                                ]}
+                                                onPress={handleToggleStatus}
+                                            >
+                                                <MaterialIcons
+                                                    name={site.status === 'inactive' ? 'play-circle-filled' : 'pause-circle-filled'}
+                                                    size={16}
+                                                    color={site.status === 'inactive' ? '#34c759' : '#ff9500'}
+                                                />
+                                                <Text style={[
+                                                    local.toggleStatusBtnText,
+                                                    { color: site.status === 'inactive' ? '#34c759' : '#ff9500' }
+                                                ]}>
+                                                    {site.status === 'inactive' ? 'Mark as Active' : 'Mark as Inactive'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 )}
                             </View>
@@ -1012,5 +1080,29 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         padding: 12,
         borderBottomWidth: 1,
         borderBottomColor: isDark ? "#333" : "#f0f0f0",
+    },
+    toggleStatusBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        alignSelf: "flex-start",
+        gap: 6,
+        marginTop: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    toggleStatusBtnInactive: {
+        backgroundColor: isDark ? "#3b2a00" : "#fff8e1",
+        borderColor: "#ff9500",
+    },
+    toggleStatusBtnActivate: {
+        backgroundColor: isDark ? "#0d2b1c" : "#e8fdf0",
+        borderColor: "#34c759",
+    },
+    toggleStatusBtnText: {
+        fontSize: 13,
+        fontWeight: "700",
+        letterSpacing: 0.2,
     },
 });
