@@ -22,7 +22,7 @@ router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (r
                 MAX(CASE WHEN d.site_id IS NOT NULL THEN 1 ELSE 0 END) as is_submitted
             FROM sites s
             LEFT JOIN daily_site_attendance_status d ON s.id = d.site_id AND d.date = ?
-            WHERE s.status = 'active'
+            WHERE s.status IN ('active', 'inactive')
                OR d.site_id IS NOT NULL 
                OR (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ?) > 0
             GROUP BY s.id
