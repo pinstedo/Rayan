@@ -36,6 +36,7 @@ interface Labour {
 }
 
 const sortOptions: SortOption[] = [
+	{ label: "Site", field: "site", type: "string" },
 	{ label: "Name", field: "name", type: "string" },
 	{ label: "Date Added", field: "created_at", type: "date" },
 	{ label: "Rate", field: "rate", type: "number" }
@@ -68,7 +69,10 @@ export default function Labours() {
 		initialData: allLabours,
 		initialConfig: {
 			search: { text: "", fields: ["name", "phone", "trade"] },
-			sort: [{ field: "name", order: "asc", type: "string" }],
+			sort: [
+				{ field: "site", order: "asc", type: "string" },
+				{ field: "name", order: "asc", type: "string" }
+			],
 			filters: [{ field: "status", operator: "=", value: initialStatus }],
 			pagination: { page: 1, limit: 15 }
 		}
