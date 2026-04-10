@@ -153,12 +153,13 @@ router.get('/by-site-date', authorizeRole(['admin', 'supervisor']), async (req, 
         const labours = await db.all(`
             SELECT DISTINCT l.* 
             FROM labours l
-            JOIN labour_site_history h ON l.id = h.labour_id
-            WHERE h.site_id = ?
-              AND h.from_date <= ?
-              AND (h.to_date IS NULL OR h.to_date >= ?)
+            LEFT JOIN labour_site_history h ON l.id = h.labour_id 
+                AND h.site_id = ? AND h.from_date <= ? AND (h.to_date IS NULL OR h.to_date >= ?)
+            LEFT JOIN attendance a ON l.id = a.labour_id 
+                AND a.site_id = ? AND a.date = ?
+            WHERE h.id IS NOT NULL OR a.id IS NOT NULL
             ORDER BY l.name ASC
-        `, [siteId, date, date]);
+        `, [siteId, date, date, siteId, date]);
 
         res.json(labours);
     } catch (err) {
