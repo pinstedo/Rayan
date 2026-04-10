@@ -8,7 +8,7 @@ import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
+import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from "../../components/list";
 
 interface Labour {
 	id: number;
@@ -88,8 +88,7 @@ export default function AttendanceScreen() {
 		initialData,
 		initialConfig: {
 			search: { text: "", fields: ["name", "role", "site"] },
-			sort: [{ field: "name", order: "asc", type: "string" }],
-			pagination: { page: 1, limit: 20 }
+			sort: [{ field: "name", order: "asc", type: "string" }]
 		}
 	});
 
@@ -602,17 +601,6 @@ export default function AttendanceScreen() {
 					!loading ? (
 						<Text style={local.emptyText}>No results found.</Text>
 					) : null
-				}
-				ListFooterComponent={
-					<PaginationControls 
-						currentPage={listManager.currentPage}
-						totalPages={listManager.totalPages}
-						hasNextPage={listManager.hasNextPage}
-						hasPrevPage={listManager.hasPrevPage}
-						onNext={() => listManager.setPage(listManager.currentPage + 1)}
-						onPrev={() => listManager.setPage(listManager.currentPage - 1)}
-						totalCount={listManager.totalCount}
-					/>
 				}
 				refreshControl={
 					<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useListManager } from '../../../hooks/useListManager';
-import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from '../../../components/list';
+import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from '../../../components/list';
 
 interface HistoryLog {
   id: number;
@@ -46,8 +46,7 @@ export default function HistoryScreen() {
     endpoint: '/history',
     initialConfig: {
       search: { text: '', fields: ['name'] },
-      sort: [{ field: 'created_at', order: 'desc', type: 'date' }],
-      pagination: { page: 1, limit: 20 }
+      sort: [{ field: 'created_at', order: 'desc', type: 'date' }]
     }
   });
 
@@ -166,17 +165,6 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.listContainer}
           onRefresh={handleRefresh}
           refreshing={listManager.loading}
-          ListFooterComponent={
-            <PaginationControls 
-              currentPage={listManager.currentPage}
-              totalPages={listManager.totalPages}
-              hasNextPage={listManager.hasNextPage}
-              hasPrevPage={listManager.hasPrevPage}
-              onNext={() => listManager.setPage(listManager.currentPage + 1)}
-              onPrev={() => listManager.setPage(listManager.currentPage - 1)}
-              totalCount={listManager.totalCount}
-            />
-          }
         />
       )}
     </View>

@@ -15,7 +15,7 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
+import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from "../../components/list";
 
 interface Site {
     id: number;
@@ -66,8 +66,7 @@ export default function SitesScreen() {
         initialConfig: {
             search: { text: "", fields: ["name", "address"] },
             sort: [{ field: "name", order: "asc", type: "string" }],
-            filters: [{ field: "status", operator: "not_in", value: ["completed"] }], // hide completed by default
-            pagination: { page: 1, limit: 15 }
+            filters: [{ field: "status", operator: "not_in", value: ["completed"] }] // hide completed by default
         }
     });
 
@@ -276,17 +275,6 @@ export default function SitesScreen() {
                     contentContainerStyle={local.list}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-                    }
-                    ListFooterComponent={
-                        <PaginationControls 
-                            currentPage={listManager.currentPage}
-                            totalPages={listManager.totalPages}
-                            hasNextPage={listManager.hasNextPage}
-                            hasPrevPage={listManager.hasPrevPage}
-                            onNext={() => listManager.setPage(listManager.currentPage + 1)}
-                            onPrev={() => listManager.setPage(listManager.currentPage - 1)}
-                            totalCount={listManager.totalCount}
-                        />
                     }
                 />
             )}

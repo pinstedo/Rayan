@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState } from "react";
 import {
 	FlatList,
 	Pressable,
@@ -11,12 +11,12 @@ import {
 	View
 } from "react-native";
 import { CustomModal, ModalType } from "../../components/CustomModal";
+import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
-import { api } from "../../services/api";
-import { LabourCard } from "../components/LabourCard";
 import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
+import { api } from "../../services/api";
 import { sortByName } from "../../utils/sort";
+import { LabourCard } from "../components/LabourCard";
 
 interface Site {
 	id: number;
@@ -73,8 +73,7 @@ export default function Labours() {
 				{ field: "site", order: "asc", type: "string" },
 				{ field: "name", order: "asc", type: "string" }
 			],
-			filters: [{ field: "status", operator: "=", value: initialStatus }],
-			pagination: { page: 1, limit: 15 }
+			filters: [{ field: "status", operator: "=", value: initialStatus }]
 		}
 	});
 
@@ -132,7 +131,7 @@ export default function Labours() {
 			// We fetch all records if admin, or specific supId if supervisor.
 			// Client-side manager handles status filtering mode.
 			if (supId) queryString += `supervisor_id=${supId}`;
-			
+
 			if (queryString === '?') queryString = '';
 
 			const response = await api.get(`/labours${queryString}`);
@@ -270,20 +269,20 @@ export default function Labours() {
 			)}
 
 			<View style={local.controlsRow}>
-				<SearchBar 
+				<SearchBar
 					value={listManager.searchText}
 					onChangeText={listManager.setSearchText}
 					placeholder="Search by name, phone, trade..."
 					style={local.searchBar}
 				/>
 				<View style={local.actionRow}>
-					<FilterPanel 
+					<FilterPanel
 						availableFilters={filterOptions}
 						activeFilters={listManager.config.filters || []}
 						onApplyFilter={listManager.addFilter}
 						onRemoveFilter={listManager.removeFilter}
 					/>
-					<SortSelector 
+					<SortSelector
 						options={sortOptions}
 						currentSort={listManager.config.sort?.[0]}
 						onSortChange={listManager.toggleSort}
@@ -315,17 +314,6 @@ export default function Labours() {
 				contentContainerStyle={local.listContent}
 				ListEmptyComponent={
 					<Text style={local.emptyText}>No labours found.</Text>
-				}
-				ListFooterComponent={
-					<PaginationControls 
-						currentPage={listManager.currentPage}
-						totalPages={listManager.totalPages}
-						hasNextPage={listManager.hasNextPage}
-						hasPrevPage={listManager.hasPrevPage}
-						onNext={() => listManager.setPage(listManager.currentPage + 1)}
-						onPrev={() => listManager.setPage(listManager.currentPage - 1)}
-						totalCount={listManager.totalCount}
-					/>
 				}
 			/>
 

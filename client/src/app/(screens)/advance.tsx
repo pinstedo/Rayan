@@ -21,7 +21,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
 import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
+import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from "../../components/list";
 
 interface Labour {
     id: number;
@@ -53,8 +53,7 @@ export default function Advance() {
         initialData: allLabours,
         initialConfig: {
             search: { text: "", fields: ["name", "phone", "site"] },
-            sort: [{ field: "name", order: "asc", type: "string" }],
-            pagination: { page: 1, limit: 15 }
+            sort: [{ field: "name", order: "asc", type: "string" }]
         }
     });
 
@@ -199,17 +198,6 @@ export default function Advance() {
                 contentContainerStyle={local.listContent}
                 ListEmptyComponent={
                     <Text style={local.emptyText}>No results found.</Text>
-                }
-                ListFooterComponent={
-                    <PaginationControls 
-                        currentPage={listManager.currentPage}
-                        totalPages={listManager.totalPages}
-                        hasNextPage={listManager.hasNextPage}
-                        hasPrevPage={listManager.hasPrevPage}
-                        onNext={() => listManager.setPage(listManager.currentPage + 1)}
-                        onPrev={() => listManager.setPage(listManager.currentPage - 1)}
-                        totalCount={listManager.totalCount}
-                    />
                 }
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
