@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
 	FlatList,
 	Pressable,
@@ -14,6 +14,8 @@ import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
+import { useListManager } from "../../hooks/useListManager";
+import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
 import { sortByName } from "../../utils/sort";
 
 interface Site {
@@ -33,17 +35,44 @@ interface Labour {
 	created_at?: string;
 }
 
+const sortOptions: SortOption[] = [
+	{ label: "Name", field: "name", type: "string" },
+	{ label: "Date Added", field: "created_at", type: "date" },
+	{ label: "Rate", field: "rate", type: "number" }
+];
+
+const filterOptions: FilterOption[] = [
+	{
+		label: "Status",
+		field: "status",
+		type: "select",
+		options: [
+			{ label: "Assigned", value: "active" },
+			{ label: "Unassigned", value: "unassigned" },
+			{ label: "Pending", value: "pending" }
+		]
+	}
+];
+
 export default function Labours() {
 	const router = useRouter();
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
 	const { newLabour, supervisorId, status } = useLocalSearchParams();
-	const [viewType, setViewType] = useState<'assigned' | 'unassigned'>((status as 'assigned' | 'unassigned') || 'assigned');
-	const [labours, setLabours] = useState<Labour[]>([]);
-	const [loading, setLoading] = useState(true);
+	const initialStatus = (status as string) || 'active';
+	const [allLabours, setAllLabours] = useState<Labour[]>([]);
 	const [isAdmin, setIsAdmin] = useState(false);
-
 	const [refreshing, setRefreshing] = useState(false);
+
+	const listManager = useListManager<Labour>({
+		initialData: allLabours,
+		initialConfig: {
+			search: { text: "", fields: ["name", "phone", "trade"] },
+			sort: [{ field: "name", order: "asc", type: "string" }],
+			filters: [{ field: "status", operator: "=", value: initialStatus }],
+			pagination: { page: 1, limit: 15 }
+		}
+	});
 
 	// Assignment Modal State
 	const [showSitePicker, setShowSitePicker] = useState(false);
@@ -67,10 +96,11 @@ export default function Labours() {
 			actions: actions || [{ text: 'OK', onPress: () => setModalConfig(prev => ({ ...prev, visible: false })), style: 'default' }]
 		});
 	};
+
 	useFocusEffect(
 		useCallback(() => {
 			checkRoleAndFetch();
-		}, [supervisorId, viewType]) // Add viewType dependency
+		}, [supervisorId])
 	);
 
 	const checkRoleAndFetch = async () => {
@@ -93,29 +123,24 @@ export default function Labours() {
 		try {
 			if (isRefresh) {
 				setRefreshing(true);
-			} else {
-				setLoading(true);
 			}
 			let queryString = '?';
-			if (viewType) queryString += `status=${viewType}&`;
+			// We fetch all records if admin, or specific supId if supervisor.
+			// Client-side manager handles status filtering mode.
 			if (supId) queryString += `supervisor_id=${supId}`;
-			// remove trailing & or ?
-			if (queryString.endsWith('&') || queryString === '?') {
-				queryString = queryString.slice(0, queryString.length - 1);
-				if (queryString === '') queryString = ''; // just empty string if no params
-			} else {
-				// it's fine
-			}
+			
+			if (queryString === '?') queryString = '';
 
 			const response = await api.get(`/labours${queryString}`);
 			const data = await response.json();
 			if (response.ok) {
-				setLabours(sortByName(data));
+				setAllLabours(data);
+			} else {
+				console.error("Failed to fetch labours:", data.error);
 			}
 		} catch (error) {
 			console.error("Failed to fetch labours", error);
 		} finally {
-			setLoading(false);
 			setRefreshing(false);
 		}
 	};
@@ -204,6 +229,9 @@ export default function Labours() {
 		);
 	};
 
+	const statusFilter = listManager.config.filters?.find(f => f.field === 'status');
+	const viewType = statusFilter ? statusFilter.value : 'all';
+
 	return (
 		<View style={local.container}>
 			<View style={local.headerRow}>
@@ -223,22 +251,44 @@ export default function Labours() {
 			{isAdmin && !supervisorId && (
 				<View style={local.toggleContainer}>
 					<TouchableOpacity
-						style={[local.toggleBtn, viewType === 'assigned' && local.toggleBtnActive]}
-						onPress={() => setViewType('assigned')}
+						style={[local.toggleBtn, viewType === 'active' && local.toggleBtnActive]}
+						onPress={() => listManager.setFilters([{ field: 'status', value: 'active' }])}
 					>
-						<Text style={[local.toggleText, viewType === 'assigned' && local.toggleTextActive]}>Assigned</Text>
+						<Text style={[local.toggleText, viewType === 'active' && local.toggleTextActive]}>Assigned</Text>
 					</TouchableOpacity>
 					<TouchableOpacity
 						style={[local.toggleBtn, viewType === 'unassigned' && local.toggleBtnActive]}
-						onPress={() => setViewType('unassigned')}
+						onPress={() => listManager.setFilters([{ field: 'status', value: 'unassigned' }])}
 					>
 						<Text style={[local.toggleText, viewType === 'unassigned' && local.toggleTextActive]}>Unassigned</Text>
 					</TouchableOpacity>
 				</View>
 			)}
 
+			<View style={local.controlsRow}>
+				<SearchBar 
+					value={listManager.searchText}
+					onChangeText={listManager.setSearchText}
+					placeholder="Search by name, phone, trade..."
+					style={local.searchBar}
+				/>
+				<View style={local.actionRow}>
+					<FilterPanel 
+						availableFilters={filterOptions}
+						activeFilters={listManager.config.filters || []}
+						onApplyFilter={listManager.addFilter}
+						onRemoveFilter={listManager.removeFilter}
+					/>
+					<SortSelector 
+						options={sortOptions}
+						currentSort={listManager.config.sort?.[0]}
+						onSortChange={listManager.toggleSort}
+					/>
+				</View>
+			</View>
+
 			<FlatList
-				data={labours}
+				data={listManager.data}
 				keyExtractor={(item) => item.id.toString()}
 				refreshControl={
 					<React.Fragment>
@@ -260,9 +310,18 @@ export default function Labours() {
 				)}
 				contentContainerStyle={local.listContent}
 				ListEmptyComponent={
-					!loading ? (
-						<Text style={local.emptyText}>No {viewType} labours found.</Text>
-					) : null
+					<Text style={local.emptyText}>No labours found.</Text>
+				}
+				ListFooterComponent={
+					<PaginationControls 
+						currentPage={listManager.currentPage}
+						totalPages={listManager.totalPages}
+						hasNextPage={listManager.hasNextPage}
+						hasPrevPage={listManager.hasPrevPage}
+						onNext={() => listManager.setPage(listManager.currentPage + 1)}
+						onPrev={() => listManager.setPage(listManager.currentPage - 1)}
+						totalCount={listManager.totalCount}
+					/>
 				}
 			/>
 
@@ -366,6 +425,20 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		textAlign: "center",
 		padding: 20,
 		color: isDark ? "#aaa" : "#666",
+	},
+	controlsRow: {
+		paddingHorizontal: 20,
+		paddingTop: 8,
+		paddingBottom: 4,
+	},
+	searchBar: {
+		marginBottom: 12,
+	},
+	actionRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 8,
 	},
 	toggleContainer: {
 		flexDirection: 'row',

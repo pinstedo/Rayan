@@ -14,7 +14,8 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
-import { sortByName } from "../../utils/sort";
+import { useListManager } from "../../hooks/useListManager";
+import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
 
 interface Site {
     id: number;
@@ -29,13 +30,30 @@ interface Site {
     created_at: string;
 }
 
+const sortOptions: SortOption[] = [
+    { label: "Name", field: "name", type: "string" },
+    { label: "Date Completed", field: "last_active_date", type: "date" },
+    { label: "Completion %", field: "completion_percentage", type: "number" }
+];
+
+const filterOptions: FilterOption[] = [];
+
 export default function CompletedSitesScreen() {
     const router = useRouter();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
-    const [sites, setSites] = useState<Site[]>([]);
+    const [allSites, setAllSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    const listManager = useListManager<Site>({
+        initialData: allSites,
+        initialConfig: {
+            search: { text: "", fields: ["name", "address"] },
+            sort: [{ field: "last_active_date", order: "desc", type: "date" }],
+            pagination: { page: 1, limit: 15 }
+        }
+    });
 
     const fetchSites = async (isRefresh = false) => {
         try {
@@ -48,7 +66,7 @@ export default function CompletedSitesScreen() {
             const data = await response.json();
 
             if (response.ok) {
-                setSites(sortByName(data) as any);
+                setAllSites(data);
             } else {
                 Alert.alert("Error", data.error || "Failed to fetch sites");
             }
@@ -133,21 +151,54 @@ export default function CompletedSitesScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
+            <View style={local.controlsRow}>
+                <SearchBar 
+                    value={listManager.searchText}
+                    onChangeText={listManager.setSearchText}
+                    placeholder="Search completed sites..."
+                    style={local.searchBar}
+                />
+                <View style={local.actionRow}>
+                    <FilterPanel 
+                        availableFilters={filterOptions}
+                        activeFilters={listManager.config.filters || []}
+                        onApplyFilter={listManager.addFilter}
+                        onRemoveFilter={listManager.removeFilter}
+                    />
+                    <SortSelector 
+                        options={sortOptions}
+                        currentSort={listManager.config.sort?.[0]}
+                        onSortChange={listManager.toggleSort}
+                    />
+                </View>
+            </View>
+
             {loading && !refreshing ? (
                 <ActivityIndicator size="large" color="#0a84ff" style={local.loader} />
-            ) : sites.length === 0 ? (
+            ) : listManager.data.length === 0 ? (
                 <View style={local.emptyState}>
                     <MaterialIcons name="domain-verification" size={64} color={isDark ? "#555" : "#ccc"} />
                     <Text style={local.emptyText}>No completed sites</Text>
                 </View>
             ) : (
                 <FlatList
-                    data={sites}
+                    data={listManager.data}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderSite}
                     contentContainerStyle={local.list}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                    }
+                    ListFooterComponent={
+                        <PaginationControls 
+                            currentPage={listManager.currentPage}
+                            totalPages={listManager.totalPages}
+                            hasNextPage={listManager.hasNextPage}
+                            hasPrevPage={listManager.hasPrevPage}
+                            onNext={() => listManager.setPage(listManager.currentPage + 1)}
+                            onPrev={() => listManager.setPage(listManager.currentPage - 1)}
+                            totalCount={listManager.totalCount}
+                        />
                     }
                 />
             )}
@@ -180,6 +231,20 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+    },
+    controlsRow: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 4,
+    },
+    searchBar: {
+        marginBottom: 12,
+    },
+    actionRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 8,
     },
     list: { padding: 16 },
     card: {

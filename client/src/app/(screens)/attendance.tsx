@@ -1,13 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
-import { sortByName } from "../../utils/sort";
+import { useListManager } from "../../hooks/useListManager";
+import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
 
 interface Labour {
 	id: number;
@@ -16,6 +17,24 @@ interface Labour {
 	site?: string;
 	rate?: number;
 }
+const sortOptions: SortOption[] = [
+	{ label: "Name", field: "name", type: "string" },
+	{ label: "Role", field: "role", type: "string" }
+];
+
+const filterOptions: FilterOption[] = [
+	{
+		label: "Attendance Status",
+		field: "attendance_status",
+		type: "select",
+		options: [
+			{ label: "Pending", value: "pending" },
+			{ label: "Full", value: "full" },
+			{ label: "Half", value: "half" },
+			{ label: "Absent", value: "absent" }
+		]
+	}
+];
 
 export default function AttendanceScreen() {
 	const router = useRouter();
@@ -32,7 +51,6 @@ export default function AttendanceScreen() {
 	const [date, setDate] = useState(dateStr && typeof dateStr === 'string' ? new Date(dateStr) : new Date());
 	const [locked, setLocked] = useState(false);
 	const [foodProvided, setFoodProvided] = useState(false);
-	const [filter, setFilter] = useState<'all' | 'full' | 'half' | 'absent'>('all');
 	const [refreshing, setRefreshing] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
 
@@ -60,6 +78,20 @@ export default function AttendanceScreen() {
 	const isGlobalView = !siteId;
 	const isToday = date.toDateString() === new Date().toDateString();
 	const canEdit = !isGlobalView && (!locked || isAdmin);
+
+	const initialData = useMemo(() => labours.map(l => ({ 
+		...l, 
+		attendance_status: attendance.get(l.id) || 'pending'
+	})), [labours, attendance]);
+
+	const listManager = useListManager<Labour & { attendance_status: string }>({
+		initialData,
+		initialConfig: {
+			search: { text: "", fields: ["name", "role", "site"] },
+			sort: [{ field: "name", order: "asc", type: "string" }],
+			pagination: { page: 1, limit: 20 }
+		}
+	});
 
 	useEffect(() => {
 		const checkAdmin = async () => {
@@ -94,8 +126,7 @@ export default function AttendanceScreen() {
 		if (!isGlobalView) {
 			fetchLockStatus();
 		}
-		// If global view, we need to refetch attendance when date changes
-		// For site view, fetchLabours calls fetchExistingAttendance initially, but date change should also trigger it
+		fetchLabours();
 		fetchExistingAttendance();
 		fetchExistingOvertime();
 	}, [date]);
@@ -105,15 +136,18 @@ export default function AttendanceScreen() {
 			if (!isRefresh) setLoading(true);
 			let response;
 			if (siteId) {
-				response = await api.get(`/sites/${siteId}/labours`);
+				const year = date.getFullYear();
+				const month = String(date.getMonth() + 1).padStart(2, '0');
+				const day = String(date.getDate()).padStart(2, '0');
+				const dateStrForApi = `${year}-${month}-${day}`;
+				response = await api.get(`/labours/by-site-date?siteId=${siteId}&date=${dateStrForApi}`);
 			} else {
 				response = await api.get('/labours?status=active');
 			}
 			const data = await response.json();
 
 			if (response.ok) {
-				setLabours(sortByName(data));
-				// fetchExistingAttendance(data); // Removed argument as it's not used in implementation, and useEffect calls it anyway
+				setLabours(data); // List manager handles sorting
 			} else {
 				showModal("Error", "Failed to fetch labours", 'error');
 			}
@@ -333,16 +367,9 @@ export default function AttendanceScreen() {
 		}
 	};
 
-	const getFilteredLabours = () => {
-		if (filter === 'all') return labours;
-		return labours.filter(l => {
-			const status = attendance.get(l.id);
-			if (filter === 'absent') return !status || status === 'absent';
-			return status === filter;
-		});
-	};
+	// Filter logic replaced by listManager
 
-	const renderItem = ({ item }: { item: Labour }) => {
+	const renderItem = ({ item }: { item: Labour & { attendance_status: string } }) => {
 		const status = attendance.get(item.id);
 		const itemLocked = !canEdit;
 
@@ -470,26 +497,38 @@ export default function AttendanceScreen() {
 	const ListHeader = () => (
 		<View style={local.subHeader}>
 			{isGlobalView ? (
-				<View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-					<View style={local.filterContainer}>
-						<Text style={local.filterLabel}>Filter:</Text>
-						<Pressable onPress={() => setFilter(f => {
-							if (f === 'all') return 'full';
-							if (f === 'full') return 'half';
-							if (f === 'half') return 'absent';
-							return 'all';
-						})} style={local.filterBtn}>
-							<Text style={local.filterText}>{filter.toUpperCase()}</Text>
+				<View>
+					<View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
+						<Pressable
+							style={local.dateSelector}
+							onPress={() => setShowCalendar(true)}
+						>
+							<MaterialIcons name="calendar-today" size={20} color={isDark ? "#64b5f6" : "#0a84ff"} />
+							<Text style={local.dateSelectorText}>{date.toLocaleDateString()}</Text>
 						</Pressable>
 					</View>
 
-					<Pressable
-						style={local.dateSelector}
-						onPress={() => setShowCalendar(true)}
-					>
-						<MaterialIcons name="calendar-today" size={20} color={isDark ? "#64b5f6" : "#0a84ff"} />
-						<Text style={local.dateSelectorText}>{date.toLocaleDateString()}</Text>
-					</Pressable>
+					<View style={local.controlsRow}>
+						<SearchBar 
+							value={listManager.searchText}
+							onChangeText={listManager.setSearchText}
+							placeholder="Search by name..."
+							style={local.searchBar}
+						/>
+						<View style={local.actionRow}>
+							<FilterPanel 
+								availableFilters={filterOptions}
+								activeFilters={listManager.config.filters || []}
+								onApplyFilter={listManager.addFilter}
+								onRemoveFilter={listManager.removeFilter}
+							/>
+							<SortSelector 
+								options={sortOptions}
+								currentSort={listManager.config.sort?.[0]}
+								onSortChange={listManager.toggleSort}
+							/>
+						</View>
+					</View>
 				</View>
 			) : (
 				<View>
@@ -503,6 +542,28 @@ export default function AttendanceScreen() {
 							<MaterialIcons name="calendar-today" size={20} color={isDark ? "#64b5f6" : "#0a84ff"} />
 							<Text style={local.dateSelectorText}>{date.toLocaleDateString()}</Text>
 						</Pressable>
+					</View>
+
+					<View style={local.controlsRow}>
+						<SearchBar 
+							value={listManager.searchText}
+							onChangeText={listManager.setSearchText}
+							placeholder="Search by name..."
+							style={local.searchBar}
+						/>
+						<View style={local.actionRow}>
+							<FilterPanel 
+								availableFilters={filterOptions}
+								activeFilters={listManager.config.filters || []}
+								onApplyFilter={listManager.addFilter}
+								onRemoveFilter={listManager.removeFilter}
+							/>
+							<SortSelector 
+								options={sortOptions}
+								currentSort={listManager.config.sort?.[0]}
+								onSortChange={listManager.toggleSort}
+							/>
+						</View>
 					</View>
 
 					<View style={local.foodToggleContainer}>
@@ -532,15 +593,26 @@ export default function AttendanceScreen() {
 			</View>
 
 			<FlatList
-				data={getFilteredLabours()}
+				data={listManager.data}
 				renderItem={renderItem}
 				keyExtractor={(item) => item.id.toString()}
 				contentContainerStyle={local.listContent}
 				ListHeaderComponent={ListHeader}
 				ListEmptyComponent={
 					!loading ? (
-						<Text style={local.emptyText}>No labours found.</Text>
+						<Text style={local.emptyText}>No results found.</Text>
 					) : null
+				}
+				ListFooterComponent={
+					<PaginationControls 
+						currentPage={listManager.currentPage}
+						totalPages={listManager.totalPages}
+						hasNextPage={listManager.hasNextPage}
+						hasPrevPage={listManager.hasPrevPage}
+						onNext={() => listManager.setPage(listManager.currentPage + 1)}
+						onPrev={() => listManager.setPage(listManager.currentPage - 1)}
+						totalCount={listManager.totalCount}
+					/>
 				}
 				refreshControl={
 					<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
@@ -737,6 +809,19 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		color: isDark ? "#64b5f6" : "#0a84ff",
 		marginTop: 2,
 		fontWeight: "500",
+	},
+	controlsRow: {
+		paddingTop: 8,
+		paddingBottom: 4,
+	},
+	searchBar: {
+		marginBottom: 12,
+	},
+	actionRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 8,
 	},
 	// New Styles
 	dateSelector: {

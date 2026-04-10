@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { openDb } = require('../database');
 const { authenticateToken } = require('../middleware/auth');
+const { buildListQuery } = require('../utils/listProcessor');
 
 // GET /api/history
 router.get('/', authenticateToken, async (req, res) => {
@@ -9,15 +10,34 @@ router.get('/', authenticateToken, async (req, res) => {
     const db = await openDb();
     
     // Admins and supervisors can view history
-    const { type, action, search, startDate, endDate, limit = 50, offset = 0 } = req.query;
+    const { listConfig, type, action, search, startDate, endDate, limit = 50, offset = 0 } = req.query;
 
-    let query = `
+    let baseQuery = `
       SELECT h.*, u.name as created_by_name 
       FROM history_logs h
       LEFT JOIN users u ON h.created_by = u.id
-      WHERE 1=1
     `;
-    const params = [];
+    
+    let query, params;
+    
+    if (listConfig) {
+      // Backend generic list processing mode
+      const configObj = JSON.parse(listConfig);
+      const processed = buildListQuery(baseQuery, configObj);
+      query = processed.query;
+      params = processed.params;
+      
+      // Also need total count for paginator
+      const countQuery = buildListQuery(`SELECT COUNT(*) as total FROM history_logs h`, { ...configObj, pagination: undefined, sort: undefined });
+      const countRes = await db.get(countQuery.query, countQuery.params);
+      
+      const logs = await db.all(query, params);
+      return res.json({ success: true, count: logs.length, totalCount: parseInt(countRes.total || 0, 10), data: logs });
+    }
+
+    // Legacy mode
+    query = baseQuery + " WHERE 1=1";
+    params = [];
     let paramIndex = 1;
 
     if (type) {

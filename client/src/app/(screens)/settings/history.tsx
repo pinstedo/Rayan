@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, Pressable, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../context/ThemeContext';
-import { API_URL } from '../../../constants';
+import { useListManager } from '../../../hooks/useListManager';
+import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from '../../../components/list';
 
 interface HistoryLog {
   id: number;
@@ -18,83 +18,45 @@ interface HistoryLog {
   created_at: string;
 }
 
+const sortOptions: SortOption[] = [
+  { label: 'Date', field: 'created_at', type: 'date' },
+  { label: 'Name', field: 'name', type: 'string' }
+];
+
+const filterOptions: FilterOption[] = [
+  {
+    label: 'Type',
+    field: 'type',
+    type: 'select',
+    options: [
+      { label: 'Site', value: 'site' },
+      { label: 'Labour', value: 'labour' },
+      { label: 'Attendance', value: 'attendance' }
+    ]
+  }
+];
+
 export default function HistoryScreen() {
   const router = useRouter();
   const { isDark } = useTheme();
   const styles = getStyles(isDark);
 
-  const [logs, setLogs] = useState<HistoryLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-
-  // Filters
-  const [typeFilter, setTypeFilter] = useState<string>(''); // empty means All
-  const [searchQuery, setSearchQuery] = useState('');
-  const [offset, setOffset] = useState(0);
-  const LIMIT = 20;
-
-  const fetchHistory = async (isRefresh = false, currentOffset = 0) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else if (currentOffset > 0) {
-        setLoadingMore(true);
-      } else {
-        setLoading(true);
-      }
-
-      const token = await AsyncStorage.getItem('token');
-      
-      let queryParams = `?limit=${LIMIT}&offset=${currentOffset}`;
-      if (typeFilter) queryParams += `&type=${typeFilter}`;
-      if (searchQuery) queryParams += `&search=${encodeURIComponent(searchQuery)}`;
-
-      const response = await fetch(`${API_URL}/history${queryParams}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        if (currentOffset === 0) {
-          setLogs(data.data);
-        } else {
-          setLogs(prev => [...prev, ...data.data]);
-        }
-        setHasMore(data.data.length === LIMIT);
-      } else {
-        Alert.alert('Error', data.error || 'Failed to fetch history');
-      }
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Unable to connect to server');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      setLoadingMore(false);
+  const listManager = useListManager<HistoryLog>({
+    backendMode: true,
+    endpoint: '/history',
+    initialConfig: {
+      search: { text: '', fields: ['name'] },
+      sort: [{ field: 'created_at', order: 'desc', type: 'date' }],
+      pagination: { page: 1, limit: 20 }
     }
-  };
+  });
 
-  useEffect(() => {
-    // Reset and fetch whenever filters change
-    setOffset(0);
-    setHasMore(true);
-    fetchHistory(false, 0);
-  }, [typeFilter, searchQuery]); // Search query implies debouncing might be good if typed fast, but assuming typical usage hitting enter/blur is fine or standard typing.
-
-  const handleRefresh = () => {
-    setOffset(0);
-    fetchHistory(true, 0);
-  };
-
-  const handleLoadMore = () => {
-    if (!loadingMore && hasMore && !loading) {
-      const newOffset = offset + LIMIT;
-      setOffset(newOffset);
-      fetchHistory(false, newOffset);
-    }
-  };
+  const handleRefresh = useCallback(() => {
+    // A trick to trigger a fetch by swapping and restoring a non-consequential config if needed, 
+    // or we can rely on our listManager to expose a refetch but we haven't implemented refetch natively.
+    // Changing limit and setting it back is a dirty trick, but since backendMode fetches on any config change:
+    listManager.setConfig(prev => ({ ...prev }));
+  }, [listManager]);
 
   // Icon picking utility
   const getIconForAction = (type: string, action: string) => {
@@ -164,48 +126,33 @@ export default function HistoryScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.filtersContainer}>
-        <View style={styles.searchBox}>
-          <MaterialIcons name="search" size={20} color={isDark ? "#64748B" : "#94A3B8"} style={{ marginLeft: 12 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name..."
-            placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+      <View style={styles.controlsRow}>
+        <SearchBar 
+          value={listManager.searchText}
+          onChangeText={listManager.setSearchText}
+          placeholder="Search logs by name..."
+          style={styles.searchBar}
+        />
+        <View style={styles.actionRow}>
+          <FilterPanel 
+            availableFilters={filterOptions}
+            activeFilters={listManager.config.filters || []}
+            onApplyFilter={listManager.addFilter}
+            onRemoveFilter={listManager.removeFilter}
           />
-          {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery('')} style={{ padding: 8 }}>
-              <MaterialIcons name="close" size={20} color={isDark ? "#64748B" : "#94A3B8"} />
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.pillContainer}>
-          {['All', 'Site', 'Labour', 'Attendance'].map(type => {
-            const filterValue = type === 'All' ? '' : type.toLowerCase();
-            const isActive = typeFilter === filterValue;
-            
-            return (
-              <Pressable
-                key={type}
-                style={[styles.pill, isActive && styles.pillActive]}
-                onPress={() => setTypeFilter(filterValue)}
-              >
-                <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
-                  {type}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <SortSelector 
+            options={sortOptions}
+            currentSort={listManager.config.sort?.[0]}
+            onSortChange={listManager.toggleSort}
+          />
         </View>
       </View>
 
-      {loading && offset === 0 ? (
+      {listManager.loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      ) : logs.length === 0 ? (
+      ) : listManager.data.length === 0 ? (
         <View style={styles.centerContainer}>
           <MaterialIcons name="history" size={64} color={isDark ? "#334155" : "#E2E8F0"} />
           <Text style={styles.emptyTitle}>No history found</Text>
@@ -213,20 +160,22 @@ export default function HistoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={logs}
+          data={listManager.data}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
           onRefresh={handleRefresh}
-          refreshing={refreshing}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
+          refreshing={listManager.loading}
           ListFooterComponent={
-            loadingMore ? (
-              <ActivityIndicator style={{ margin: 20 }} color="#3B82F6" />
-            ) : !hasMore && logs.length > 0 ? (
-              <Text style={styles.endListText}>You've reached the end.</Text>
-            ) : null
+            <PaginationControls 
+              currentPage={listManager.currentPage}
+              totalPages={listManager.totalPages}
+              hasNextPage={listManager.hasNextPage}
+              hasPrevPage={listManager.hasPrevPage}
+              onNext={() => listManager.setPage(listManager.currentPage + 1)}
+              onPrev={() => listManager.setPage(listManager.currentPage - 1)}
+              totalCount={listManager.totalCount}
+            />
           }
         />
       )}
@@ -263,49 +212,19 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  filtersContainer: {
-    padding: 16,
-    backgroundColor: isDark ? "#0F172A" : "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: isDark ? "#334155" : "#E2E8F0",
+  controlsRow: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: isDark ? "#1E293B" : "#F1F5F9",
-    borderRadius: 12,
+  searchBar: {
     marginBottom: 12,
   },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    color: isDark ? "#F1F5F9" : "#0F172A",
-  },
-  pillContainer: {
+  actionRow: {
     flexDirection: "row",
-    gap: 8,
-  },
-  pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: isDark ? "#1E293B" : "#F1F5F9",
-    borderWidth: 1,
-    borderColor: isDark ? "#334155" : "#E2E8F0",
-  },
-  pillActive: {
-    backgroundColor: "#3B82F6",
-    borderColor: "#3B82F6",
-  },
-  pillText: {
-    fontSize: 14,
-    color: isDark ? "#94A3B8" : "#64748B",
-    fontWeight: "500",
-  },
-  pillTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   listContainer: {
     padding: 16,

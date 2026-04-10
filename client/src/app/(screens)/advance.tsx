@@ -20,7 +20,8 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
-import { sortByName } from "../../utils/sort";
+import { useListManager } from "../../hooks/useListManager";
+import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
 
 interface Labour {
     id: number;
@@ -33,14 +34,29 @@ interface Labour {
     status?: 'active' | 'unassigned';
 }
 
+const sortOptions: SortOption[] = [
+    { label: "Name", field: "name", type: "string" },
+    { label: "Site", field: "site", type: "string" }
+];
+
+const filterOptions: FilterOption[] = [];
+
 export default function Advance() {
     const router = useRouter();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const { supervisorId } = useLocalSearchParams();
-    const [labours, setLabours] = useState<Labour[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [allLabours, setAllLabours] = useState<Labour[]>([]);
     const [isAdmin, setIsAdmin] = useState(false);
+
+    const listManager = useListManager<Labour>({
+        initialData: allLabours,
+        initialConfig: {
+            search: { text: "", fields: ["name", "phone", "site"] },
+            sort: [{ field: "name", order: "asc", type: "string" }],
+            pagination: { page: 1, limit: 15 }
+        }
+    });
 
     // Advance Modal State
     const [showAdvanceModal, setShowAdvanceModal] = useState(false);
@@ -76,20 +92,17 @@ export default function Advance() {
         try {
             if (isRefresh) {
                 setRefreshing(true);
-            } else {
-                setLoading(true);
             }
             let queryString = '?status=active';
             if (supId) queryString += `&supervisor_id=${supId}`;
             const response = await api.get(`/labours${queryString}`);
             const data = await response.json();
             if (response.ok) {
-                setLabours(sortByName(data));
+                setAllLabours(data);
             }
         } catch (error) {
             console.error("Failed to fetch labours", error);
         } finally {
-            setLoading(false);
             setRefreshing(false);
         }
     };
@@ -151,8 +164,30 @@ export default function Advance() {
                 <View style={{ width: 50 }} />
             </View>
 
+            <View style={local.controlsRow}>
+                <SearchBar 
+                    value={listManager.searchText}
+                    onChangeText={listManager.setSearchText}
+                    placeholder="Search by name, phone..."
+                    style={local.searchBar}
+                />
+                <View style={local.actionRow}>
+                    <FilterPanel 
+                        availableFilters={filterOptions}
+                        activeFilters={listManager.config.filters || []}
+                        onApplyFilter={listManager.addFilter}
+                        onRemoveFilter={listManager.removeFilter}
+                    />
+                    <SortSelector 
+                        options={sortOptions}
+                        currentSort={listManager.config.sort?.[0]}
+                        onSortChange={listManager.toggleSort}
+                    />
+                </View>
+            </View>
+
             <FlatList
-                data={labours}
+                data={listManager.data}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => (
                     <LabourCard
@@ -163,9 +198,18 @@ export default function Advance() {
                 )}
                 contentContainerStyle={local.listContent}
                 ListEmptyComponent={
-                    !loading ? (
-                        <Text style={local.emptyText}>No active labours found.</Text>
-                    ) : null
+                    <Text style={local.emptyText}>No results found.</Text>
+                }
+                ListFooterComponent={
+                    <PaginationControls 
+                        currentPage={listManager.currentPage}
+                        totalPages={listManager.totalPages}
+                        hasNextPage={listManager.hasNextPage}
+                        hasPrevPage={listManager.hasPrevPage}
+                        onNext={() => listManager.setPage(listManager.currentPage + 1)}
+                        onPrev={() => listManager.setPage(listManager.currentPage - 1)}
+                        totalCount={listManager.totalCount}
+                    />
                 }
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
@@ -263,6 +307,20 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         marginTop: 40,
         color: isDark ? "#aaa" : "#999",
         fontSize: 16,
+    },
+    controlsRow: {
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 4,
+    },
+    searchBar: {
+        marginBottom: 12,
+    },
+    actionRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 8,
     },
     modalOverlay: {
         flex: 1,

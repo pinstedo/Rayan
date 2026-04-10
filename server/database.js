@@ -248,6 +248,14 @@ async function initDb() {
       updated_by INTEGER REFERENCES users(id),
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS labour_site_history (
+      id SERIAL PRIMARY KEY,
+      labour_id INTEGER NOT NULL REFERENCES labours(id) ON DELETE CASCADE,
+      site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      from_date TEXT NOT NULL,
+      to_date TEXT
+    );
   `);
 
   // Seed default food allowance rate if not set
@@ -302,6 +310,25 @@ async function initDb() {
   await createIndexSafe('idx_history_logs_created_at', 'CREATE INDEX idx_history_logs_created_at ON history_logs(created_at);');
   await createIndexSafe('idx_attendance_entry_mode', 'CREATE INDEX idx_attendance_entry_mode ON attendance(entry_mode);');
   await createIndexSafe('idx_attendance_date_labour_site', 'CREATE INDEX idx_attendance_date_labour_site ON attendance(date, labour_id, site_id);');
+
+  await createIndexSafe('idx_labour_site_history_labour', 'CREATE INDEX idx_labour_site_history_labour ON labour_site_history(labour_id);');
+  await createIndexSafe('idx_labour_site_history_site', 'CREATE INDEX idx_labour_site_history_site ON labour_site_history(site_id);');
+
+  // Backfill script for existing active labour assignments
+  const todayStr = new Date().toISOString().split('T')[0];
+  try {
+    await db.run(`
+      INSERT INTO labour_site_history (labour_id, site_id, from_date)
+      SELECT id, site_id, ?
+      FROM labours
+      WHERE site_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM labour_site_history h WHERE h.labour_id = labours.id AND h.to_date IS NULL
+        )
+    `, [todayStr]);
+  } catch (e) {
+    console.error('Error backfilling labour_site_history:', e);
+  }
 
   console.log('Database initialized.');
   return db;

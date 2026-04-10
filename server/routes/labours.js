@@ -9,6 +9,7 @@ const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
+const { updateSiteHistory } = require('../utils/siteHistory');
 
 // List all labours or filter by supervisor
 router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
@@ -121,6 +122,10 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
         const newLabour = await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]);
         
+        if (site_id) {
+            await updateSiteHistory(db, result.lastID, site_id);
+        }
+
         await logHistory({
             type: 'labour',
             action: 'created',
@@ -131,6 +136,31 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         });
 
         res.status(201).json(newLabour);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get labours assigned to a site on a specific date based on history
+router.get('/by-site-date', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const { siteId, date } = req.query;
+        if (!siteId || !date) {
+            return res.status(400).json({ error: 'siteId and date query parameters are required' });
+        }
+
+        const db = await openDb();
+        const labours = await db.all(`
+            SELECT DISTINCT l.* 
+            FROM labours l
+            JOIN labour_site_history h ON l.id = h.labour_id
+            WHERE h.site_id = ?
+              AND h.from_date <= ?
+              AND (h.to_date IS NULL OR h.to_date >= ?)
+            ORDER BY l.name ASC
+        `, [siteId, date, date]);
+
+        res.json(labours);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -233,6 +263,10 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             [name, phone, aadhaar, site, site_id, rate, notes, trade, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
         );
 
+        if (site_id != currentLabour.site_id) {
+            await updateSiteHistory(db, req.params.id, site_id || null);
+        }
+
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
         
         await logHistory({
@@ -276,6 +310,7 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
                 'UPDATE labours SET status = ?, site_id = NULL, site = NULL WHERE id = ?',
                 [status, req.params.id]
             );
+            await updateSiteHistory(db, req.params.id, null);
         } else {
             await db.run(
                 'UPDATE labours SET status = ? WHERE id = ?',

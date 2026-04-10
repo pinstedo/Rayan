@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { sortByName } from "../../../utils/sort";
 import {
     ActivityIndicator,
     Alert,
@@ -22,6 +23,7 @@ interface SiteReport {
     present_count: number;
     absent_count: number;
     is_submitted: number; // 0 or 1
+    status?: string;
 }
 
 export default function SiteAttendanceReport() {
@@ -40,7 +42,8 @@ export default function SiteAttendanceReport() {
             const response = await api.post(`/reports/site-attendance`, { date: dateStr });
             if (response.ok) {
                 const data = await response.json();
-                setReports(data);
+                const dataWithName = data.map((item: any) => ({ ...item, name: item.site_name }));
+                setReports(sortByName(dataWithName) as SiteReport[]);
             } else {
                 Alert.alert("Error", "Failed to load reports");
             }
@@ -134,18 +137,25 @@ export default function SiteAttendanceReport() {
                             onPress={() => router.push(`/(screens)/attendance?siteId=${site.site_id}&siteName=${encodeURIComponent(site.site_name)}&dateStr=${date.toISOString()}` as any)}
                         >
                             <View style={local.cardHeader}>
-                                <Text style={local.siteName}>{site.site_name}</Text>
-                                {site.is_submitted ? (
-                                    <View style={[local.badge, local.badgeSubmitted]}>
-                                        <Ionicons name="checkmark-circle" size={14} color={isDark ? "#4caf50" : "#155724"} />
-                                        <Text style={local.badgeTextSubmitted}>Submitted</Text>
-                                    </View>
-                                ) : (
-                                    <View style={[local.badge, local.badgePending]}>
-                                        <Ionicons name="time" size={14} color={isDark ? "#ffb300" : "#856404"} />
-                                        <Text style={local.badgeTextPending}>Pending</Text>
-                                    </View>
-                                )}
+                                <Text style={local.siteName} numberOfLines={1} ellipsizeMode="tail">{site.site_name}</Text>
+                                <View style={local.badgeContainer}>
+                                    {site.status === "inactive" && (
+                                        <View style={[local.badge, local.badgeInactive]}>
+                                            <Text style={local.badgeTextInactive}>Inactive</Text>
+                                        </View>
+                                    )}
+                                    {site.is_submitted ? (
+                                        <View style={[local.badge, local.badgeSubmitted]}>
+                                            <Ionicons name="checkmark-circle" size={14} color={isDark ? "#4caf50" : "#155724"} />
+                                            <Text style={local.badgeTextSubmitted}>Submitted</Text>
+                                        </View>
+                                    ) : (
+                                        <View style={[local.badge, local.badgePending]}>
+                                            <Ionicons name="time" size={14} color={isDark ? "#ffb300" : "#856404"} />
+                                            <Text style={local.badgeTextPending}>Pending</Text>
+                                        </View>
+                                    )}
+                                </View>
                             </View>
 
                             <View style={local.divider} />
@@ -255,6 +265,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontSize: 18,
         fontWeight: "bold",
         color: isDark ? "#fff" : "#222",
+        flex: 1,
+        marginRight: 10,
+    },
+    badgeContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
     },
     badge: {
         flexDirection: "row",
@@ -270,6 +287,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     badgePending: {
         backgroundColor: isDark ? "#403107" : "#fff3cd",
     },
+    badgeInactive: {
+        backgroundColor: isDark ? "#3b2a00" : "#fff8e1",
+    },
     badgeTextSubmitted: {
         fontSize: 12,
         fontWeight: "bold",
@@ -279,6 +299,11 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontSize: 12,
         fontWeight: "bold",
         color: isDark ? "#ffb300" : "#856404",
+    },
+    badgeTextInactive: {
+        fontSize: 12,
+        fontWeight: "bold",
+        color: isDark ? "#ffb74d" : "#e65100",
     },
     divider: {
         height: 1,

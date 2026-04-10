@@ -14,7 +14,8 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
-import { sortByName } from "../../utils/sort";
+import { useListManager } from "../../hooks/useListManager";
+import { SearchBar, FilterPanel, SortSelector, PaginationControls, SortOption, FilterOption } from "../../components/list";
 
 interface Site {
     id: number;
@@ -31,30 +32,55 @@ interface Site {
 
 type FilterType = "all" | "active" | "inactive";
 
+const sortOptions: SortOption[] = [
+    { label: "Name", field: "name", type: "string" },
+    { label: "Completion", field: "completion_percentage", type: "number" },
+    { label: "Labour Count", field: "labour_count", type: "number" },
+    { label: "Supervisor Count", field: "supervisor_count", type: "number" },
+];
+
+const filterOptions: FilterOption[] = [
+    { 
+        label: "Status", 
+        field: "status", 
+        type: "select", 
+        options: [
+            { label: "Active", value: "active" },
+            { label: "Inactive", value: "inactive" },
+            { label: "Completed", value: "completed" },
+        ] 
+    }
+];
+
 export default function SitesScreen() {
     const router = useRouter();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
-    const [sites, setSites] = useState<Site[]>([]);
     const [allSites, setAllSites] = useState<Site[]>([]);
-    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [filter, setFilter] = useState<FilterType>("all");
+
+    // Initial config: sort by name asc, don't show completed if we want to mimic old behavior, 
+    // but with generic filters we can just start with active+inactive. Let's start with active + inactive filter.
+    const listManager = useListManager<Site>({
+        initialData: allSites,
+        initialConfig: {
+            search: { text: "", fields: ["name", "address"] },
+            sort: [{ field: "name", order: "asc", type: "string" }],
+            filters: [{ field: "status", operator: "not_in", value: ["completed"] }], // hide completed by default
+            pagination: { page: 1, limit: 15 }
+        }
+    });
 
     const fetchSites = async (isRefresh = false) => {
         try {
             if (isRefresh) {
                 setRefreshing(true);
-            } else {
-                setLoading(true);
             }
             const response = await api.get("/sites");
             const data = await response.json();
 
             if (response.ok) {
-                const sorted = sortByName(data);
-                setAllSites(sorted);
-                applyFilter(sorted, filter);
+                setAllSites(data);
             } else {
                 Alert.alert("Error", data.error || "Failed to fetch sites");
             }
@@ -62,24 +88,18 @@ export default function SitesScreen() {
             console.error("Fetch sites error:", error);
             Alert.alert("Error", "Unable to connect to server");
         } finally {
-            setLoading(false);
             setRefreshing(false);
         }
     };
 
-    const applyFilter = (data: Site[], f: FilterType) => {
-        // Only show non-completed sites for all, or explicitly match status
-        const visibleSites = data.filter(s => s.status !== "completed");
-        if (f === "all") {
-            setSites(visibleSites);
-        } else {
-            setSites(visibleSites.filter(s => (s.status ?? "active") === f));
-        }
-    };
-
     const handleFilterChange = (f: FilterType) => {
-        setFilter(f);
-        applyFilter(allSites, f);
+        // Just for keeping the easy UI tabs functional as requested or we can let FilterPanel do it.
+        // We'll update listManager filters instead.
+        if (f === "all") {
+            listManager.setFilters([{ field: "status", operator: "not_in", value: ["completed"] }]);
+        } else {
+            listManager.setFilters([{ field: "status", value: f }]);
+        }
     };
 
     const onRefresh = () => {
@@ -158,6 +178,14 @@ export default function SitesScreen() {
     };
 
     const visibleAllSites = allSites.filter(s => s.status !== "completed");
+    
+    // Check which filter is active for the tabs UI
+    const statusFilter = listManager.config.filters?.find(f => f.field === "status");
+    let activeTab: FilterType = "all";
+    if (statusFilter?.operator === "not_in" && statusFilter?.value?.includes("completed")) activeTab = "all";
+    else if (statusFilter?.value === "active") activeTab = "active";
+    else if (statusFilter?.value === "inactive") activeTab = "inactive";
+
     const filterCounts = {
         all: visibleAllSites.length,
         active: visibleAllSites.filter(s => (s.status ?? "active") === "active").length,
@@ -184,13 +212,13 @@ export default function SitesScreen() {
                 {(["all", "active", "inactive"] as FilterType[]).map(f => (
                     <TouchableOpacity
                         key={f}
-                        style={[local.filterTab, filter === f && local.filterTabActive]}
+                        style={[local.filterTab, activeTab === f && local.filterTabActive]}
                         onPress={() => handleFilterChange(f)}
                     >
-                        <Text style={[local.filterTabText, filter === f && local.filterTabTextActive]}>
+                        <Text style={[local.filterTabText, activeTab === f && local.filterTabTextActive]}>
                             {f.charAt(0).toUpperCase() + f.slice(1)}
                             {" "}
-                            <Text style={[local.filterCount, filter === f && local.filterCountActive]}>
+                            <Text style={[local.filterCount, activeTab === f && local.filterCountActive]}>
                                 ({filterCounts[f]})
                             </Text>
                         </Text>
@@ -198,31 +226,67 @@ export default function SitesScreen() {
                 ))}
             </View>
 
-            {loading && !refreshing ? (
-                <ActivityIndicator size="large" color="#0a84ff" style={local.loader} />
-            ) : sites.length === 0 ? (
+            {/* List Manager Controls */}
+            <View style={local.controlsRow}>
+                <SearchBar 
+                    value={listManager.searchText}
+                    onChangeText={listManager.setSearchText}
+                    placeholder="Search sites by name or address..."
+                    style={local.searchBar}
+                />
+                <View style={local.actionRow}>
+                    <FilterPanel 
+                        availableFilters={filterOptions}
+                        activeFilters={listManager.config.filters || []}
+                        onApplyFilter={(f) => {
+                            // If they use the generic filter panel for status, it breaks tabs a bit, 
+                            // but this is expected when mixing UI paradigms.
+                            listManager.addFilter(f);
+                        }}
+                        onRemoveFilter={listManager.removeFilter}
+                    />
+                    <SortSelector 
+                        options={sortOptions}
+                        currentSort={listManager.config.sort?.[0]}
+                        onSortChange={listManager.toggleSort}
+                    />
+                </View>
+            </View>
+
+            {allSites.length === 0 && !refreshing ? (
                 <View style={local.emptyState}>
                     <MaterialIcons name="location-city" size={64} color={isDark ? "#555" : "#ccc"} />
-                    <Text style={local.emptyText}>
-                        {filter === "all" ? "No sites added yet" : `No ${filter} sites`}
-                    </Text>
-                    {filter === "all" && (
-                        <TouchableOpacity
-                            onPress={() => router.push("/(screens)/add-site" as any)}
-                            style={local.addFirstButton}
-                        >
-                            <Text style={local.addFirstText}>Add First Site</Text>
-                        </TouchableOpacity>
-                    )}
+                    <Text style={local.emptyText}>No sites added yet</Text>
+                    <TouchableOpacity
+                        onPress={() => router.push("/(screens)/add-site" as any)}
+                        style={local.addFirstButton}
+                    >
+                        <Text style={local.addFirstText}>Add First Site</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : listManager.data.length === 0 ? (
+                <View style={local.emptyState}>
+                    <Text style={local.emptyText}>No results found.</Text>
                 </View>
             ) : (
                 <FlatList
-                    data={sites}
+                    data={listManager.data}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderSite}
                     contentContainerStyle={local.list}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                    }
+                    ListFooterComponent={
+                        <PaginationControls 
+                            currentPage={listManager.currentPage}
+                            totalPages={listManager.totalPages}
+                            hasNextPage={listManager.hasNextPage}
+                            hasPrevPage={listManager.hasPrevPage}
+                            onNext={() => listManager.setPage(listManager.currentPage + 1)}
+                            onPrev={() => listManager.setPage(listManager.currentPage - 1)}
+                            totalCount={listManager.totalCount}
+                        />
                     }
                 />
             )}
@@ -252,6 +316,20 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: isDark ? "#fff" : "#333",
     },
     addButton: { padding: 8 },
+    controlsRow: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 4,
+    },
+    searchBar: {
+        marginBottom: 12,
+    },
+    actionRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 8,
+    },
     filterBar: {
         flexDirection: "row",
         backgroundColor: isDark ? "#1e1e1e" : "#fff",

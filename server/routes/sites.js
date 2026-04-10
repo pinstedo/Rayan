@@ -5,6 +5,7 @@ const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
+const { updateSiteHistory } = require('../utils/siteHistory');
 
 // List all sites (supports ?status=active|inactive filter)
 router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
@@ -297,6 +298,7 @@ router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async 
         }
 
         await db.run('UPDATE labours SET site_id = ?, site = ?, status = "active" WHERE id = ?', [req.params.id, site.name, labour_id]);
+        await updateSiteHistory(db, labour_id, req.params.id);
         res.json({ message: 'Labour assigned to site' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -308,6 +310,7 @@ router.delete('/:id/unassign-labour/:labourId', authorizeRole(['admin', 'supervi
     try {
         const db = await openDb();
         await db.run('UPDATE labours SET site_id = NULL, site = NULL, status = "unassigned" WHERE id = ?', [req.params.labourId]);
+        await updateSiteHistory(db, req.params.labourId, null);
         res.json({ message: 'Labour removed from site' });
     } catch (err) {
         res.status(500).json({ error: err.message });
