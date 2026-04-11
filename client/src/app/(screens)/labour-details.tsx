@@ -76,6 +76,7 @@ export default function LabourDetailsScreen() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isPersonalInfoExpanded, setIsPersonalInfoExpanded] = useState(false);
     const [labour, setLabour] = useState<Labour | null>(null);
     const [formData, setFormData] = useState<Partial<Labour>>({});
 
@@ -487,24 +488,39 @@ export default function LabourDetailsScreen() {
 
                 {/* ── Personal Information ── */}
                 <View style={local.formContainer}>
-                    <Text style={local.sectionCategory}>Personal Information</Text>
+                    <TouchableOpacity
+                        style={local.sectionHeaderRowAccordion}
+                        onPress={() => setIsPersonalInfoExpanded(!isPersonalInfoExpanded)}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[local.sectionCategory, { marginBottom: 0 }]}>Personal Information</Text>
+                        <Ionicons
+                            name={isPersonalInfoExpanded ? "chevron-up" : "chevron-down"}
+                            size={20}
+                            color={isDark ? "#aaa" : "#666"}
+                        />
+                    </TouchableOpacity>
 
-                    {renderDetailItem({ label: "Full Name", value: labour.name, field: "name", icon: "person-outline", isEditable: true })}
-                    {renderDetailItem({ label: "Phone Number", value: labour.phone, field: "phone", icon: "call-outline", isEditable: true, keyboardType: "phone-pad" })}
-                    {renderDetailItem({ label: "Date of Birth (YYYY-MM-DD)", value: labour.date_of_birth, field: "date_of_birth", icon: "calendar-outline", isEditable: true })}
+                    {isPersonalInfoExpanded && (
+                        <View style={local.accordionBody}>
+                            {renderDetailItem({ label: "Full Name", value: labour.name, field: "name", icon: "person-outline", isEditable: true })}
+                            {renderDetailItem({ label: "Phone Number", value: labour.phone, field: "phone", icon: "call-outline", isEditable: true, keyboardType: "phone-pad" })}
+                            {renderDetailItem({ label: "Date of Birth (YYYY-MM-DD)", value: labour.date_of_birth, field: "date_of_birth", icon: "calendar-outline", isEditable: true })}
 
-                    {labour.date_of_birth && (
-                        <View style={local.inputGroup}>
-                            <Text style={local.label}>Age</Text>
-                            <View style={[local.inputContainer, local.readOnlyContainer]}>
-                                <Ionicons name="hourglass-outline" size={20} color={isDark ? "#aaa" : "#666"} style={local.inputIcon} />
-                                <Text style={local.inputText}>{calculateAge(labour.date_of_birth)} yrs</Text>
-                            </View>
+                            {labour.date_of_birth && (
+                                <View style={local.inputGroup}>
+                                    <Text style={local.label}>Age</Text>
+                                    <View style={[local.inputContainer, local.readOnlyContainer]}>
+                                        <Ionicons name="hourglass-outline" size={20} color={isDark ? "#aaa" : "#666"} style={local.inputIcon} />
+                                        <Text style={local.inputText}>{calculateAge(labour.date_of_birth)} yrs</Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {renderDetailItem({ label: "Aadhaar Number", value: labour.aadhaar, field: "aadhaar", icon: "card-outline", isEditable: true, keyboardType: "numeric" })}
+                            {renderDetailItem({ label: "Emergency Contact", value: labour.emergency_phone, field: "emergency_phone", icon: "medical-outline", isEditable: true, keyboardType: "phone-pad" })}
                         </View>
                     )}
-
-                    {renderDetailItem({ label: "Aadhaar Number", value: labour.aadhaar, field: "aadhaar", icon: "card-outline", isEditable: true, keyboardType: "numeric" })}
-                    {renderDetailItem({ label: "Emergency Contact", value: labour.emergency_phone, field: "emergency_phone", icon: "medical-outline", isEditable: true, keyboardType: "phone-pad" })}
 
                     <View style={local.divider} />
                     <Text style={local.sectionCategory}>Work Details</Text>
@@ -925,6 +941,15 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         marginTop: 4,
         textTransform: "uppercase",
         letterSpacing: 1,
+    },
+    sectionHeaderRowAccordion: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingVertical: 4,
+    },
+    accordionBody: {
+        marginTop: 16,
     },
     inputGroup: {
         marginBottom: 14,

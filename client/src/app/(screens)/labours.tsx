@@ -60,7 +60,14 @@ export default function Labours() {
 	const local = getStyles(isDark);
 	const { newLabour, supervisorId, status, siteName, view } = useLocalSearchParams();
 	const siteNameFilter = siteName as string | undefined;
-	const initialStatus = (status as string) || 'active';
+	
+	// 'assigned' comes from dashboard. Default Manage Labours to 'active' if no params passed.
+	const parsedStatus = status === 'assigned' ? 'active' : (status as string);
+	const initialStatus = parsedStatus === undefined && !view && !siteNameFilter ? 'active' : parsedStatus;
+	
+	const initialFilters = initialStatus && initialStatus !== 'all' 
+		? [{ field: "status", operator: "=" as const, value: initialStatus }] 
+		: [];
 	const [allLabours, setAllLabours] = useState<Labour[]>([]);
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
@@ -72,7 +79,7 @@ export default function Labours() {
 			sort: [
 				{ field: "name", order: "asc", type: "string" }
 			],
-			filters: [{ field: "status", operator: "=", value: initialStatus }]
+			filters: initialFilters
 		}
 	});
 
