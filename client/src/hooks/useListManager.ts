@@ -16,7 +16,7 @@ export interface UseListManagerProps<T> {
 
 export function useListManager<T extends Record<string, any>>({
     initialData = [],
-    initialConfig = { pagination: { page: 1, limit: 20 } },
+    initialConfig = { pagination: { page: 1, limit: 999999 } },
     backendMode = false,
     endpoint,
 }: UseListManagerProps<T>) {

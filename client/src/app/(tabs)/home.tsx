@@ -178,7 +178,7 @@ export default function HomeScreen() {
 			value: stats.workers,
 			icon: "account-group",
 			color: colors.success,
-			onPress: () => router.push("/(screens)/labours")
+			onPress: () => router.push({ pathname: "/(screens)/labours", params: { view: 'flat' } } as any)
 		},
 		{
 			key: "jobs",
@@ -186,7 +186,7 @@ export default function HomeScreen() {
 			value: stats.jobs,
 			icon: "account-hard-hat",
 			color: colors.primary,
-			onPress: () => router.push({ pathname: "/(screens)/labours", params: { status: 'assigned' } } as any)
+			onPress: () => router.push({ pathname: "/(screens)/labours", params: { status: 'assigned', view: 'flat' } } as any)
 		},
 		{
 			key: "attendance",

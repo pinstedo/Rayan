@@ -36,7 +36,6 @@ interface Labour {
 }
 
 const sortOptions: SortOption[] = [
-	{ label: "Site", field: "site", type: "string" },
 	{ label: "Name", field: "name", type: "string" },
 	{ label: "Date Added", field: "created_at", type: "date" },
 	{ label: "Rate", field: "rate", type: "number" }
@@ -59,7 +58,8 @@ export default function Labours() {
 	const router = useRouter();
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
-	const { newLabour, supervisorId, status } = useLocalSearchParams();
+	const { newLabour, supervisorId, status, siteName, view } = useLocalSearchParams();
+	const siteNameFilter = siteName as string | undefined;
 	const initialStatus = (status as string) || 'active';
 	const [allLabours, setAllLabours] = useState<Labour[]>([]);
 	const [isAdmin, setIsAdmin] = useState(false);
@@ -70,7 +70,6 @@ export default function Labours() {
 		initialConfig: {
 			search: { text: "", fields: ["name", "phone", "trade"] },
 			sort: [
-				{ field: "site", order: "asc", type: "string" },
 				{ field: "name", order: "asc", type: "string" }
 			],
 			filters: [{ field: "status", operator: "=", value: initialStatus }]
@@ -234,6 +233,25 @@ export default function Labours() {
 
 	const statusFilter = listManager.config.filters?.find(f => f.field === 'status');
 	const viewType = statusFilter ? statusFilter.value : 'all';
+	
+	const shouldShowFlat = view === 'flat' || viewType === 'unassigned';
+
+	const groupedLabours = Array.from(
+		listManager.data.reduce((map, l) => {
+			const site = l.site || 'Unassigned';
+			if (!map.has(site)) {
+				map.set(site, []);
+			}
+			map.get(site)!.push(l);
+			return map;
+		}, new Map<string, Labour[]>()).entries()
+	)
+		.map(([sName, labours]) => ({ siteName: sName, count: labours.length, labours }))
+		.sort((a, b) => a.siteName.localeCompare(b.siteName));
+
+	const displayData = siteNameFilter 
+		? listManager.data.filter(l => (l.site || 'Unassigned') === siteNameFilter)
+		: (shouldShowFlat ? listManager.data : groupedLabours);
 
 	return (
 		<View style={local.container}>
@@ -242,7 +260,7 @@ export default function Labours() {
 					<Text style={local.backText}>← Back</Text>
 				</Pressable>
 				<Text style={local.header}>
-					{supervisorId ? "My Labours" : "Manage Labours"}
+					{siteNameFilter ? `${siteNameFilter}` : (supervisorId ? "My Labours" : "Manage Labours")}
 				</Text>
 				{isAdmin ? (
 					<Pressable onPress={() => router.push("/(screens)/add-labour")} style={local.backBtn}>
@@ -251,7 +269,7 @@ export default function Labours() {
 				) : <View style={{ width: 50 }} />}
 			</View>
 
-			{isAdmin && !supervisorId && (
+			{isAdmin && !supervisorId && !siteNameFilter && (
 				<View style={local.toggleContainer}>
 					<TouchableOpacity
 						style={[local.toggleBtn, viewType === 'active' && local.toggleBtnActive]}
@@ -291,8 +309,8 @@ export default function Labours() {
 			</View>
 
 			<FlatList
-				data={listManager.data}
-				keyExtractor={(item) => item.id.toString()}
+				data={displayData}
+				keyExtractor={(item: any) => (siteNameFilter || shouldShowFlat) ? item.id.toString() : item.siteName}
 				refreshControl={
 					<React.Fragment>
 						{/* Re-import RefreshControl if not already imported or use from react-native */}
@@ -300,17 +318,37 @@ export default function Labours() {
 				}
 				onRefresh={onRefresh}
 				refreshing={refreshing}
-				renderItem={({ item }) => (
-					<LabourCard
-						labour={item}
-						showMoveAction={isAdmin}
-						hideRate={!isAdmin}
-						onMove={handleMove}
-						onUnassign={handleUnassign}
-						onRevoke={(labour) => handleStatusChange(labour, 'active')}
-						onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
-					/>
-				)}
+				renderItem={({ item }) => {
+					if (siteNameFilter || shouldShowFlat) {
+						return (
+							<LabourCard
+								labour={item as Labour}
+								showMoveAction={isAdmin}
+								hideRate={!isAdmin}
+								onMove={handleMove}
+								onUnassign={handleUnassign}
+								onRevoke={(labour) => handleStatusChange(labour, 'active')}
+								onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
+							/>
+						);
+					}
+
+					return (
+						<TouchableOpacity 
+							style={local.groupCard} 
+							onPress={() => router.push({ pathname: '/(screens)/labours', params: { ...useLocalSearchParams(), siteName: item.siteName } } as any)}
+						>
+							<View style={local.groupIconWrap}>
+								<MaterialIcons name="location-city" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
+							</View>
+							<View style={local.groupInfo}>
+								<Text style={local.groupName}>{item.siteName}</Text>
+								<Text style={local.groupCount}>{item.count} labours</Text>
+							</View>
+							<MaterialIcons name="chevron-right" size={24} color={isDark ? "#555" : "#ccc"} />
+						</TouchableOpacity>
+					);
+				}}
 				contentContainerStyle={local.listContent}
 				ListEmptyComponent={
 					<Text style={local.emptyText}>No labours found.</Text>
@@ -393,6 +431,44 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	listContent: {
 		padding: 16,
 		paddingBottom: 100,
+	},
+	groupCard: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: isDark ? "#1e1e1e" : "#fff",
+		padding: 16,
+		borderRadius: 12,
+		marginBottom: 12,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: isDark ? 0.3 : 0.05,
+		shadowRadius: 6,
+		elevation: 3,
+		borderWidth: 1,
+		borderColor: isDark ? "#333" : "#f1f5f9",
+	},
+	groupIconWrap: {
+		width: 48,
+		height: 48,
+		borderRadius: 24,
+		backgroundColor: isDark ? "#1a3b5c" : "#e8f4ff",
+		justifyContent: "center",
+		alignItems: "center",
+		marginRight: 16,
+	},
+	groupInfo: {
+		flex: 1,
+	},
+	groupName: {
+		fontSize: 16,
+		fontWeight: "700",
+		color: isDark ? "#fff" : "#333",
+		marginBottom: 4,
+	},
+	groupCount: {
+		fontSize: 14,
+		color: isDark ? "#aaa" : "#666",
+		fontWeight: "500",
 	},
 	emptyText: {
 		textAlign: "center",
