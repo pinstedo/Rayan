@@ -6,7 +6,6 @@ interface Labour {
     id: number;
     name: string;
     phone: string;
-    trade: string;
     rate?: number;
     site: string;
     site_id?: number;
@@ -108,10 +107,6 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
             )}
 
             <View style={styles.detailsRow}>
-                <View style={styles.detailItem}>
-                    <MaterialIcons name="work" size={16} color="#666" />
-                    <Text style={styles.detailText}>{labour.trade || "General"}</Text>
-                </View>
                 <View style={styles.detailItem}>
                     <MaterialIcons name="location-city" size={16} color="#666" />
                     <Text style={styles.detailText} numberOfLines={1}>{labour.site || "Unassigned"}</Text>

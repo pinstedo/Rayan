@@ -19,11 +19,11 @@ router.post('/', async (req, res) => {
         // Search labours
         if (!type || type === 'labour') {
             const labours = await db.all(
-                `SELECT id, name, phone, trade, profile_image, 'labour' as type 
+                `SELECT id, name, phone, profile_image, 'labour' as type 
                  FROM labours 
-                 WHERE name LIKE ? OR phone LIKE ? OR trade LIKE ?
+                 WHERE name LIKE ? OR phone LIKE ?
                  ORDER BY name ASC LIMIT ? OFFSET ?`,
-                [searchTerm, searchTerm, searchTerm, l, o]
+                [searchTerm, searchTerm, l, o]
             );
             results = results.concat(labours);
         }

@@ -69,7 +69,7 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
 // Add new labour
 router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { name, phone, password, aadhaar, site, site_id, rate, notes, trade, date_of_birth } = req.body;
+    const { name, phone, password, aadhaar, site, site_id, rate, notes, date_of_birth } = req.body;
 
     if (!name) {
         return res.status(400).json({ error: 'Name is required' });
@@ -116,8 +116,8 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         const initialStatus = req.user && req.user.role === 'supervisor' ? 'pending' : (site_id ? 'active' : 'unassigned');
 
         const result = await db.run(
-            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-            [name, phone, password_hash, aadhaar, site, site_id, rate, notes, trade, date_of_birth, initialStatus]
+            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+            [name, phone, password_hash, aadhaar, site, site_id, rate, notes, date_of_birth, initialStatus]
         );
 
         const newLabour = await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]);
@@ -131,7 +131,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             action: 'created',
             reference_id: result.lastID,
             name: name,
-            metadata: { phone, site, trade, status: initialStatus },
+            metadata: { phone, site, status: initialStatus },
             created_by: req.user ? req.user.id : null
         });
 
@@ -234,7 +234,7 @@ router.get('/debug-me', (req, res) => {
 
 // Update labour
 router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { name, phone, aadhaar, site, site_id, rate, notes, trade, profile_image, date_of_birth, emergency_phone } = req.body;
+    const { name, phone, aadhaar, site, site_id, rate, notes, profile_image, date_of_birth, emergency_phone } = req.body;
 
     try {
         const db = await openDb();
@@ -260,8 +260,8 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         }
 
         await db.run(
-            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, notes = ?, trade = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ? WHERE id = ?`,
-            [name, phone, aadhaar, site, site_id, rate, notes, trade, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
+            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, notes = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ? WHERE id = ?`,
+            [name, phone, aadhaar, site, site_id, rate, notes, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
         );
 
         if (site_id != currentLabour.site_id) {
@@ -275,7 +275,7 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             action: 'updated',
             reference_id: req.params.id,
             name: name,
-            metadata: { phone, site, trade, rate },
+            metadata: { phone, site, rate },
             created_by: req.user ? req.user.id : null
         });
 

@@ -311,7 +311,12 @@ export default function HomeScreen() {
 				</View>
 
 				<View style={local.recent}>
-					<Text style={local.sectionTitle}>Recent Activity</Text>
+					<View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+						<Text style={[local.sectionTitle, { marginBottom: 0 }]}>Recent Activity</Text>
+						<TouchableOpacity onPress={() => router.push('/(screens)/settings/history' as any)}>
+							<Text style={{ color: colors.primary, fontWeight: '600' }}>See All</Text>
+						</TouchableOpacity>
+					</View>
 					<View style={local.recentContainer}>
 						{filteredRecent.length === 0 ? (
 							<View style={local.emptyState}>

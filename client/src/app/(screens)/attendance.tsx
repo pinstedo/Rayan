@@ -1,14 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState, useMemo } from "react";
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
+import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
-import { api } from "../../services/api";
 import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from "../../components/list";
+import { api } from "../../services/api";
 
 interface Labour {
 	id: number;
@@ -79,8 +79,8 @@ export default function AttendanceScreen() {
 	const isToday = date.toDateString() === new Date().toDateString();
 	const canEdit = !isGlobalView && (!locked || isAdmin);
 
-	const initialData = useMemo(() => labours.map(l => ({ 
-		...l, 
+	const initialData = useMemo(() => labours.map(l => ({
+		...l,
 		attendance_status: attendance.get(l.id) || 'pending'
 	})), [labours, attendance]);
 
@@ -508,20 +508,20 @@ export default function AttendanceScreen() {
 					</View>
 
 					<View style={local.controlsRow}>
-						<SearchBar 
+						<SearchBar
 							value={listManager.searchText}
 							onChangeText={listManager.setSearchText}
 							placeholder="Search by name..."
 							style={local.searchBar}
 						/>
 						<View style={local.actionRow}>
-							<FilterPanel 
+							<FilterPanel
 								availableFilters={filterOptions}
 								activeFilters={listManager.config.filters || []}
 								onApplyFilter={listManager.addFilter}
 								onRemoveFilter={listManager.removeFilter}
 							/>
-							<SortSelector 
+							<SortSelector
 								options={sortOptions}
 								currentSort={listManager.config.sort?.[0]}
 								onSortChange={listManager.toggleSort}
@@ -544,20 +544,20 @@ export default function AttendanceScreen() {
 					</View>
 
 					<View style={local.controlsRow}>
-						<SearchBar 
+						<SearchBar
 							value={listManager.searchText}
 							onChangeText={listManager.setSearchText}
 							placeholder="Search by name..."
 							style={local.searchBar}
 						/>
 						<View style={local.actionRow}>
-							<FilterPanel 
+							<FilterPanel
 								availableFilters={filterOptions}
 								activeFilters={listManager.config.filters || []}
 								onApplyFilter={listManager.addFilter}
 								onRemoveFilter={listManager.removeFilter}
 							/>
-							<SortSelector 
+							<SortSelector
 								options={sortOptions}
 								currentSort={listManager.config.sort?.[0]}
 								onSortChange={listManager.toggleSort}
@@ -581,7 +581,7 @@ export default function AttendanceScreen() {
 	);
 
 	return (
-		<View style={local.container}>
+		<ScrollView style={local.container}>
 			<View style={local.headerRow}>
 				<Pressable onPress={() => router.back()} style={local.backBtnText}>
 					<MaterialIcons name="arrow-back" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
@@ -646,7 +646,7 @@ export default function AttendanceScreen() {
 					</Pressable>
 				</View>
 			)}
-		</View>
+		</ScrollView>
 	);
 }
 

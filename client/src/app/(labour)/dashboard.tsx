@@ -445,7 +445,6 @@ const LabourDashboard = () => {
                                     <DetailRow label="Phone" value={labour.phone} isDark={isDark} />
                                     <DetailRow label="Age" value={labour.date_of_birth ? `${calculateAge(labour.date_of_birth)} yrs` : '-'} isDark={isDark} />
                                     <DetailRow label="Emergency Contact" value={labour.emergency_phone} isDark={isDark} />
-                                    <DetailRow label="Trade" value={labour.trade} isDark={isDark} />
                                     <DetailRow label="Rate" value={`₹${labour.rate}/hour`} isDark={isDark} />
                                     <DetailRow label="Status" value={labour.status} isDark={isDark} />
                                 </View>

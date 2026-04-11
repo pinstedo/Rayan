@@ -31,7 +31,6 @@ interface Labour {
     id: number;
     name: string;
     phone: string;
-    trade: string;
 }
 
 interface SiteDetails {
@@ -682,7 +681,7 @@ export default function SiteDetailsScreen() {
                                         </View>
                                         <View style={local.personInfo}>
                                             <Text style={local.personName}>{labour.name}</Text>
-                                            <Text style={local.personPhone}>{labour.phone || labour.trade}</Text>
+                                            <Text style={local.personPhone}>{labour.phone}</Text>
                                         </View>
                                         {(userRole === 'admin' || userRole === 'supervisor') && (
                                             <TouchableOpacity
@@ -767,7 +766,7 @@ export default function SiteDetailsScreen() {
                                         </View>
                                         <View style={local.personInfo}>
                                             <Text style={local.personName}>{item.name}</Text>
-                                            <Text style={local.personPhone}>{item.phone || item.trade}</Text>
+                                            <Text style={local.personPhone}>{item.phone}</Text>
                                         </View>
                                         <MaterialIcons name="add-circle" size={24} color="#34c759" />
                                     </TouchableOpacity>

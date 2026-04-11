@@ -37,17 +37,38 @@ router.get('/recent', authorizeRole(['admin', 'supervisor']), async (req, res) =
     try {
         const db = await openDb();
 
-        const recentLabours = await db.all('SELECT name, created_at, "labour" as type FROM labours ORDER BY created_at DESC LIMIT 5');
-        const recentSites = await db.all('SELECT name, created_at, "site" as type FROM sites ORDER BY created_at DESC LIMIT 5');
+        const logs = await db.all(`
+            SELECT h.*, u.name as user_name 
+            FROM history_logs h
+            LEFT JOIN users u ON h.created_by = u.id
+            ORDER BY h.created_at DESC 
+            LIMIT 15
+        `);
 
-        const allActivity = [...recentLabours, ...recentSites]
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .slice(0, 5);
+        const formatActionName = (action) => action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-        const activities = allActivity.map(item => {
-            if (item.type === 'labour') return `New labour added: ${item.name}`;
-            if (item.type === 'site') return `New site created: ${item.name}`;
-            return '';
+        const activities = logs.map(item => {
+            const actionFormatted = formatActionName(item.action);
+            const typeFormatted = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+            let text = `${typeFormatted} ${actionFormatted}`;
+            if (item.name) text += `: ${item.name}`;
+            
+            // Format time safely
+            let timeStr = '';
+            try {
+                const date = new Date(item.created_at);
+                timeStr = date.toLocaleString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+            } catch (e) {
+                // Fallback
+            }
+            
+            return `${text} • ${timeStr}`;
         });
 
         res.json(activities);

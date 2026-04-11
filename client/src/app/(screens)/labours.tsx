@@ -28,7 +28,6 @@ interface Labour {
 	id: number;
 	name: string;
 	phone: string;
-	trade: string;
 	rate?: number;
 	site: string;
 	site_id?: number;
@@ -76,7 +75,7 @@ export default function Labours() {
 	const listManager = useListManager<Labour>({
 		initialData: allLabours,
 		initialConfig: {
-			search: { text: "", fields: ["name", "phone", "trade"] },
+			search: { text: "", fields: ["name", "phone"] },
 			sort: [
 				{ field: "name", order: "asc", type: "string" }
 			],
@@ -258,10 +257,7 @@ export default function Labours() {
 		}, new Map<string, Labour[]>()).entries()
 	)
 		.map(([sName, labours]) => ({ siteName: sName, count: labours.length, labours }))
-		.sort((a, b) => isNameDesc
-			? b.siteName.localeCompare(a.siteName)
-			: a.siteName.localeCompare(b.siteName)
-		);
+		.sort((a, b) => a.siteName.localeCompare(b.siteName, undefined, { sensitivity: 'base' }));
 
 	const displayData = siteNameFilter
 		? listManager.data.filter(l => (l.site || 'Unassigned') === siteNameFilter)

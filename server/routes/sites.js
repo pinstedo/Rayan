@@ -16,7 +16,7 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         let whereClause = '';
         const params = [];
 
-        if (status === 'active' || status === 'inactive') {
+        if (status === 'active' || status === 'inactive' || status === 'completed') {
             whereClause = 'WHERE s.status = ?';
             params.push(status);
         }

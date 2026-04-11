@@ -25,7 +25,6 @@ interface Labour {
     name: string;
     phone: string;
     aadhaar: string;
-    trade: string;
     rate: number;
     site: string;
     site_id: number;
@@ -458,7 +457,7 @@ export default function LabourDetailsScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={local.profileName}>{labour.name}</Text>
-                        <Text style={local.profileId}>ID #{labour.id} · {labour.trade || 'General'}</Text>
+                        <Text style={local.profileId}>ID #{labour.id}</Text>
                         <View style={[
                             local.statusBadge,
                             { backgroundColor: labour.status === 'active' ? (isDark ? '#1b4323' : '#2e7d32') : (isDark ? '#444' : '#9e9e9e') }
@@ -539,7 +538,6 @@ export default function LabourDetailsScreen() {
 
                     {isWorkDetailsExpanded && (
                         <View style={local.accordionBody}>
-                            {renderDetailItem({ label: "Trade / Role", value: labour.trade, field: "trade", icon: "briefcase-outline", isEditable: true })}
                             {renderDetailItem({ label: "Daily Rate (₹)", value: String(labour.rate || 0), field: "rate", icon: "cash-outline", isEditable: true, keyboardType: "numeric" })}
                             {renderDetailItem({ label: "Current Site", value: labour.site, field: "site", icon: "location-outline", isEditable: true })}
                             {renderDetailItem({ label: "Status", value: labour.status, icon: "flag-outline", isEditable: false })}

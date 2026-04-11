@@ -152,7 +152,6 @@ export default function AddLabour() {
         site_id: selectedSite?.id || null,
         rate,
         notes,
-        trade: "General",
         date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null
       };
 
