@@ -5,6 +5,7 @@ import React, { useCallback, useState } from "react";
 import {
 	FlatList,
 	Pressable,
+	ScrollView,
 	StyleSheet,
 	Text,
 	TouchableOpacity,
@@ -60,13 +61,13 @@ export default function Labours() {
 	const local = getStyles(isDark);
 	const { newLabour, supervisorId, status, siteName, view } = useLocalSearchParams();
 	const siteNameFilter = siteName as string | undefined;
-	
+
 	// 'assigned' comes from dashboard. Default Manage Labours to 'active' if no params passed.
 	const parsedStatus = status === 'assigned' ? 'active' : (status as string);
 	const initialStatus = parsedStatus === undefined && !view && !siteNameFilter ? 'active' : parsedStatus;
-	
-	const initialFilters = initialStatus && initialStatus !== 'all' 
-		? [{ field: "status", operator: "=" as const, value: initialStatus }] 
+
+	const initialFilters = initialStatus && initialStatus !== 'all'
+		? [{ field: "status", operator: "=" as const, value: initialStatus }]
 		: [];
 	const [allLabours, setAllLabours] = useState<Labour[]>([]);
 	const [isAdmin, setIsAdmin] = useState(false);
@@ -240,7 +241,7 @@ export default function Labours() {
 
 	const statusFilter = listManager.config.filters?.find(f => f.field === 'status');
 	const viewType = statusFilter ? statusFilter.value : 'all';
-	
+
 	const shouldShowFlat = view === 'flat' || viewType === 'unassigned';
 
 	const groupedLabours = Array.from(
@@ -256,12 +257,12 @@ export default function Labours() {
 		.map(([sName, labours]) => ({ siteName: sName, count: labours.length, labours }))
 		.sort((a, b) => a.siteName.localeCompare(b.siteName));
 
-	const displayData = siteNameFilter 
+	const displayData = siteNameFilter
 		? listManager.data.filter(l => (l.site || 'Unassigned') === siteNameFilter)
 		: (shouldShowFlat ? listManager.data : groupedLabours);
 
 	return (
-		<View style={local.container}>
+		<ScrollView style={local.container}>
 			<View style={local.headerRow}>
 				<Pressable onPress={() => router.back()} style={local.backBtn}>
 					<Text style={local.backText}>← Back</Text>
@@ -341,8 +342,8 @@ export default function Labours() {
 					}
 
 					return (
-						<TouchableOpacity 
-							style={local.groupCard} 
+						<TouchableOpacity
+							style={local.groupCard}
 							onPress={() => router.push({ pathname: '/(screens)/labours', params: { ...useLocalSearchParams(), siteName: item.siteName } } as any)}
 						>
 							<View style={local.groupIconWrap}>
@@ -411,7 +412,7 @@ export default function Labours() {
 				type={modalConfig.type}
 				actions={modalConfig.actions}
 			/>
-		</View>
+		</ScrollView>
 	);
 }
 

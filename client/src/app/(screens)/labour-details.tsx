@@ -77,6 +77,7 @@ export default function LabourDetailsScreen() {
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isPersonalInfoExpanded, setIsPersonalInfoExpanded] = useState(false);
+    const [isWorkDetailsExpanded, setIsWorkDetailsExpanded] = useState(false);
     const [labour, setLabour] = useState<Labour | null>(null);
     const [formData, setFormData] = useState<Partial<Labour>>({});
 
@@ -523,15 +524,30 @@ export default function LabourDetailsScreen() {
                     )}
 
                     <View style={local.divider} />
-                    <Text style={local.sectionCategory}>Work Details</Text>
+                    <TouchableOpacity
+                        style={local.sectionHeaderRowAccordion}
+                        onPress={() => setIsWorkDetailsExpanded(!isWorkDetailsExpanded)}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[local.sectionCategory, { marginBottom: 0 }]}>Work Details</Text>
+                        <Ionicons
+                            name={isWorkDetailsExpanded ? "chevron-up" : "chevron-down"}
+                            size={20}
+                            color={isDark ? "#aaa" : "#666"}
+                        />
+                    </TouchableOpacity>
 
-                    {renderDetailItem({ label: "Trade / Role", value: labour.trade, field: "trade", icon: "briefcase-outline", isEditable: true })}
-                    {renderDetailItem({ label: "Daily Rate (₹)", value: String(labour.rate || 0), field: "rate", icon: "cash-outline", isEditable: true, keyboardType: "numeric" })}
-                    {renderDetailItem({ label: "Current Site", value: labour.site, field: "site", icon: "location-outline", isEditable: true })}
-                    {renderDetailItem({ label: "Status", value: labour.status, icon: "flag-outline", isEditable: false })}
+                    {isWorkDetailsExpanded && (
+                        <View style={local.accordionBody}>
+                            {renderDetailItem({ label: "Trade / Role", value: labour.trade, field: "trade", icon: "briefcase-outline", isEditable: true })}
+                            {renderDetailItem({ label: "Daily Rate (₹)", value: String(labour.rate || 0), field: "rate", icon: "cash-outline", isEditable: true, keyboardType: "numeric" })}
+                            {renderDetailItem({ label: "Current Site", value: labour.site, field: "site", icon: "location-outline", isEditable: true })}
+                            {renderDetailItem({ label: "Status", value: labour.status, icon: "flag-outline", isEditable: false })}
 
-                    <View style={local.divider} />
-                    {renderDetailItem({ label: "Notes", value: labour.notes, field: "notes", icon: "document-text-outline", isEditable: true })}
+                            <View style={local.divider} />
+                            {renderDetailItem({ label: "Notes", value: labour.notes, field: "notes", icon: "document-text-outline", isEditable: true })}
+                        </View>
+                    )}
 
                     {isEditing && (
                         <TouchableOpacity

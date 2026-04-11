@@ -15,19 +15,12 @@ export interface ListSearchConfig {
     fields: string[];
 }
 
-export interface ListPaginationConfig {
-    page: number;
-    limit: number;
-}
 
 export interface ListProcessorConfig {
     search?: ListSearchConfig;
     filters?: ListFilterConfig[];
     sort?: ListSortConfig[];
-    pagination?: {
-        page: number;
-        limit?: number;
-    };
+
 }
 
 export interface ProcessedListResult<T> {
@@ -111,14 +104,6 @@ export function processList<T extends Record<string, any>>(data: T[], config: Li
 
     const totalCount = result.length;
 
-    // 4. Apply Pagination
-    if (config.pagination) {
-        const page = config.pagination.page || 1;
-        const limit = config.pagination.limit || 20;
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
-        result = result.slice(startIndex, endIndex);
-    }
 
     return {
         data: result,

@@ -16,7 +16,7 @@ export interface UseListManagerProps<T> {
 
 export function useListManager<T extends Record<string, any>>({
     initialData = [],
-    initialConfig = { pagination: { page: 1, limit: 999999 } },
+    initialConfig = {},
     backendMode = false,
     endpoint,
 }: UseListManagerProps<T>) {
@@ -35,8 +35,7 @@ export function useListManager<T extends Record<string, any>>({
                 search: {
                     ...(prev.search || { fields: ['name'] }),
                     text: searchText
-                },
-                pagination: { page: 1, limit: prev.pagination?.limit }
+                }
             }));
         }, 300);
         return () => clearTimeout(timer);
@@ -92,7 +91,7 @@ export function useListManager<T extends Record<string, any>>({
 
     // Helpers to modify config securely
     const setFilters = (filters: ListFilterConfig[]) => {
-        setConfig(prev => ({ ...prev, filters, pagination: { page: 1, limit: prev.pagination?.limit } }));
+        setConfig(prev => ({ ...prev, filters }));
     };
 
     const addFilter = (filter: ListFilterConfig) => {
@@ -101,15 +100,14 @@ export function useListManager<T extends Record<string, any>>({
             const index = newFilters.findIndex(f => f.field === filter.field);
             if (index >= 0) newFilters[index] = filter;
             else newFilters.push(filter);
-            return { ...prev, filters: newFilters, pagination: { page: 1, limit: prev.pagination?.limit } };
+            return { ...prev, filters: newFilters };
         });
     };
 
     const removeFilter = (field: string) => {
         setConfig(prev => ({
             ...prev,
-            filters: prev.filters?.filter(f => f.field !== field) || [],
-            pagination: { page: 1, limit: prev.pagination?.limit }
+            filters: prev.filters?.filter(f => f.field !== field) || []
         }));
     };
 
@@ -133,20 +131,6 @@ export function useListManager<T extends Record<string, any>>({
         });
     }
 
-    const setPage = (page: number) => {
-        setConfig(prev => ({ ...prev, pagination: { page, limit: prev.pagination?.limit } }));
-    };
-
-    const setLimit = (limit: number) => {
-        setConfig(prev => ({ ...prev, pagination: { page: 1, limit } }));
-    };
-
-    // Derived states
-    const currentPage = config.pagination?.page || 1;
-    const limit = config.pagination?.limit || 20;
-    const totalPages = Math.ceil(processedList.totalCount / limit);
-    const hasNextPage = currentPage < totalPages;
-    const hasPrevPage = currentPage > 1;
 
     return {
         // Output
@@ -161,11 +145,6 @@ export function useListManager<T extends Record<string, any>>({
         config,
         setConfig, // For full manual replace if needed
         
-        // Pagination vars
-        currentPage,
-        totalPages,
-        hasNextPage,
-        hasPrevPage,
 
         // Action Helpers
         setFilters,
@@ -173,7 +152,5 @@ export function useListManager<T extends Record<string, any>>({
         removeFilter,
         setSort,
         toggleSort,
-        setPage,
-        setLimit,
     };
 }
