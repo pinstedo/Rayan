@@ -244,6 +244,9 @@ export default function Labours() {
 
 	const shouldShowFlat = view === 'flat' || viewType === 'unassigned';
 
+	const currentSort = listManager.config.sort?.[0];
+	const isNameDesc = currentSort?.field === 'name' && currentSort?.order === 'desc';
+
 	const groupedLabours = Array.from(
 		listManager.data.reduce((map, l) => {
 			const site = l.site || 'Unassigned';
@@ -255,7 +258,10 @@ export default function Labours() {
 		}, new Map<string, Labour[]>()).entries()
 	)
 		.map(([sName, labours]) => ({ siteName: sName, count: labours.length, labours }))
-		.sort((a, b) => a.siteName.localeCompare(b.siteName));
+		.sort((a, b) => isNameDesc
+			? b.siteName.localeCompare(a.siteName)
+			: a.siteName.localeCompare(b.siteName)
+		);
 
 	const displayData = siteNameFilter
 		? listManager.data.filter(l => (l.site || 'Unassigned') === siteNameFilter)
