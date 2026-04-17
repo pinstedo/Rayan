@@ -176,14 +176,22 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             }
         }
 
+        const labourIds = records.map(r => r.labour_id);
+        const qMarks = labourIds.map(() => '?').join(',');
+        const laboursData = await db.all(`SELECT id, status, site_id FROM labours WHERE id IN (${qMarks})`, labourIds);
+        
+        const laboursMap = new Map();
+        laboursData.forEach(l => laboursMap.set(l.id, l));
+
         // Use a transaction for batch inserts/updates
         await db.exec('BEGIN TRANSACTION');
 
         const stmt = await db.prepare(
-            `INSERT INTO attendance (labour_id, site_id, supervisor_id, date, status, food_allowance, allowance) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO attendance (labour_id, site_id, supervisor_id, date, status, food_allowance, allowance, labour_status, site_id_snapshot) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(labour_id, date) DO UPDATE SET status = excluded.status,
-               food_allowance = excluded.food_allowance, allowance = excluded.allowance`
+               food_allowance = excluded.food_allowance, allowance = excluded.allowance,
+               labour_status = excluded.labour_status, site_id_snapshot = excluded.site_id_snapshot`
         );
 
         let supervisor_id_to_lock = null;
@@ -197,9 +205,21 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             if (r_site_id !== site_id || r_date !== date) {
                 throw new Error('All records must be for the same site and date');
             }
+
+            const labour = laboursMap.get(labour_id);
+            if (!labour) throw new Error(`Labour (ID: ${labour_id}) not found`);
+
+            if (labour.status !== 'active') {
+                throw new Error(`Labour (ID: ${labour_id}) is not active`);
+            }
+            if (labour.site_id !== site_id) {
+                throw new Error(`Labour (ID: ${labour_id}) is not assigned to this site`);
+            }
+
             supervisor_id_to_lock = supervisor_id;
             await stmt.run(labour_id, r_site_id, supervisor_id, r_date, status,
-                           !!food_allowance, food_allowance ? Number(food_allowance_amount) || 0 : 0);
+                           !!food_allowance, food_allowance ? Number(food_allowance_amount) || 0 : 0,
+                           labour.status, labour.site_id);
         }
 
         await stmt.finalize();

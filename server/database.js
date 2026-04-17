@@ -12,23 +12,28 @@ function _convertQuery(sql) {
   return sql.replace(/\?/g, () => `$${i++}`);
 }
 
+function _normalizeParams(params) {
+  if (!Array.isArray(params)) return params;
+  return params.map(p => p === undefined ? null : p);
+}
+
 class DatabaseWrapper {
   constructor(client) {
     this.client = client;
   }
 
   async all(sql, params = []) {
-    const res = await this.client.query(_convertQuery(sql), params);
+    const res = await this.client.query(_convertQuery(sql), _normalizeParams(params));
     return res.rows;
   }
 
   async get(sql, params = []) {
-    const res = await this.client.query(_convertQuery(sql), params);
+    const res = await this.client.query(_convertQuery(sql), _normalizeParams(params));
     return res.rows[0];
   }
 
   async run(sql, params = []) {
-    const res = await this.client.query(_convertQuery(sql), params);
+    const res = await this.client.query(_convertQuery(sql), _normalizeParams(params));
     // Mimic sqlite result for lastID if available via RETURNING
     let lastID = null;
     if (res.rows && res.rows.length > 0 && res.rows[0].id) {
@@ -48,7 +53,7 @@ class DatabaseWrapper {
     return {
       run: async (...args) => {
         // prepare.run in sqlite can take spread arguments
-        return self.client.query(converted, args);
+        return self.client.query(converted, _normalizeParams(args));
       },
       finalize: async () => {}
     };
@@ -285,6 +290,10 @@ async function initDb() {
 
   // Food allowance per-labour migration — additive
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS food_allowance BOOLEAN DEFAULT false`);
+
+  // Labour status integration
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS labour_status TEXT`);
+  await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS site_id_snapshot INTEGER`);
 
   // Search Indexes - PostgreSQL doesn't support IF NOT EXISTS for indexes directly in standard CREATE INDEX syntax 
   // without a slightly different query or just catching the error.

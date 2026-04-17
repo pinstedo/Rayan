@@ -15,7 +15,9 @@ interface Labour {
 	name: string;
 	role: string;
 	site?: string;
+	site_id?: number | string;
 	rate?: number;
+	status?: string;
 }
 const sortOptions: SortOption[] = [
 	{ label: "Name", field: "name", type: "string" },
@@ -146,7 +148,12 @@ export default function AttendanceScreen() {
 			const data = await response.json();
 
 			if (response.ok) {
-				setLabours(data); // List manager handles sorting
+				const filteredData = data.filter((l: any) => {
+					const s = l.status?.toLowerCase() || 'active';
+					// Skip unassigned/pending as they shouldn't be here, keep active, on_leave, inactive (to show disabled states)
+					return s !== 'unassigned' && s !== 'pending';
+				});
+				setLabours(filteredData); // List manager handles sorting
 			} else {
 				showModal("Error", "Failed to fetch labours", 'error');
 			}
@@ -370,12 +377,32 @@ export default function AttendanceScreen() {
 
 	const renderItem = ({ item }: { item: Labour & { attendance_status: string } }) => {
 		const status = attendance.get(item.id);
-		const itemLocked = !canEdit;
+		const labourStatus = item.status?.toLowerCase() || 'active';
+		const isLabourActive = labourStatus === 'active';
+		const isSiteMatch = isGlobalView || !siteId || item.site_id == siteId;
+		const itemLocked = !canEdit || !isLabourActive || !isSiteMatch;
 
 		return (
-			<View style={local.card}>
+			<View style={[local.card, !isLabourActive && { opacity: 0.7 }]}>
 				<View style={local.labourInfo}>
-					<Text style={local.labourName}>{item.name}</Text>
+					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+						<Text style={local.labourName}>{item.name}</Text>
+						{labourStatus === 'on_leave' && (
+							<View style={{ backgroundColor: '#ff9800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+								<Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>On Leave</Text>
+							</View>
+						)}
+						{labourStatus === 'inactive' && (
+							<View style={{ backgroundColor: isDark ? '#444' : '#e0e0e0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+								<Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 10, fontWeight: 'bold' }}>Inactive</Text>
+							</View>
+						)}
+						{!isSiteMatch && (
+							<View style={{ backgroundColor: '#f44336', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+								<Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>Wrong Site</Text>
+							</View>
+						)}
+					</View>
 					<Text style={local.labourRole}>{item.role}</Text>
 					{isGlobalView && item.site && (
 						<Text style={local.siteInfo}>Site: {item.site}</Text>
