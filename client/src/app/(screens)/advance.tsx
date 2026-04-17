@@ -17,17 +17,16 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
+import { useListManager } from "../../hooks/useListManager";
 import { api } from "../../services/api";
 import { LabourCard } from "../components/LabourCard";
-import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from "../../components/list";
 
 interface Labour {
     id: number;
     name: string;
     phone: string;
-    trade: string;
     rate?: number;
     site: string;
     site_id?: number;
@@ -154,7 +153,7 @@ export default function Advance() {
     };
 
     return (
-        <View style={local.container}>
+        <ScrollView style={local.container}>
             <View style={local.headerRow}>
                 <Pressable onPress={() => router.back()} style={local.backBtn}>
                     <Text style={local.backText}>← Back</Text>
@@ -164,20 +163,20 @@ export default function Advance() {
             </View>
 
             <View style={local.controlsRow}>
-                <SearchBar 
+                <SearchBar
                     value={listManager.searchText}
                     onChangeText={listManager.setSearchText}
                     placeholder="Search by name, phone..."
                     style={local.searchBar}
                 />
                 <View style={local.actionRow}>
-                    <FilterPanel 
+                    <FilterPanel
                         availableFilters={filterOptions}
                         activeFilters={listManager.config.filters || []}
                         onApplyFilter={listManager.addFilter}
                         onRemoveFilter={listManager.removeFilter}
                     />
-                    <SortSelector 
+                    <SortSelector
                         options={sortOptions}
                         currentSort={listManager.config.sort?.[0]}
                         onSortChange={listManager.toggleSort}
@@ -262,7 +261,7 @@ export default function Advance() {
                     </KeyboardAvoidingView>
                 </View>
             </Modal>
-        </View>
+        </ScrollView>
     );
 }
 

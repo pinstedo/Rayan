@@ -347,6 +347,18 @@ export default function Profile() {
             <>
               <Pressable
                 style={styles.menuItem}
+                onPress={() => router.push("/(screens)/settings/backdate-assign" as any)}
+              >
+                <View style={[styles.menuIconBg, { backgroundColor: isDark ? '#3E2723' : '#FFF3E0' }]}>
+                  <MaterialIcons name="event-note" size={20} color="#FF9800" />
+                </View>
+                <Text style={styles.menuText}>Historic Assignment</Text>
+                <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+              </Pressable>
+              <View style={styles.divider} />
+              
+              <Pressable
+                style={styles.menuItem}
                 onPress={() => {
                   setEditFoodRate(foodRate);
                   setIsFoodRateModalVisible(true);

@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { openDb } = require('../database');
+const { openDb, openTransactionDb } = require('../database');
 
 const router = express.Router();
 
@@ -162,6 +162,51 @@ router.get('/by-site-date', authorizeRole(['admin', 'supervisor']), async (req, 
         `, [siteId, date, date, siteId, date]);
 
         res.json(labours);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Backdate assign labours
+router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
+    const { from_date, site_id, labour_ids } = req.body;
+    
+    if (!from_date || !site_id || !Array.isArray(labour_ids) || labour_ids.length === 0) {
+        return res.status(400).json({ error: 'from_date, site_id, and an array of labour_ids are required' });
+    }
+
+    try {
+        const db = await openTransactionDb();
+        
+        try {
+            await db.run('BEGIN');
+            
+            for (const id of labour_ids) {
+                // Update labours table
+                await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
+                
+                // Close open history if any
+                const openHist = await db.get('SELECT * FROM labour_site_history WHERE labour_id = ? AND to_date IS NULL', [id]);
+                if (openHist) {
+                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [from_date, openHist.id]);
+                }
+                
+                // Insert new history
+                await db.run('INSERT INTO labour_site_history (labour_id, site_id, from_date) VALUES (?, ?, ?)', [id, site_id, from_date]);
+            }
+            
+            // Log history
+            await db.run('INSERT INTO history_logs (type, action, metadata, created_by) VALUES (?, ?, ?, ?)', 
+                ['labour', 'bulk_backdated_assignment', JSON.stringify({ count: labour_ids.length, site_id, from_date }), req.user ? req.user.id : null]);
+            
+            await db.run('COMMIT');
+            res.json({ message: 'Labours successfully backdate assigned' });
+        } catch (err) {
+            await db.run('ROLLBACK');
+            throw err;
+        } finally {
+            if (db.release) db.release();
+        }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
