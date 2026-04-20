@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useTheme } from "../../context/ThemeContext";
 
 interface Labour {
     id: number;
@@ -9,7 +10,7 @@ interface Labour {
     rate?: number;
     site: string;
     site_id?: number;
-    status?: 'active' | 'unassigned';
+    status?: 'active' | 'unassigned' | 'leave' | 'pending';
     profile_image?: string;
     date_of_birth?: string;
     emergency_phone?: string;
@@ -21,15 +22,18 @@ interface LabourCardProps {
     onUnassign?: (labour: Labour) => void;
     onRevoke?: (labour: Labour) => void;
     onAdvance?: (labour: Labour) => void;
+    onMarkLeave?: (labour: Labour) => void;
     showMoveAction?: boolean;
     hideRate?: boolean;
     onPress?: (labour: Labour) => void;
 }
 
 export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
+    const { isDark } = useTheme();
     const getStatusColor = (status?: string) => {
         switch (status) {
             case 'unassigned': return '#9e9e9e';
+            case 'leave': return '#ed6c02';
             default: return '#2e7d32'; // active
         }
     };
@@ -43,7 +47,7 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
     };
 
     const age = calculateAge(labour.date_of_birth);
-    const isActionable = labour.status !== 'unassigned';
+    const isActionable = labour.status !== 'unassigned' && labour.status !== 'leave';
     const isUnassigned = labour.status === 'unassigned';
 
     const CardContent = (
@@ -80,9 +84,9 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
 
                 {!hideRate && (
                     <View style={styles.rateContainer}>
-                        <Text style={styles.rateLabel}>Rate/hr</Text>
+                        <Text style={styles.rateLabel}>Rate/day</Text>
                         <Text style={styles.rate}>
-                            {labour.rate ? `₹${Number(labour.rate).toFixed(2)}` : "-"}
+                            {labour.rate ? `₹${Number(labour.rate * 8).toFixed(2)}` : "-"}
                         </Text>
                     </View>
                 )}
@@ -145,13 +149,23 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
                         </TouchableOpacity>
                     )}
 
-                    {isUnassigned && showMoveAction && (
+                    {(isUnassigned || labour.status === 'leave') && showMoveAction && (
                         <TouchableOpacity
                             style={styles.actionBtn}
                             onPress={() => onRevoke && onRevoke(labour)}
                         >
                             <MaterialIcons name="check-circle" size={16} color="#2e7d32" />
                             <Text style={[styles.actionBtnText, { color: '#2e7d32' }]}>Make Active</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {labour.status !== 'leave' && showMoveAction && (
+                        <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => onMarkLeave && onMarkLeave(labour)}
+                        >
+                            <MaterialIcons name="event-busy" size={16} color="#ed6c02" />
+                            <Text style={[styles.actionBtnText, { color: '#ed6c02' }]}>Mark Leave</Text>
                         </TouchableOpacity>
                     )}
                 </View>

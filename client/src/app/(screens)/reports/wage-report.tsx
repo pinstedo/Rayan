@@ -1,10 +1,11 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CustomModal } from '../../../components/CustomModal';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
+import { SearchBar } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
 
@@ -25,11 +26,12 @@ export default function WageReportScreen() {
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLabour, setSelectedLabour] = useState<any>(null);
+    const [searchText, setSearchText] = useState("");
 
     // Month Selection
     const [date, setDate] = useState(new Date());
 
-    const monthStr = date.toISOString().slice(0, 7); // YYYY-MM
+    const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
 
     useEffect(() => {
         fetchReport();
@@ -409,6 +411,16 @@ export default function WageReportScreen() {
         return (val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
     };
 
+    const filteredAndSortedData = useMemo(() => {
+        let filtered = reportData;
+        if (searchText) {
+            filtered = filtered.filter(item => 
+                (item.name || '').toLowerCase().includes(searchText.toLowerCase())
+            );
+        }
+        return [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }, [reportData, searchText]);
+
     return (
         <View style={local.container}>
             <View style={local.headerRow}>
@@ -498,7 +510,16 @@ export default function WageReportScreen() {
                     </Text>
 
                     <Text style={[local.summaryTitle, { marginTop: 20 }]}>Labour Details</Text>
-                    {reportData.map((item, index) => (
+                    
+                    <View style={{ marginBottom: 15 }}>
+                        <SearchBar
+                            value={searchText}
+                            onChangeText={setSearchText}
+                            placeholder="Search labour name..."
+                        />
+                    </View>
+
+                    {filteredAndSortedData.map((item, index) => (
                         <View key={item.id.toString() + index} style={local.labourCard}>
                             <View style={local.labourRow}>
                                 <Text style={local.labourName}>{item.name}</Text>

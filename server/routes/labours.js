@@ -23,9 +23,11 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
         // Status filtering
         if (status === 'active' || status === 'assigned') {
-            conditions.push("site_id IS NOT NULL AND status != 'pending'");
+            conditions.push("site_id IS NOT NULL AND status != 'leave' AND status != 'pending'");
         } else if (status === 'unassigned') {
-            conditions.push("site_id IS NULL AND status != 'pending'");
+            conditions.push("site_id IS NULL AND status != 'leave' AND status != 'pending'");
+        } else if (status === 'leave') {
+            conditions.push("status = 'leave'");
         } else if (status === 'pending') {
             conditions.push("status = 'pending'");
         } else {
@@ -298,10 +300,12 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         }
 
         let newStatus = currentLabour.status;
-        if (site_id && currentLabour.status === 'unassigned') {
+        if (site_id) {
             newStatus = 'active';
-        } else if (!site_id && currentLabour.status === 'active') {
-            newStatus = 'unassigned';
+        } else if (!site_id) {
+            if (currentLabour.status !== 'leave') {
+                newStatus = 'unassigned';
+            }
         }
 
         await db.run(
@@ -342,8 +346,8 @@ router.delete('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) =
 });
 // Update labour status
 router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
-    const { status } = req.body;
-    const allowedStatuses = ['active', 'unassigned', 'pending'];
+    let { status } = req.body;
+    const allowedStatuses = ['active', 'unassigned', 'pending', 'leave'];
 
     if (!allowedStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
@@ -351,7 +355,16 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
 
     try {
         const db = await openDb();
-        if (status === 'unassigned') {
+        
+        // If worker is set ACTIVE without site -> treat as INACTIVE (unassigned)
+        if (status === 'active') {
+            const labour = await db.get('SELECT site_id FROM labours WHERE id = ?', [req.params.id]);
+            if (!labour.site_id) {
+                status = 'unassigned';
+            }
+        }
+
+        if (status === 'unassigned' || status === 'leave') {
             await db.run(
                 'UPDATE labours SET status = ?, site_id = NULL, site = NULL WHERE id = ?',
                 [status, req.params.id]

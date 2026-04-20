@@ -229,7 +229,7 @@ export default function OvertimeScreen() {
 							<Text style={local.siteInfo}>Site: {item.site}</Text>
 						)}
 						{isAdmin && (
-							<Text style={local.rateInfo}>Rate: ₹{rate}/hr</Text>
+							<Text style={local.rateInfo}>Rate: ₹{rate * 8}/day</Text>
 						)}
 					</View>
 				</View>

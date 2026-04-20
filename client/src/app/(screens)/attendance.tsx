@@ -149,10 +149,11 @@ export default function AttendanceScreen() {
 
 			if (response.ok) {
 				const filteredData = data.filter((l: any) => {
+					if (siteId) return true; // Backend already filters for specific site and date
 					const s = l.status?.toLowerCase() || 'active';
 					// Skip unassigned/pending as they shouldn't be here, keep active, on_leave, inactive (to show disabled states)
 					return s !== 'unassigned' && s !== 'pending';
-				});
+				}).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 				setLabours(filteredData); // List manager handles sorting
 			} else {
 				showModal("Error", "Failed to fetch labours", 'error');
@@ -378,8 +379,10 @@ export default function AttendanceScreen() {
 	const renderItem = ({ item }: { item: Labour & { attendance_status: string } }) => {
 		const status = attendance.get(item.id);
 		const labourStatus = item.status?.toLowerCase() || 'active';
-		const isLabourActive = labourStatus === 'active';
-		const isSiteMatch = isGlobalView || !siteId || item.site_id == siteId;
+		// If we are looking at a specific site (not global view), the backend has already verified 
+		// they were active and assigned to this site on the selected date. So we don't lock them based on their *current* status/site.
+		const isLabourActive = siteId ? true : (labourStatus === 'active');
+		const isSiteMatch = isGlobalView || !siteId || true; // Always true if siteId is present because backend filters it
 		const itemLocked = !canEdit || !isLabourActive || !isSiteMatch;
 
 		return (
@@ -392,7 +395,7 @@ export default function AttendanceScreen() {
 								<Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>On Leave</Text>
 							</View>
 						)}
-						{labourStatus === 'inactive' && (
+						{labourStatus === 'inactive' && !siteId && (
 							<View style={{ backgroundColor: isDark ? '#444' : '#e0e0e0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
 								<Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 10, fontWeight: 'bold' }}>Inactive</Text>
 							</View>
@@ -524,7 +527,8 @@ export default function AttendanceScreen() {
 		<View style={local.subHeader}>
 			{isGlobalView ? (
 				<View>
-					<View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
+					<View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+						<Text style={{ fontSize: 14, color: isDark ? '#aaa' : '#666', fontWeight: 'bold' }}>Total Labours: {labours.length}</Text>
 						<Pressable
 							style={local.dateSelector}
 							onPress={() => setShowCalendar(true)}
@@ -559,7 +563,10 @@ export default function AttendanceScreen() {
 			) : (
 				<View>
 					<View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-						<Text style={local.siteName}>{decodeURIComponent(siteName as string)}</Text>
+						<View>
+							<Text style={local.siteName}>{decodeURIComponent(siteName as string)}</Text>
+							<Text style={{ fontSize: 14, color: isDark ? '#aaa' : '#666' }}>Total Labours: {labours.length}</Text>
+						</View>
 
 						<Pressable
 							style={local.dateSelector}

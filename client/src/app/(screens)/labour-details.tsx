@@ -122,6 +122,7 @@ export default function LabourDetailsScreen() {
             const response = await api.get(`/labours/${id}`);
             if (response.ok) {
                 const data = await response.json();
+                if (data.rate) data.rate = data.rate * 8;
                 setLabour(data);
                 setFormData(data);
             } else {
@@ -200,10 +201,11 @@ export default function LabourDetailsScreen() {
         }
         try {
             setSaving(true);
-            const payload = { ...formData, rate: Number(formData.rate) };
+            const payload = { ...formData, rate: Number(formData.rate) / 8 };
             const response = await api.put(`/labours/${id}`, payload);
             const data = await response.json();
             if (response.ok) {
+                if (data.rate) data.rate = data.rate * 8;
                 setLabour(data as Labour);
                 setIsEditing(false);
                 Alert.alert("Success", "Labour details updated successfully");
@@ -252,10 +254,11 @@ export default function LabourDetailsScreen() {
         }
         try {
             setSavingIncrement(true);
-            const payload = { ...labour, rate: Number(newRate) };
+            const payload = { ...labour, rate: Number(newRate) / 8 };
             const response = await api.put(`/labours/${id}`, payload);
             const data = await response.json();
             if (response.ok) {
+                if (data.rate) data.rate = data.rate * 8;
                 setLabour(data as Labour);
                 setFormData(data as Labour);
                 setShowIncrementModal(false);

@@ -1,5 +1,4 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -75,7 +74,7 @@ export default function BackdateAssign() {
                 api.get('/sites?status=active'),
                 api.get('/labours')
             ]);
-            
+
             if (sitesRes.ok) {
                 const sData = await sitesRes.json();
                 setSites(sortByName(sData));
@@ -175,10 +174,10 @@ export default function BackdateAssign() {
     const renderLabour = ({ item }: { item: Labour }) => {
         const isSelected = selectedLabourIds.has(item.id);
         const statusText = item.status === 'unassigned' ? 'Unassigned' : item.site || 'Unknown';
-        
+
         return (
-            <TouchableOpacity 
-                style={[styles.labourCard, isSelected && styles.labourCardSelected]} 
+            <TouchableOpacity
+                style={[styles.labourCard, isSelected && styles.labourCardSelected]}
                 onPress={() => toggleLabourSelection(item.id)}
                 activeOpacity={0.7}
             >
@@ -197,7 +196,7 @@ export default function BackdateAssign() {
     };
 
     return (
-        <View style={styles.container}>
+        <ScrollView style={styles.container}>
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backBtn}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#F1F5F9" : "#0F172A"} />
@@ -242,7 +241,7 @@ export default function BackdateAssign() {
                         </Text>
                     </TouchableOpacity>
                 </View>
-                
+
                 <SearchBar
                     value={listManager.searchText}
                     onChangeText={listManager.setSearchText}
@@ -266,8 +265,8 @@ export default function BackdateAssign() {
             </View>
 
             <View style={styles.footer}>
-                <TouchableOpacity 
-                    style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
+                <TouchableOpacity
+                    style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
                     onPress={handleSubmit}
                     disabled={submitting}
                 >
@@ -294,7 +293,7 @@ export default function BackdateAssign() {
                     selectedDate={date}
                     onDateSelect={handleDateSelect}
                     markedDates={[]}
-                    onMonthChange={() => {}}
+                    onMonthChange={() => { }}
                 />
             </CustomModal>
 
@@ -328,7 +327,7 @@ export default function BackdateAssign() {
                     )}
                 />
             </CustomModal>
-        </View>
+        </ScrollView>
     );
 }
 

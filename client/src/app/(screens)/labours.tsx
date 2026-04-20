@@ -31,7 +31,7 @@ interface Labour {
 	rate?: number;
 	site: string;
 	site_id?: number;
-	status?: 'active' | 'unassigned';
+	status?: 'active' | 'unassigned' | 'leave' | 'pending';
 	created_at?: string;
 }
 
@@ -49,6 +49,7 @@ const filterOptions: FilterOption[] = [
 		options: [
 			{ label: "Assigned", value: "active" },
 			{ label: "Unassigned", value: "unassigned" },
+			{ label: "On Leave", value: "leave" },
 			{ label: "Pending", value: "pending" }
 		]
 	}
@@ -241,7 +242,7 @@ export default function Labours() {
 	const statusFilter = listManager.config.filters?.find(f => f.field === 'status');
 	const viewType = statusFilter ? statusFilter.value : 'all';
 
-	const shouldShowFlat = view === 'flat' || viewType === 'unassigned';
+	const shouldShowFlat = view === 'flat' || viewType === 'unassigned' || viewType === 'leave';
 
 	const currentSort = listManager.config.sort?.[0];
 	const isNameDesc = currentSort?.field === 'name' && currentSort?.order === 'desc';
@@ -293,6 +294,12 @@ export default function Labours() {
 					>
 						<Text style={[local.toggleText, viewType === 'unassigned' && local.toggleTextActive]}>Unassigned</Text>
 					</TouchableOpacity>
+					<TouchableOpacity
+						style={[local.toggleBtn, viewType === 'leave' && local.toggleBtnActive]}
+						onPress={() => listManager.setFilters([{ field: 'status', value: 'leave' }])}
+					>
+						<Text style={[local.toggleText, viewType === 'leave' && local.toggleTextActive]}>On Leave</Text>
+					</TouchableOpacity>
 				</View>
 			)}
 
@@ -338,6 +345,7 @@ export default function Labours() {
 								onMove={handleMove}
 								onUnassign={handleUnassign}
 								onRevoke={(labour) => handleStatusChange(labour, 'active')}
+								onMarkLeave={(labour) => handleStatusChange(labour, 'leave')}
 								onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
 							/>
 						);

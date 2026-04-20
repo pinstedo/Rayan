@@ -137,7 +137,7 @@ export default function AddLabour() {
     }
 
     if (userRole !== 'supervisor' && (!rate || isNaN(parseFloat(rate)) || parseFloat(rate) <= 0)) {
-      showModal("Validation", "Please enter a valid positive hourly rate.", 'warning');
+      showModal("Validation", "Please enter a valid positive daily rate.", 'warning');
       return;
     }
 
@@ -150,7 +150,7 @@ export default function AddLabour() {
         aadhaar,
         site: selectedSite?.name || "",
         site_id: selectedSite?.id || null,
-        rate,
+        rate: rate ? (parseFloat(rate) / 8).toString() : rate,
         notes,
         date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null
       };
@@ -235,8 +235,8 @@ export default function AddLabour() {
 
         {userRole !== 'supervisor' && (
           <>
-            <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Hourly rate:</Text>
-            <TextInput style={local.input} value={rate} onChangeText={setRate} placeholder="e.g., 15.00" placeholderTextColor={isDark ? "#888" : "#999"} keyboardType="decimal-pad" />
+            <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Daily rate:</Text>
+            <TextInput style={local.input} value={rate} onChangeText={setRate} placeholder="e.g., 400.00" placeholderTextColor={isDark ? "#888" : "#999"} keyboardType="decimal-pad" />
           </>
         )}
 

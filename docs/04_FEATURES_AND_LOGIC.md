@@ -33,6 +33,7 @@ Net Payable = (Total Wage) + (Overtime Amount) + (Food Allowance) - (Advances)
 
 #### **A. Wage Calculation**
 The system treats the `rate` stored in the `labours` table as an **Hourly Rate**.
+*(Note: At the presentation/UI layer, supervisors and admins input and view the rate as a **Daily Rate**. The UI automatically divides the daily input by 8 when saving to the database, and multiplies by 8 when displaying, keeping the system logic rooted in hourly rates.)*
 -   **Full Day**: Calculated as **8 hours** of work.
 -   **Half Day**: Calculated as **4 hours** of work.
 -   **Absent**: 0 hours.

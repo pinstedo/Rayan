@@ -16,7 +16,19 @@ router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (r
                 s.id as site_id,
                 s.name as site_name,
                 s.status,
-                (SELECT COUNT(*) FROM labours l WHERE l.site_id = s.id AND l.status = 'active') as total_labourers,
+                CASE 
+                    WHEN MAX(CASE WHEN d.site_id IS NOT NULL THEN 1 ELSE 0 END) = 1 
+                        THEN (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ?)
+                    ELSE (
+                        SELECT COUNT(DISTINCT l.id) 
+                        FROM labours l
+                        LEFT JOIN labour_site_history h ON l.id = h.labour_id 
+                            AND h.site_id = s.id AND h.from_date <= ? AND (h.to_date IS NULL OR h.to_date >= ?)
+                        LEFT JOIN attendance a ON l.id = a.labour_id 
+                            AND a.site_id = s.id AND a.date = ?
+                        WHERE h.id IS NOT NULL OR a.id IS NOT NULL
+                    )
+                END as total_labourers,
                 (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ? AND a.status IN ('full', 'half')) as present_count,
                 (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ? AND a.status = 'absent') as absent_count,
                 MAX(CASE WHEN d.site_id IS NOT NULL THEN 1 ELSE 0 END) as is_submitted
@@ -27,7 +39,7 @@ router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (r
                OR (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ?) > 0
             GROUP BY s.id
         `;
-        const reports = await db.all(query, [date, date, date, date]);
+        const reports = await db.all(query, [date, date, date, date, date, date, date, date]);
         res.json(reports);
     } catch (err) {
         console.error('Error serving site attendance report:', err);

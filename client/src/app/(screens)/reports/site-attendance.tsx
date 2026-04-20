@@ -38,7 +38,10 @@ export default function SiteAttendanceReport() {
     const fetchReports = async (selectedDate: Date) => {
         setLoading(true);
         try {
-            const dateStr = selectedDate.toISOString().split("T")[0];
+            const y = selectedDate.getFullYear();
+            const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const d = String(selectedDate.getDate()).padStart(2, '0');
+            const dateStr = `${y}-${m}-${d}`;
             const response = await api.post(`/reports/site-attendance`, { date: dateStr });
             if (response.ok) {
                 const data = await response.json();
@@ -134,7 +137,13 @@ export default function SiteAttendanceReport() {
                             key={site.site_id}
                             style={local.card}
                             activeOpacity={0.7}
-                            onPress={() => router.push(`/(screens)/attendance?siteId=${site.site_id}&siteName=${encodeURIComponent(site.site_name)}&dateStr=${date.toISOString()}` as any)}
+                            onPress={() => {
+                                const y = date.getFullYear();
+                                const m = String(date.getMonth() + 1).padStart(2, '0');
+                                const d = String(date.getDate()).padStart(2, '0');
+                                const routeDate = `${y}-${m}-${d}`;
+                                router.push(`/(screens)/attendance?siteId=${site.site_id}&siteName=${encodeURIComponent(site.site_name)}&dateStr=${routeDate}` as any);
+                            }}
                         >
                             <View style={local.cardHeader}>
                                 <Text style={local.siteName} numberOfLines={1} ellipsizeMode="tail">{site.site_name}</Text>
