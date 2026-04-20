@@ -261,6 +261,15 @@ async function initDb() {
       from_date TEXT NOT NULL,
       to_date TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS labour_financial_history (
+      id SERIAL PRIMARY KEY,
+      labour_id INTEGER NOT NULL REFERENCES labours(id) ON DELETE CASCADE,
+      type TEXT CHECK(type IN ('bonus', 'increment')) NOT NULL,
+      amount NUMERIC NOT NULL,
+      worked_days_at_time NUMERIC DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Seed default food allowance rate if not set
@@ -290,6 +299,11 @@ async function initDb() {
 
   // Food allowance per-labour migration — additive
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS food_allowance BOOLEAN DEFAULT false`);
+
+  // Labour financial tracking columns
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS worked_days_count NUMERIC DEFAULT 0`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS increment_cycle_count INTEGER DEFAULT 0`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS total_bonus_earned NUMERIC DEFAULT 0`);
 
   // Labour status integration
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS labour_status TEXT`);

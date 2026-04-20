@@ -258,6 +258,31 @@ router.put('/me', async (req, res) => {
     }
 });
 
+// Get labours eligible for bonus (worked_days_count >= 275)
+// NOTE: Must be defined BEFORE /:id route to avoid param matching
+router.get('/eligible', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const db = await openDb();
+        const labours = await db.all(
+            `SELECT id, name, phone, site, site_id, rate, status,
+                    worked_days_count, increment_cycle_count, total_bonus_earned
+             FROM labours
+             WHERE worked_days_count >= 275
+             ORDER BY worked_days_count DESC`
+        );
+        // Add calculated bonus to each labour
+        const result = labours.map(l => ({
+            ...l,
+            rate: (l.rate || 0) * 8,  // convert hourly -> daily for display
+            bonus_due: Math.round((Number(l.worked_days_count) / 22) * 100) / 100,
+            progress_percent: Math.min(100, Math.round((Number(l.worked_days_count) / 275) * 100))
+        }));
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get labour details
 router.get('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
@@ -377,6 +402,14 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
             );
         }
 
+        // CRITICAL: Reset worked_days_count immediately when marked on leave
+        if (status === 'leave') {
+            await db.run(
+                'UPDATE labours SET worked_days_count = 0 WHERE id = ?',
+                [req.params.id]
+            );
+        }
+
         const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
         
         await logHistory({
@@ -394,7 +427,7 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
     }
 });
 
-// Add Bonus
+// Add Bonus (manual legacy endpoint kept for backward compat)
 router.post('/:id/bonus', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     const { amount, date, notes } = req.body;
     const labour_id = req.params.id;
@@ -413,6 +446,89 @@ router.post('/:id/bonus', authorizeRole(['admin', 'supervisor']), async (req, re
 
         const newBonus = await db.get('SELECT * FROM bonus_payments WHERE id = ?', [result.lastID]);
         res.status(201).json(newBonus);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Apply manual increment to labour salary
+router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
+    const { increment_amount } = req.body;
+    const labour_id = req.params.id;
+
+    if (!increment_amount || isNaN(Number(increment_amount)) || Number(increment_amount) <= 0) {
+        return res.status(400).json({ error: 'increment_amount must be a positive number' });
+    }
+
+    const incrementAmt = Number(increment_amount);
+    const db = await openTransactionDb();
+
+    try {
+        await db.run('BEGIN');
+
+        // Fetch current labour (rate is stored as hourly = daily / 8)
+        const labour = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
+        if (!labour) {
+            await db.run('ROLLBACK');
+            return res.status(404).json({ error: 'Labour not found' });
+        }
+
+        const currentDailyRate = (labour.rate || 0) * 8; // convert hourly → daily
+        const newDailyRate = currentDailyRate + incrementAmt;
+        const newHourlyRate = newDailyRate / 8;
+        const workedDaysAtTime = Number(labour.worked_days_count) || 0;
+        const today = new Date().toISOString().split('T')[0];
+
+        // Update salary (stored as hourly), reset worked_days_count, increment cycle count
+        await db.run(
+            `UPDATE labours 
+             SET rate = ?, worked_days_count = 0, increment_cycle_count = increment_cycle_count + 1
+             WHERE id = ?`,
+            [newHourlyRate, labour_id]
+        );
+
+        // Record in legacy salary_history table (backward compatibility)
+        await db.run(
+            `INSERT INTO salary_history (labour_id, previous_rate, new_rate, date, created_by) VALUES (?, ?, ?, ?, ?)`,
+            [labour_id, labour.rate || 0, newHourlyRate, today, req.user ? req.user.id : null]
+        );
+
+        // Record in new financial history table
+        await db.run(
+            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time) VALUES (?, 'increment', ?, ?)`,
+            [labour_id, incrementAmt, workedDaysAtTime]
+        );
+
+        await db.run('COMMIT');
+
+        await logHistory({
+            type: 'labour',
+            action: 'increment_applied',
+            reference_id: labour_id,
+            name: labour.name,
+            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, worked_days_reset: workedDaysAtTime },
+            created_by: req.user ? req.user.id : null
+        });
+
+        const updated = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
+        res.json(updated);
+    } catch (err) {
+        await db.run('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (db.release) db.release();
+    }
+});
+
+// Get financial history (bonus + increment) for a labour
+router.get('/:id/financial-history', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    try {
+        const db = await openDb();
+        const records = await db.all(
+            `SELECT * FROM labour_financial_history WHERE labour_id = ? ORDER BY created_at DESC`,
+            [req.params.id]
+        );
+        res.json(records);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

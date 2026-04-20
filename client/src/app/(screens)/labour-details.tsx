@@ -28,11 +28,15 @@ interface Labour {
     rate: number;
     site: string;
     site_id: number;
-    status: 'active' | 'unassigned';
+    status: 'active' | 'unassigned' | 'leave' | 'pending';
     profile_image?: string;
     date_of_birth?: string;
     emergency_phone?: string;
     notes?: string;
+    // Financial tracking fields
+    worked_days_count?: number;
+    increment_cycle_count?: number;
+    total_bonus_earned?: number;
 }
 
 interface AttendanceRecord {
@@ -63,6 +67,15 @@ interface AdvanceRecord {
     created_at: string;
 }
 
+interface FinancialHistoryRecord {
+    id: number;
+    labour_id: number;
+    type: 'bonus' | 'increment';
+    amount: number;
+    worked_days_at_time: number;
+    created_at: string;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function LabourDetailsScreen() {
@@ -84,16 +97,19 @@ export default function LabourDetailsScreen() {
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [overtime, setOvertime] = useState<OvertimeRecord[]>([]);
     const [advances, setAdvances] = useState<AdvanceRecord[]>([]);
+    const [financialHistory, setFinancialHistory] = useState<FinancialHistoryRecord[]>([]);
 
     // Section loading states
     const [loadingAttendance, setLoadingAttendance] = useState(false);
     const [loadingOvertime, setLoadingOvertime] = useState(false);
     const [loadingAdvances, setLoadingAdvances] = useState(false);
+    const [loadingFinancial, setLoadingFinancial] = useState(false);
 
     // Section error states
     const [errorAttendance, setErrorAttendance] = useState<string | null>(null);
     const [errorOvertime, setErrorOvertime] = useState<string | null>(null);
     const [errorAdvances, setErrorAdvances] = useState<string | null>(null);
+    const [errorFinancial, setErrorFinancial] = useState<string | null>(null);
 
     // Bonus modal
     const [showBonusModal, setShowBonusModal] = useState(false);
@@ -103,7 +119,7 @@ export default function LabourDetailsScreen() {
 
     // Increment modal
     const [showIncrementModal, setShowIncrementModal] = useState(false);
-    const [newRate, setNewRate] = useState("");
+    const [incrementAmount, setIncrementAmount] = useState("");
     const [savingIncrement, setSavingIncrement] = useState(false);
 
     // ─── Data Fetching ─────────────────────────────────────────────────────────
@@ -114,6 +130,7 @@ export default function LabourDetailsScreen() {
         fetchAttendance();
         fetchOvertime();
         fetchAdvances();
+        fetchFinancialHistory();
     }, [id]);
 
     const fetchLabourDetails = async () => {
@@ -192,6 +209,24 @@ export default function LabourDetailsScreen() {
         }
     };
 
+    const fetchFinancialHistory = async () => {
+        try {
+            setLoadingFinancial(true);
+            setErrorFinancial(null);
+            const response = await api.get(`/labours/${id}/financial-history`);
+            if (response.ok) {
+                const data = await response.json();
+                setFinancialHistory(data);
+            } else {
+                setErrorFinancial("Failed to load financial history");
+            }
+        } catch {
+            setErrorFinancial("Unable to connect to server");
+        } finally {
+            setLoadingFinancial(false);
+        }
+    };
+
     // ─── Edit Handlers ─────────────────────────────────────────────────────────
 
     const handleSave = async () => {
@@ -248,23 +283,30 @@ export default function LabourDetailsScreen() {
     };
 
     const handleSaveIncrement = async () => {
-        if (!newRate || isNaN(Number(newRate)) || Number(newRate) <= 0) {
-            Alert.alert("Error", "Please enter a valid rate");
+        if (!incrementAmount || isNaN(Number(incrementAmount)) || Number(incrementAmount) <= 0) {
+            Alert.alert("Error", "Please enter a positive increment amount");
             return;
         }
         try {
             setSavingIncrement(true);
-            const payload = { ...labour, rate: Number(newRate) / 8 };
-            const response = await api.put(`/labours/${id}`, payload);
+            const response = await api.post(`/labours/${id}/increment`, {
+                increment_amount: Number(incrementAmount),
+            });
             const data = await response.json();
             if (response.ok) {
+                // data.rate comes back as hourly — convert to daily for display
                 if (data.rate) data.rate = data.rate * 8;
                 setLabour(data as Labour);
                 setFormData(data as Labour);
                 setShowIncrementModal(false);
-                Alert.alert("Success", "Daily rate updated successfully");
+                setIncrementAmount("");
+                fetchFinancialHistory();
+                Alert.alert(
+                    "Increment Applied",
+                    `Salary incremented by ₹${incrementAmount}.\nWorked days reset to 0.\nNew daily rate: ₹${data.rate || 0}`
+                );
             } else {
-                Alert.alert("Error", data.error || "Failed to update rate");
+                Alert.alert("Error", data.error || "Failed to apply increment");
             }
         } catch {
             Alert.alert("Error", "Unable to connect to server");
@@ -474,6 +516,54 @@ export default function LabourDetailsScreen() {
                     </View>
                 </View>
 
+                {/* ── Financial Stats (Bonus/Increment Tracking) ── */}
+                <View style={local.financialStatsCard}>
+                    <View style={local.financialStatItem}>
+                        <MaterialCommunityIcons name="calendar-check" size={20} color={isDark ? '#64b5f6' : '#0a84ff'} />
+                        <Text style={local.financialStatValue}>{Number(labour.worked_days_count || 0).toFixed(1)}</Text>
+                        <Text style={local.financialStatLabel}>Worked Days</Text>
+                        {Number(labour.worked_days_count || 0) >= 275 && (
+                            <View style={local.eligibleBadge}>
+                                <Text style={local.eligibleBadgeText}>ELIGIBLE</Text>
+                            </View>
+                        )}
+                    </View>
+                    <View style={local.financialStatDivider} />
+                    <View style={local.financialStatItem}>
+                        <MaterialCommunityIcons name="gift" size={20} color={isDark ? '#ffb74d' : '#e65100'} />
+                        <Text style={[local.financialStatValue, { color: isDark ? '#ffb74d' : '#e65100' }]}>
+                            ₹{Number(labour.total_bonus_earned || 0).toFixed(2)}
+                        </Text>
+                        <Text style={local.financialStatLabel}>Total Bonus</Text>
+                    </View>
+                    <View style={local.financialStatDivider} />
+                    <View style={local.financialStatItem}>
+                        <MaterialCommunityIcons name="trending-up" size={20} color={isDark ? '#81c784' : '#2e7d32'} />
+                        <Text style={[local.financialStatValue, { color: isDark ? '#81c784' : '#2e7d32' }]}>
+                            {labour.increment_cycle_count || 0}
+                        </Text>
+                        <Text style={local.financialStatLabel}>Increments</Text>
+                    </View>
+                </View>
+
+                {/* Progress bar: 0 to 275 days */}
+                {(() => {
+                    const worked = Number(labour.worked_days_count || 0);
+                    const progress = Math.min(1, worked / 275);
+                    const pct = Math.round(progress * 100);
+                    return (
+                        <View style={local.progressContainer}>
+                            <View style={local.progressHeader}>
+                                <Text style={local.progressLabel}>Progress to Bonus Eligibility (275 days)</Text>
+                                <Text style={local.progressPct}>{pct}%</Text>
+                            </View>
+                            <View style={local.progressTrack}>
+                                <View style={[local.progressFill, { width: `${pct}%` as any, backgroundColor: pct >= 100 ? '#4CAF50' : isDark ? '#4da6ff' : '#0a84ff' }]} />
+                            </View>
+                        </View>
+                    );
+                })()}
+
                 {/* ── Quick Actions ── */}
                 <View style={local.actionRow}>
                     <TouchableOpacity style={local.actionBtn} onPress={() => setShowBonusModal(true)}>
@@ -482,10 +572,10 @@ export default function LabourDetailsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[local.actionBtn, { backgroundColor: isDark ? '#2e7d32' : '#4CAF50' }]}
-                        onPress={() => { setNewRate(String(labour.rate || "")); setShowIncrementModal(true); }}
+                        onPress={() => { setIncrementAmount(""); setShowIncrementModal(true); }}
                     >
                         <Ionicons name="trending-up-outline" size={20} color="#fff" />
-                        <Text style={local.actionBtnText}>Update Rate</Text>
+                        <Text style={local.actionBtnText}>Apply Increment</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -720,6 +810,54 @@ export default function LabourDetailsScreen() {
                     )}
                 </SectionCard>
 
+                {/* ══════════════════════════════════════ */}
+                {/* ── FINANCIAL HISTORY SECTION ── */}
+                {/* ══════════════════════════════════════ */}
+                <SectionCard>
+                    <SectionHeader title="Financial History" icon="history" count={financialHistory.length} />
+
+                    {loadingFinancial ? (
+                        <SectionLoading />
+                    ) : errorFinancial ? (
+                        <SectionError message={errorFinancial} onRetry={fetchFinancialHistory} />
+                    ) : financialHistory.length === 0 ? (
+                        <SectionEmpty message="No bonus or increment records yet" />
+                    ) : (
+                        <>
+                            {financialHistory.slice(0, 30).map((rec) => {
+                                const isBonus = rec.type === 'bonus';
+                                return (
+                                    <View key={rec.id} style={local.recordRow}>
+                                        <View style={[
+                                            local.historyTypePill,
+                                            { backgroundColor: isBonus ? (isDark ? '#3d2c00' : '#fff3e0') : (isDark ? '#1b3a1b' : '#e8f5e9') }
+                                        ]}>
+                                            <MaterialCommunityIcons
+                                                name={isBonus ? 'gift' : 'trending-up'}
+                                                size={14}
+                                                color={isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32')}
+                                            />
+                                            <Text style={[local.historyTypeText, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
+                                                {isBonus ? 'Bonus' : 'Increment'}
+                                            </Text>
+                                        </View>
+                                        <View style={local.recordLeft}>
+                                            <Text style={local.recordDate}>{formatDate(rec.created_at)}</Text>
+                                            <Text style={local.recordSub}>{rec.worked_days_at_time} worked days</Text>
+                                        </View>
+                                        <Text style={[local.recordPrimary, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
+                                            ₹{Number(rec.amount).toFixed(2)}
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                            {financialHistory.length > 30 && (
+                                <Text style={local.moreText}>+ {financialHistory.length - 30} more records</Text>
+                            )}
+                        </>
+                    )}
+                </SectionCard>
+
                 <View style={{ height: 40 }} />
             </ScrollView>
 
@@ -764,27 +902,39 @@ export default function LabourDetailsScreen() {
             <CustomModal
                 visible={showIncrementModal}
                 onClose={() => setShowIncrementModal(false)}
-                title="Update Daily Rate"
+                title="Apply Salary Increment"
                 actions={[
                     { text: "Cancel", onPress: () => setShowIncrementModal(false), style: "cancel" },
-                    { text: savingIncrement ? "Saving…" : "Update Rate", onPress: handleSaveIncrement, style: "default" },
+                    { text: savingIncrement ? "Applying…" : "Apply Increment", onPress: handleSaveIncrement, style: "default" },
                 ]}
             >
                 <View style={local.modalForm}>
-                    <View style={local.inputGroup}>
-                        <Text style={local.label}>Current Rate: ₹{labour.rate || 0}</Text>
+                    <View style={local.incrementInfoRow}>
+                        <MaterialCommunityIcons name="cash" size={18} color={isDark ? '#64b5f6' : '#0a84ff'} />
+                        <Text style={local.incrementInfoText}>Current daily rate: ₹{labour?.rate || 0}</Text>
+                    </View>
+                    <View style={local.incrementInfoRow}>
+                        <MaterialCommunityIcons name="calendar-check" size={18} color={isDark ? '#64b5f6' : '#0a84ff'} />
+                        <Text style={local.incrementInfoText}>Worked days (will reset to 0): {Number(labour?.worked_days_count || 0).toFixed(1)}</Text>
                     </View>
                     <View style={local.inputGroup}>
-                        <Text style={local.label}>New Daily Rate (₹)</Text>
+                        <Text style={local.label}>Increment Amount (₹)</Text>
                         <TextInput
                             style={local.input}
                             keyboardType="numeric"
-                            placeholder="Enter new rate"
-                            value={newRate}
-                            onChangeText={setNewRate}
+                            placeholder="Enter increment amount"
+                            value={incrementAmount}
+                            onChangeText={setIncrementAmount}
                             placeholderTextColor={isDark ? "#888" : "#999"}
                         />
                     </View>
+                    {incrementAmount && !isNaN(Number(incrementAmount)) && Number(incrementAmount) > 0 && (
+                        <View style={local.incrementPreview}>
+                            <Text style={local.incrementPreviewText}>
+                                New daily rate: ₹{((labour?.rate || 0) + Number(incrementAmount)).toFixed(2)}
+                            </Text>
+                        </View>
+                    )}
                 </View>
             </CustomModal>
         </KeyboardAvoidingView>
@@ -1191,4 +1341,135 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         paddingTop: 10,
         width: "100%",
     },
+
+    // Financial Stats Card
+    financialStatsCard: {
+        flexDirection: 'row',
+        backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        borderRadius: 16,
+        marginBottom: 12,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.3 : 0.07,
+        shadowRadius: 6,
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: isDark ? '#2a2a2a' : '#f0f0f0',
+    },
+    financialStatItem: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 4,
+    },
+    financialStatValue: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: isDark ? '#fff' : '#1e1e2e',
+    },
+    financialStatLabel: {
+        fontSize: 11,
+        color: isDark ? '#666' : '#999',
+        textAlign: 'center',
+    },
+    financialStatDivider: {
+        width: 1,
+        backgroundColor: isDark ? '#333' : '#eee',
+        marginVertical: 4,
+    },
+
+    // Eligible badge
+    eligibleBadge: {
+        backgroundColor: '#4CAF50',
+        borderRadius: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        marginTop: 4,
+    },
+    eligibleBadgeText: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#fff',
+        letterSpacing: 0.5,
+    },
+
+    // Progress bar
+    progressContainer: {
+        backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: isDark ? '#2a2a2a' : '#f0f0f0',
+    },
+    progressHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    progressLabel: {
+        fontSize: 12,
+        color: isDark ? '#aaa' : '#666',
+        flex: 1,
+    },
+    progressPct: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: isDark ? '#64b5f6' : '#0a84ff',
+    },
+    progressTrack: {
+        height: 8,
+        backgroundColor: isDark ? '#333' : '#f0f0f0',
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    progressFill: {
+        height: 8,
+        borderRadius: 4,
+    },
+
+    // Financial history type pill
+    historyTypePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        gap: 4,
+        minWidth: 80,
+        justifyContent: 'center',
+    },
+    historyTypeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+
+    // Increment modal info rows
+    incrementInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+        backgroundColor: isDark ? '#1a2a3a' : '#e8f4ff',
+        padding: 10,
+        borderRadius: 8,
+    },
+    incrementInfoText: {
+        fontSize: 13,
+        color: isDark ? '#b0c4de' : '#0a4080',
+        flex: 1,
+    },
+    incrementPreview: {
+        backgroundColor: isDark ? '#1b3a1b' : '#e8f5e9',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 4,
+        alignItems: 'center',
+    },
+    incrementPreviewText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: isDark ? '#81c784' : '#2e7d32',
+    },
 });
+

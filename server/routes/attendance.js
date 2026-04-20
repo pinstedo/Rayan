@@ -6,6 +6,61 @@ const router = express.Router();
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 
+// ── Bonus Eligibility Helper ─────────────────────────────────────────────────
+// Called after attendance is processed.
+// If a labour's worked_days_count reaches >= 275, auto-records a bonus entry
+// in labour_financial_history. Does NOT reset worked_days_count.
+// Prevents duplicate bonuses within the same cycle via a threshold crossing check.
+async function checkAndRecordBonus(db, labourId) {
+    try {
+        const labour = await db.get(
+            'SELECT id, worked_days_count, total_bonus_earned FROM labours WHERE id = ?',
+            [labourId]
+        );
+        if (!labour) return;
+
+        const worked = Number(labour.worked_days_count) || 0;
+        if (worked < 275) return;
+
+        // Check if there's already a bonus entry for this cycle
+        // A cycle is defined as: the most recent reset point (increment). 
+        // We detect a duplicate by checking if the last financial_history entry 
+        // for this labour is a bonus recorded AFTER the last increment (or ever if no increment).
+        const lastEntry = await db.get(
+            `SELECT type FROM labour_financial_history 
+             WHERE labour_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [labourId]
+        );
+
+        // If last entry was already a bonus, skip (only one bonus per crossing per cycle).
+        // A new bonus cycle only starts after an increment resets worked_days_count.
+        if (lastEntry && lastEntry.type === 'bonus') return;
+
+        const bonus = Math.round((worked / 22) * 100) / 100;
+
+        // Record bonus in financial history
+        await db.run(
+            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time) VALUES (?, 'bonus', ?, ?)`,
+            [labourId, bonus, worked]
+        );
+
+        // Accumulate total_bonus_earned
+        await db.run(
+            `UPDATE labours SET total_bonus_earned = total_bonus_earned + ? WHERE id = ?`,
+            [bonus, labourId]
+        );
+    } catch (err) {
+        console.error('checkAndRecordBonus error:', err.message);
+    }
+}
+
+// Status delta for worked_days_count adjustment
+function statusDelta(status) {
+    if (status === 'full') return 1;
+    if (status === 'half') return 0.5;
+    return 0; // absent
+}
+
 // Get attendance for a specific site and date, or all sites if site_id is missing
 router.post('/fetch', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     const { site_id, date } = req.body;
@@ -178,10 +233,19 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
         const labourIds = records.map(r => r.labour_id);
         const qMarks = labourIds.map(() => '?').join(',');
-        const laboursData = await db.all(`SELECT id, status, site_id FROM labours WHERE id IN (${qMarks})`, labourIds);
+        const laboursData = await db.all(`SELECT id, status, site_id, worked_days_count FROM labours WHERE id IN (${qMarks})`, labourIds);
         
         const laboursMap = new Map();
         laboursData.forEach(l => laboursMap.set(l.id, l));
+
+        // Fetch existing attendance records for these labours on this date
+        // so we can compute the delta when re-marking (upsert scenario)
+        const existingAttendance = await db.all(
+            `SELECT labour_id, status FROM attendance WHERE date = ? AND labour_id IN (${qMarks})`,
+            [date, ...labourIds]
+        );
+        const existingMap = new Map();
+        existingAttendance.forEach(a => existingMap.set(a.labour_id, a.status));
 
         // Use a transaction for batch inserts/updates
         await db.exec('BEGIN TRANSACTION');
@@ -195,6 +259,8 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         );
 
         let supervisor_id_to_lock = null;
+        // Track which labour IDs need bonus check after commit
+        const labourIdsToCheck = [];
 
         for (const record of records) {
             const { labour_id, site_id: r_site_id, supervisor_id, date: r_date, status,
@@ -216,6 +282,21 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
                 throw new Error(`Labour (ID: ${labour_id}) is not assigned to this site`);
             }
 
+            // Compute delta: new contribution minus old contribution
+            const oldStatus = existingMap.get(labour_id) || null;
+            const oldDelta = oldStatus ? statusDelta(oldStatus) : 0;
+            const newDelta = statusDelta(status);
+            const diff = newDelta - oldDelta;
+
+            if (diff !== 0) {
+                // Update worked_days_count, ensuring it never goes below 0
+                await db.run(
+                    `UPDATE labours SET worked_days_count = GREATEST(0, worked_days_count + ?) WHERE id = ?`,
+                    [diff, labour_id]
+                );
+                labourIdsToCheck.push(labour_id);
+            }
+
             supervisor_id_to_lock = supervisor_id;
             await stmt.run(labour_id, r_site_id, supervisor_id, r_date, status,
                            !!food_allowance, food_allowance ? Number(food_allowance_amount) || 0 : 0,
@@ -235,6 +316,11 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         }
 
         await db.exec('COMMIT');
+
+        // After commit, check bonus eligibility for affected labours
+        for (const lid of labourIdsToCheck) {
+            await checkAndRecordBonus(db, lid);
+        }
         
         await logHistory({
             type: 'attendance',

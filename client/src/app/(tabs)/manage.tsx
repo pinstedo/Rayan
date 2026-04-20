@@ -10,6 +10,7 @@ const options = [
   { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
   { key: "sites", icon: "location-city", title: "Sites", desc: "Manage job sites" },
   { key: "labours", icon: "group", title: "Labours", desc: "View and manage labours" },
+  { key: "eligible-labours", icon: "star", title: "Eligible Bonus", desc: "Labours eligible for bonus (275+ days)" },
   { key: "supervisors", icon: "supervisor-account", title: "Supervisors", desc: "View supervisors added by admin" },
 ];
 
@@ -38,6 +39,10 @@ export default function Manage(): JSX.Element {
     }
     if (key === "advance") {
       router.push("/(screens)/advance");
+      return;
+    }
+    if (key === "eligible-labours") {
+      router.push("/(screens)/eligible-labours" as any);
       return;
     }
     // navigate to dedicated management screen (ensure routes exist or create them)
