@@ -297,6 +297,12 @@ router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async 
             return res.status(400).json({ error: `Cannot assign labour to a ${site.status} site.` });
         }
 
+        // Guard: cannot assign a labour who is on leave
+        const labour = await db.get('SELECT status FROM labours WHERE id = ?', [labour_id]);
+        if (labour && labour.status === 'leave') {
+            return res.status(400).json({ error: 'Cannot assign a labour who is currently on leave. End their leave first.' });
+        }
+
         await db.run('UPDATE labours SET site_id = ?, site = ?, status = "active" WHERE id = ?', [req.params.id, site.name, labour_id]);
         await updateSiteHistory(db, labour_id, req.params.id);
         res.json({ message: 'Labour assigned to site' });

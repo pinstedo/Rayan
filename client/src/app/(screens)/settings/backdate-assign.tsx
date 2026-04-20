@@ -1,12 +1,13 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Haptics from 'expo-haptics';
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -54,6 +55,9 @@ export default function BackdateAssign() {
     const [selectedLabourIds, setSelectedLabourIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [successCount, setSuccessCount] = useState(0);
+    const [successSite, setSuccessSite] = useState("");
 
     const listManager = useListManager<Labour>({
         initialData: labours,
@@ -105,6 +109,9 @@ export default function BackdateAssign() {
     };
 
     const toggleLabourSelection = (id: number) => {
+        try {
+            if (Platform.OS !== 'web') Haptics.selectionAsync();
+        } catch (e) { }
         setSelectedLabourIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) {
@@ -117,6 +124,9 @@ export default function BackdateAssign() {
     };
 
     const handleSelectAll = () => {
+        try {
+            if (Platform.OS !== 'web') Haptics.selectionAsync();
+        } catch (e) { }
         if (selectedLabourIds.size === listManager.data.length && listManager.data.length > 0) {
             setSelectedLabourIds(new Set());
         } else {
@@ -149,16 +159,18 @@ export default function BackdateAssign() {
             });
 
             if (response.ok) {
-                Alert.alert("Success", "Labours have been successfully assigned.", [
-                    {
-                        text: "OK",
-                        onPress: () => {
-                            setSelectedLabourIds(new Set());
-                            setSelectedSite(null);
-                            fetchData(); // Refresh UI
-                        }
+                try {
+                    if (Platform.OS !== 'web') {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     }
-                ]);
+                } catch (e) {
+                    // Ignore haptics errors on unsupported platforms
+                }
+
+                // Show success popup before clearing state
+                setSuccessCount(selectedLabourIds.size);
+                setSuccessSite(selectedSite?.name ?? "");
+                setShowSuccessModal(true);
             } else {
                 const data = await response.json();
                 Alert.alert("Error", data.error || "Failed to make backdated assignment.");
@@ -196,7 +208,7 @@ export default function BackdateAssign() {
     };
 
     return (
-        <ScrollView style={styles.container}>
+        <View style={styles.container}>
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backBtn}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#F1F5F9" : "#0F172A"} />
@@ -205,80 +217,121 @@ export default function BackdateAssign() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <View style={styles.infoBox}>
-                <MaterialIcons name="info-outline" size={20} color={isDark ? "#93C5FD" : "#2563EB"} />
-                <Text style={styles.infoText}>
-                    Use this tool to assign a set of labours to a site from a past date. This closes their existing site assignment from the selected date.
-                </Text>
-            </View>
-
-            <View style={styles.formRow}>
-                <View style={styles.halfWidth}>
-                    <Text style={styles.label}>Assignment Date</Text>
-                    <TouchableOpacity style={styles.picker} onPress={() => setShowCalendar(true)}>
-                        <MaterialIcons name="event" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
-                        <Text style={styles.pickerText}>{date.toLocaleDateString()}</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.halfWidth}>
-                    <Text style={styles.label}>Destination Site</Text>
-                    <TouchableOpacity style={styles.picker} onPress={() => setShowSitePicker(true)}>
-                        <MaterialIcons name="location-city" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
-                        <Text style={styles.pickerText} numberOfLines={1}>
-                            {selectedSite ? selectedSite.name : "Select Site..."}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
             <View style={styles.listSection}>
-                <View style={styles.listHeader}>
-                    <Text style={styles.sectionTitle}>Select Labours</Text>
-                    <TouchableOpacity onPress={handleSelectAll}>
-                        <Text style={styles.selectAllText}>
-                            {selectedLabourIds.size === listManager.data.length && listManager.data.length > 0 ? "Deselect All" : "Select All"}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                <SearchBar
-                    value={listManager.searchText}
-                    onChangeText={listManager.setSearchText}
-                    placeholder="Search visible list..."
-                    style={{ marginBottom: 12 }}
-                />
-
                 {loading ? (
                     <View style={styles.centerBox}>
                         <ActivityIndicator size="large" color="#3B82F6" />
                     </View>
                 ) : (
                     <FlatList
+                        ListHeaderComponent={() => (
+                            <View style={{ paddingBottom: 8 }}>
+                                <View style={styles.infoBox}>
+                                    <MaterialIcons name="info-outline" size={20} color={isDark ? "#93C5FD" : "#2563EB"} />
+                                    <Text style={styles.infoText}>
+                                        Use this tool to assign a set of labours to a site from a past date. This closes their existing site assignment from the selected date.
+                                    </Text>
+                                </View>
+
+                                <View style={styles.formRow}>
+                                    <View style={styles.halfWidth}>
+                                        <Text style={styles.label}>Assignment Date</Text>
+                                        <TouchableOpacity style={styles.picker} onPress={() => setShowCalendar(true)}>
+                                            <MaterialIcons name="event" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                                            <Text style={styles.pickerText}>{date.toLocaleDateString()}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <View style={styles.halfWidth}>
+                                        <Text style={styles.label}>Destination Site</Text>
+                                        <TouchableOpacity style={styles.picker} onPress={() => setShowSitePicker(true)}>
+                                            <MaterialIcons name="location-city" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                                            <Text style={styles.pickerText} numberOfLines={1}>
+                                                {selectedSite ? selectedSite.name : "Select Site..."}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
+                                <View style={styles.listHeaderWrapper}>
+                                    <View style={styles.listHeader}>
+                                        <Text style={styles.sectionTitle}>Select Labours</Text>
+                                        <TouchableOpacity onPress={handleSelectAll}>
+                                            <Text style={styles.selectAllText}>
+                                                {selectedLabourIds.size === listManager.data.length && listManager.data.length > 0 ? "Deselect All" : "Select All"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <SearchBar
+                                        value={listManager.searchText}
+                                        onChangeText={listManager.setSearchText}
+                                        placeholder="Search visible list..."
+                                        style={{ marginBottom: 12 }}
+                                    />
+                                </View>
+                            </View>
+                        )}
                         data={listManager.data}
                         keyExtractor={item => item.id.toString()}
                         renderItem={renderLabour}
-                        contentContainerStyle={{ paddingBottom: 100 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
                         ListEmptyComponent={<Text style={styles.emptyText}>No labours found.</Text>}
                     />
                 )}
             </View>
 
-            <View style={styles.footer}>
-                <TouchableOpacity
-                    style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-                    onPress={handleSubmit}
-                    disabled={submitting}
-                >
-                    {submitting ? (
-                        <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                        <Text style={styles.submitBtnText}>
-                            Assign {selectedLabourIds.size} Labour{selectedLabourIds.size !== 1 && 's'}
-                        </Text>
-                    )}
-                </TouchableOpacity>
-            </View>
+            {selectedLabourIds.size > 0 && (
+                <View style={styles.floatingFooter}>
+                    <TouchableOpacity
+                        style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+                        onPress={handleSubmit}
+                        disabled={submitting}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.submitBtnText}>
+                                Assign {selectedLabourIds.size} Labour{selectedLabourIds.size !== 1 && 's'}
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Success Modal */}
+            <CustomModal
+                visible={showSuccessModal}
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    setSelectedLabourIds(new Set());
+                    setSelectedSite(null);
+                    fetchData();
+                }}
+                title="Assignment Successful"
+                actions={[
+                    {
+                        text: "Done",
+                        onPress: () => {
+                            setShowSuccessModal(false);
+                            setSelectedLabourIds(new Set());
+                            setSelectedSite(null);
+                            fetchData();
+                        }
+                    }
+                ]}
+            >
+                <View style={styles.successContent}>
+                    <View style={styles.successIconWrap}>
+                        <MaterialIcons name="check-circle" size={56} color="#22C55E" />
+                    </View>
+                    <Text style={styles.successTitle}>All Done!</Text>
+                    <Text style={styles.successMsg}>
+                        {successCount} labour{successCount !== 1 ? 's have' : ' has'} been successfully assigned to{" "}
+                        <Text style={styles.successSiteName}>{successSite}</Text>.
+                    </Text>
+                </View>
+            </CustomModal>
 
             {/* Calendar Modal */}
             <CustomModal
@@ -327,7 +380,7 @@ export default function BackdateAssign() {
                     )}
                 />
             </CustomModal>
-        </ScrollView>
+        </View>
     );
 }
 
@@ -361,7 +414,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         justifyContent: "center",
     },
     infoBox: {
-        margin: 16,
+        marginVertical: 16,
         padding: 16,
         backgroundColor: isDark ? "rgba(59, 130, 246, 0.15)" : "#EFF6FF",
         borderRadius: 12,
@@ -377,7 +430,6 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     },
     formRow: {
         flexDirection: "row",
-        paddingHorizontal: 16,
         gap: 16,
         marginBottom: 16,
     },
@@ -408,9 +460,10 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     },
     listSection: {
         flex: 1,
-        paddingHorizontal: 16,
-        paddingTop: 8,
         backgroundColor: isDark ? "#0F172A" : "#FFFFFF",
+    },
+    listHeaderWrapper: {
+        paddingBottom: 8,
     },
     listHeader: {
         flexDirection: "row",
@@ -494,6 +547,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: isDark ? "#94A3B8" : "#64748B",
         marginTop: 20,
     },
+    floatingFooter: {
+        position: 'absolute',
+        bottom: 24,
+        left: 16,
+        right: 16,
+        backgroundColor: 'transparent',
+    },
     footer: {
         padding: 16,
         backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
@@ -532,5 +592,35 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     siteOptionTextSelected: {
         color: "#3B82F6",
         fontWeight: "600",
-    }
+    },
+    successContent: {
+        alignItems: "center",
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+    },
+    successIconWrap: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: isDark ? "rgba(34,197,94,0.15)" : "#F0FDF4",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    successTitle: {
+        fontSize: 22,
+        fontWeight: "700",
+        color: isDark ? "#F1F5F9" : "#0F172A",
+        marginBottom: 8,
+    },
+    successMsg: {
+        fontSize: 15,
+        color: isDark ? "#94A3B8" : "#64748B",
+        textAlign: "center",
+        lineHeight: 22,
+    },
+    successSiteName: {
+        fontWeight: "700",
+        color: isDark ? "#60A5FA" : "#2563EB",
+    },
 });

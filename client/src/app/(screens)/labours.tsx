@@ -208,7 +208,8 @@ export default function Labours() {
 			const response = await api.put(`/labours/${labour.id}/status`, { status: newStatus });
 
 			if (response.ok) {
-				showModal("Success", `Labour marked as ${newStatus}`, 'success');
+				const statusLabel = newStatus === 'leave' ? 'On Leave' : newStatus === 'unassigned' ? 'Unassigned' : 'Active';
+				showModal("Success", `${labour.name} marked as ${statusLabel}`, 'success');
 				fetchLabours(supervisorId); // Refresh list
 			} else {
 				const data = await response.json();
@@ -218,6 +219,44 @@ export default function Labours() {
 			console.error("Status update error:", error);
 			showModal("Error", "Unable to connect to server", 'error');
 		}
+	};
+
+	const handleMarkLeave = (labour: Labour) => {
+		showModal(
+			"Mark as On Leave",
+			`Mark ${labour.name} as On Leave? They will be removed from their current site and hidden from all assignment screens until leave ends.`,
+			'confirmation',
+			[
+				{ text: "Cancel", onPress: () => setModalConfig(prev => ({ ...prev, visible: false })), style: "cancel" },
+				{
+					text: "Mark Leave",
+					onPress: () => {
+						setModalConfig(prev => ({ ...prev, visible: false }));
+						handleStatusChange(labour, 'leave');
+					},
+					style: "destructive"
+				}
+			]
+		);
+	};
+
+	const handleEndLeave = (labour: Labour) => {
+		showModal(
+			"End Leave",
+			`End leave for ${labour.name}? They will be marked as Unassigned and can be reassigned to a site.`,
+			'confirmation',
+			[
+				{ text: "Cancel", onPress: () => setModalConfig(prev => ({ ...prev, visible: false })), style: "cancel" },
+				{
+					text: "End Leave",
+					onPress: () => {
+						setModalConfig(prev => ({ ...prev, visible: false }));
+						handleStatusChange(labour, 'unassigned');
+					},
+					style: "default"
+				}
+			]
+		);
 	};
 
 	const handleUnassign = (labour: Labour) => {
@@ -344,8 +383,8 @@ export default function Labours() {
 								hideRate={!isAdmin}
 								onMove={handleMove}
 								onUnassign={handleUnassign}
-								onRevoke={(labour) => handleStatusChange(labour, 'active')}
-								onMarkLeave={(labour) => handleStatusChange(labour, 'leave')}
+								onRevoke={handleEndLeave}
+								onMarkLeave={handleMarkLeave}
 								onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
 							/>
 						);

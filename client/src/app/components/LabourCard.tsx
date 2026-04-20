@@ -28,7 +28,7 @@ interface LabourCardProps {
     onPress?: (labour: Labour) => void;
 }
 
-export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
+export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onMarkLeave, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
     const { isDark } = useTheme();
     const getStatusColor = (status?: string) => {
         switch (status) {
@@ -53,7 +53,8 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
     const CardContent = (
         <View style={[
             styles.card,
-            labour.status === 'unassigned' && styles.unassignedCard
+            labour.status === 'unassigned' && styles.unassignedCard,
+            labour.status === 'leave' && styles.leaveCard,
         ]}>
             <View style={styles.headerRow}>
                 <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
@@ -154,8 +155,14 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
                             style={styles.actionBtn}
                             onPress={() => onRevoke && onRevoke(labour)}
                         >
-                            <MaterialIcons name="check-circle" size={16} color="#2e7d32" />
-                            <Text style={[styles.actionBtnText, { color: '#2e7d32' }]}>Make Active</Text>
+                            <MaterialIcons
+                                name={labour.status === 'leave' ? 'event-available' : 'check-circle'}
+                                size={16}
+                                color="#2e7d32"
+                            />
+                            <Text style={[styles.actionBtnText, { color: '#2e7d32' }]}>
+                                {labour.status === 'leave' ? 'End Leave' : 'Make Active'}
+                            </Text>
                         </TouchableOpacity>
                     )}
 
@@ -202,6 +209,12 @@ const styles = StyleSheet.create({
         borderColor: '#bdbdbd',
         borderWidth: 1,
         opacity: 0.8,
+    },
+    leaveCard: {
+        backgroundColor: '#fff8f0',
+        borderColor: '#ed6c02',
+        borderWidth: 1,
+        opacity: 0.85,
     },
     headerRow: {
         flexDirection: "row",
