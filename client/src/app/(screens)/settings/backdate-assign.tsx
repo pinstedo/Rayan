@@ -55,7 +55,9 @@ export default function BackdateAssign() {
     const [selectedLabourIds, setSelectedLabourIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [unsubmitting, setUnsubmitting] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [isUnassignSuccess, setIsUnassignSuccess] = useState(false);
     const [successCount, setSuccessCount] = useState(0);
     const [successSite, setSuccessSite] = useState("");
 
@@ -181,6 +183,7 @@ export default function BackdateAssign() {
                 // Show success popup before clearing state
                 setSuccessCount(selectedLabourIds.size);
                 setSuccessSite(selectedSite?.name ?? "");
+                setIsUnassignSuccess(false);
                 setShowSuccessModal(true);
             } else {
                 const data = await response.json();
@@ -191,6 +194,66 @@ export default function BackdateAssign() {
             Alert.alert("Error", "Unable to connect to server.");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleUnassign = () => {
+        if (!selectedSite) {
+            Alert.alert("Error", "Please select a site to unassign labours from.");
+            return;
+        }
+        if (selectedLabourIds.size === 0) {
+            Alert.alert("Error", "Please select at least one labour.");
+            return;
+        }
+
+        Alert.alert(
+            "Confirm Unassignment",
+            `You are removing ${selectedLabourIds.size} labour(s) from ${selectedSite.name} explicitly on ${date.toLocaleDateString()}.\n\nWarning: Their historic assignment at this site will be ended a day prior.\n\nDo you want to continue?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Continue", onPress: executeUnassign, style: "destructive" }
+            ]
+        );
+    };
+
+    const executeUnassign = async () => {
+        try {
+            setUnsubmitting(true);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            const response = await api.post('/labours/backdate-unassign', {
+                from_date: dateStr,
+                site_id: selectedSite.id,
+                labour_ids: Array.from(selectedLabourIds)
+            });
+
+            if (response.ok) {
+                try {
+                    if (Platform.OS !== 'web') {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }
+                } catch (e) {
+                    // Ignore haptics errors on unsupported platforms
+                }
+
+                // Show success popup before clearing state
+                setSuccessCount(selectedLabourIds.size);
+                setSuccessSite(selectedSite?.name ?? "");
+                setIsUnassignSuccess(true);
+                setShowSuccessModal(true);
+            } else {
+                const data = await response.json();
+                Alert.alert("Error", data.error || "Failed to unassign labours.");
+            }
+        } catch (error) {
+            console.error("Backdate unassign error:", error);
+            Alert.alert("Error", "Unable to connect to server.");
+        } finally {
+            setUnsubmitting(false);
         }
     };
 
@@ -294,19 +357,35 @@ export default function BackdateAssign() {
 
             {selectedLabourIds.size > 0 && (
                 <View style={styles.floatingFooter}>
-                    <TouchableOpacity
-                        style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-                        onPress={handleSubmit}
-                        disabled={submitting}
-                    >
-                        {submitting ? (
-                            <ActivityIndicator color="#FFFFFF" />
-                        ) : (
-                            <Text style={styles.submitBtnText}>
-                                Assign {selectedLabourIds.size} Labour{selectedLabourIds.size !== 1 && 's'}
-                            </Text>
-                        )}
-                    </TouchableOpacity>
+                    <View style={styles.floatingButtonRow}>
+                        <TouchableOpacity
+                            style={[styles.unassignBtn, unsubmitting && styles.unassignBtnDisabled]}
+                            onPress={handleUnassign}
+                            disabled={submitting || unsubmitting}
+                        >
+                            {unsubmitting ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.unassignBtnText}>
+                                    Unassign {selectedLabourIds.size}
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+                            onPress={handleSubmit}
+                            disabled={submitting || unsubmitting}
+                        >
+                            {submitting ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.submitBtnText}>
+                                    Assign {selectedLabourIds.size} Labour{selectedLabourIds.size !== 1 && 's'}
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
                 </View>
             )}
 
@@ -338,7 +417,7 @@ export default function BackdateAssign() {
                     </View>
                     <Text style={styles.successTitle}>All Done!</Text>
                     <Text style={styles.successMsg}>
-                        {successCount} labour{successCount !== 1 ? 's have' : ' has'} been successfully assigned to{" "}
+                        {successCount} labour{successCount !== 1 && 's'} {isUnassignSuccess ? 'removed from' : 'successfully assigned to'}{" "}
                         <Text style={styles.successSiteName}>{successSite}</Text>.
                     </Text>
                 </View>
@@ -571,6 +650,27 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: isDark ? "#334155" : "#E2E8F0",
     },
+    floatingButtonRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    unassignBtn: {
+        backgroundColor: isDark ? "#475569" : "#EF4444",
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: "center",
+        flexDirection: "row",
+        justifyContent: "center",
+        flex: 1,
+    },
+    unassignBtnDisabled: {
+        backgroundColor: isDark ? "#334155" : "#FCA5A5",
+    },
+    unassignBtnText: {
+        color: "#FFFFFF",
+        fontSize: 16,
+        fontWeight: "700",
+    },
     submitBtn: {
         backgroundColor: "#3B82F6",
         paddingVertical: 16,
@@ -578,6 +678,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         alignItems: "center",
         flexDirection: "row",
         justifyContent: "center",
+        flex: 1,
     },
     submitBtnDisabled: {
         backgroundColor: isDark ? "#475569" : "#94A3B8",

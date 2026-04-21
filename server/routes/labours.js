@@ -183,35 +183,50 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
         try {
             await db.run('BEGIN');
             
-            // Find existing histories starting exactly on this date for this site
-            const existingHistories = await db.all('SELECT * FROM labour_site_history WHERE site_id = ? AND from_date = ?', [site_id, from_date]);
+            // Identify prevDate for closing histories
+            const d = new Date(from_date);
+            d.setDate(d.getDate() - 1);
+            const prevDate = d.toISOString().split('T')[0];
+
+            // Find all histories overlapping this exact date for this site
+            const existingHistories = await db.all(
+                'SELECT * FROM labour_site_history WHERE site_id = ? AND from_date <= ? AND (to_date IS NULL OR to_date >= ?)', 
+                [site_id, from_date, from_date]
+            );
+            
             const laboursToRemove = existingHistories.filter(h => !labour_ids.includes(h.labour_id));
             
-            // Delete the history records for the labours being removed
+            // End or delete the overlapping history records for unselected labours
             for (const h of laboursToRemove) {
-                await db.run('DELETE FROM labour_site_history WHERE id = ?', [h.id]);
-                // Note: As requested, we DO NOT modify the labour's table (status or site_id)
-                // so they retain their current assignment for the current day.
+                if (h.from_date === from_date) {
+                    await db.run('DELETE FROM labour_site_history WHERE id = ?', [h.id]);
+                } else {
+                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, h.id]);
+                }
             }
             
             for (const id of labour_ids) {
                 const alreadyExists = existingHistories.find(h => h.labour_id === id);
                 
                 if (alreadyExists) {
+                    // Make sure they are actively assigned currently (if the history was open)
                     await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
                     if (alreadyExists.to_date !== null) {
                         await db.run('UPDATE labour_site_history SET to_date = NULL WHERE id = ?', [alreadyExists.id]);
                     }
                     continue;
                 }
-                // Update labours table
-                await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
                 
-                // Close open history if any
+                // They aren't assigned to this site on this date.
+                // Close open history at *other* sites to maintain single-site constraints
                 const openHist = await db.get('SELECT * FROM labour_site_history WHERE labour_id = ? AND to_date IS NULL', [id]);
                 if (openHist) {
-                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [from_date, openHist.id]);
+                    // Close the old assignment the day before to avoid overlapping
+                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, openHist.id]);
                 }
+                
+                // Update labours table
+                await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
                 
                 // Insert new history
                 await db.run('INSERT INTO labour_site_history (labour_id, site_id, from_date) VALUES (?, ?, ?)', [id, site_id, from_date]);
@@ -223,6 +238,64 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
             
             await db.run('COMMIT');
             res.json({ message: 'Labours successfully backdate assigned' });
+        } catch (err) {
+            await db.run('ROLLBACK');
+            throw err;
+        } finally {
+            if (db.release) db.release();
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Backdate unassign labours
+router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => {
+    const { from_date, site_id, labour_ids } = req.body;
+    
+    if (!from_date || !site_id || !Array.isArray(labour_ids) || labour_ids.length === 0) {
+        return res.status(400).json({ error: 'from_date, site_id, and an array of labour_ids are required' });
+    }
+
+    try {
+        const db = await openTransactionDb();
+        
+        try {
+            await db.run('BEGIN');
+            
+            const d = new Date(from_date);
+            d.setDate(d.getDate() - 1);
+            const prevDate = d.toISOString().split('T')[0];
+
+            // Find overlapping histories for these labours
+            const existingHistories = await db.all(
+                'SELECT * FROM labour_site_history WHERE site_id = ? AND from_date <= ? AND (to_date IS NULL OR to_date >= ?)', 
+                [site_id, from_date, from_date]
+            );
+            
+            const laboursToRemove = existingHistories.filter(h => labour_ids.includes(h.labour_id));
+            
+            for (const h of laboursToRemove) {
+                if (h.from_date === from_date) {
+                    await db.run('DELETE FROM labour_site_history WHERE id = ?', [h.id]);
+                } else {
+                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, h.id]);
+                }
+
+                // If this removed assigning was their currently active assignment, set them to unassigned
+                if (h.to_date === null) {
+                    const labour = await db.get('SELECT site_id FROM labours WHERE id = ?', [h.labour_id]);
+                    if (labour && labour.site_id === site_id) {
+                        await db.run("UPDATE labours SET site_id = NULL, status = 'unassigned' WHERE id = ?", [h.labour_id]);
+                    }
+                }
+            }
+            
+            await db.run('INSERT INTO history_logs (type, action, metadata, created_by) VALUES (?, ?, ?, ?)', 
+                ['labour', 'bulk_backdated_unassignment', JSON.stringify({ count: labour_ids.length, site_id, from_date }), req.user ? req.user.id : null]);
+            
+            await db.run('COMMIT');
+            res.json({ message: 'Labours successfully backdate unassigned' });
         } catch (err) {
             await db.run('ROLLBACK');
             throw err;
