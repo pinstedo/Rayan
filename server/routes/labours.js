@@ -183,7 +183,27 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
         try {
             await db.run('BEGIN');
             
+            // Find existing histories starting exactly on this date for this site
+            const existingHistories = await db.all('SELECT * FROM labour_site_history WHERE site_id = ? AND from_date = ?', [site_id, from_date]);
+            const laboursToRemove = existingHistories.filter(h => !labour_ids.includes(h.labour_id));
+            
+            // Delete the history records for the labours being removed
+            for (const h of laboursToRemove) {
+                await db.run('DELETE FROM labour_site_history WHERE id = ?', [h.id]);
+                // Note: As requested, we DO NOT modify the labour's table (status or site_id)
+                // so they retain their current assignment for the current day.
+            }
+            
             for (const id of labour_ids) {
+                const alreadyExists = existingHistories.find(h => h.labour_id === id);
+                
+                if (alreadyExists) {
+                    await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
+                    if (alreadyExists.to_date !== null) {
+                        await db.run('UPDATE labour_site_history SET to_date = NULL WHERE id = ?', [alreadyExists.id]);
+                    }
+                    continue;
+                }
                 // Update labours table
                 await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
                 

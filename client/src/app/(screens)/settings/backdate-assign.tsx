@@ -135,7 +135,7 @@ export default function BackdateAssign() {
         }
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = () => {
         if (!selectedSite) {
             Alert.alert("Error", "Please select a site to assign labours to.");
             return;
@@ -145,6 +145,17 @@ export default function BackdateAssign() {
             return;
         }
 
+        Alert.alert(
+            "Confirm Assignment",
+            `You are assigning ${selectedLabourIds.size} labour(s) to ${selectedSite.name} on ${date.toLocaleDateString()}.\n\nWarning: Any unselected labours who were previously assigned specifically on this date will be removed from this site's history for this day. Labours smoothly assigned prior to this date will not be affected.\n\nDo you want to continue?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Continue", onPress: executeSubmit, style: "destructive" }
+            ]
+        );
+    };
+
+    const executeSubmit = async () => {
         try {
             setSubmitting(true);
             const year = date.getFullYear();
