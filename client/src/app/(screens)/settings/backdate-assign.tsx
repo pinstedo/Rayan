@@ -224,7 +224,7 @@ export default function BackdateAssign() {
                     </View>
                 ) : (
                     <FlatList
-                        ListHeaderComponent={() => (
+                        ListHeaderComponent={
                             <View style={{ paddingBottom: 8 }}>
                                 <View style={styles.infoBox}>
                                     <MaterialIcons name="info-outline" size={20} color={isDark ? "#93C5FD" : "#2563EB"} />
@@ -271,7 +271,7 @@ export default function BackdateAssign() {
                                     />
                                 </View>
                             </View>
-                        )}
+                        }
                         data={listManager.data}
                         keyExtractor={item => item.id.toString()}
                         renderItem={renderLabour}

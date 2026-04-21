@@ -241,11 +241,17 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         // Fetch existing attendance records for these labours on this date
         // so we can compute the delta when re-marking (upsert scenario)
         const existingAttendance = await db.all(
-            `SELECT labour_id, status FROM attendance WHERE date = ? AND labour_id IN (${qMarks})`,
+            `SELECT labour_id, status, site_id FROM attendance WHERE date = ? AND labour_id IN (${qMarks})`,
             [date, ...labourIds]
         );
         const existingMap = new Map();
-        existingAttendance.forEach(a => existingMap.set(a.labour_id, a.status));
+        existingAttendance.forEach(a => existingMap.set(a.labour_id, a));
+
+        // Fetch historical assignments to allow backdated attendance
+        const historyData = await db.all(
+            `SELECT labour_id, site_id, from_date, to_date FROM labour_site_history WHERE labour_id IN (${qMarks}) AND site_id = ?`,
+            [...labourIds, site_id]
+        );
 
         // Use a transaction for batch inserts/updates
         await db.exec('BEGIN TRANSACTION');
@@ -275,15 +281,18 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             const labour = laboursMap.get(labour_id);
             if (!labour) throw new Error(`Labour (ID: ${labour_id}) not found`);
 
-            if (labour.status !== 'active') {
-                throw new Error(`Labour (ID: ${labour_id}) is not active`);
-            }
-            if (labour.site_id !== site_id) {
-                throw new Error(`Labour (ID: ${labour_id}) is not assigned to this site`);
+            const isCurrentlyAssigned = labour.site_id === site_id && labour.status === 'active';
+            const history = historyData.filter(h => h.labour_id === labour_id);
+            const isHistoricalAssignment = history.some(h => h.from_date <= r_date && (!h.to_date || h.to_date >= r_date));
+            const hasExistingAttendanceAtSite = existingMap.has(labour_id) && existingMap.get(labour_id).site_id === site_id;
+
+            if (!isCurrentlyAssigned && !isHistoricalAssignment && !hasExistingAttendanceAtSite) {
+                throw new Error(`Labour (ID: ${labour_id}) is not assigned to this site on ${r_date}`);
             }
 
             // Compute delta: new contribution minus old contribution
-            const oldStatus = existingMap.get(labour_id) || null;
+            const oldRecord = existingMap.get(labour_id);
+            const oldStatus = oldRecord ? oldRecord.status : null;
             const oldDelta = oldStatus ? statusDelta(oldStatus) : 0;
             const newDelta = statusDelta(status);
             const diff = newDelta - oldDelta;
