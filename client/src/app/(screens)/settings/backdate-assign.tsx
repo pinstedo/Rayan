@@ -57,6 +57,7 @@ export default function BackdateAssign() {
     const [submitting, setSubmitting] = useState(false);
     const [unsubmitting, setUnsubmitting] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [confirmType, setConfirmType] = useState<'assign' | 'unassign' | null>(null);
     const [isUnassignSuccess, setIsUnassignSuccess] = useState(false);
     const [successCount, setSuccessCount] = useState(0);
     const [successSite, setSuccessSite] = useState("");
@@ -146,18 +147,11 @@ export default function BackdateAssign() {
             Alert.alert("Error", "Please select at least one labour.");
             return;
         }
-
-        Alert.alert(
-            "Confirm Assignment",
-            `You are assigning ${selectedLabourIds.size} labour(s) to ${selectedSite.name} on ${date.toLocaleDateString()}.\n\nWarning: Any unselected labours who were previously assigned specifically on this date will be removed from this site's history for this day. Labours smoothly assigned prior to this date will not be affected.\n\nDo you want to continue?`,
-            [
-                { text: "Cancel", style: "cancel" },
-                { text: "Continue", onPress: executeSubmit, style: "destructive" }
-            ]
-        );
+        setConfirmType('assign');
     };
 
     const executeSubmit = async () => {
+        if (!selectedSite) return;
         try {
             setSubmitting(true);
             const year = date.getFullYear();
@@ -206,18 +200,11 @@ export default function BackdateAssign() {
             Alert.alert("Error", "Please select at least one labour.");
             return;
         }
-
-        Alert.alert(
-            "Confirm Unassignment",
-            `You are removing ${selectedLabourIds.size} labour(s) from ${selectedSite.name} explicitly on ${date.toLocaleDateString()}.\n\nWarning: Their historic assignment at this site will be ended a day prior.\n\nDo you want to continue?`,
-            [
-                { text: "Cancel", style: "cancel" },
-                { text: "Continue", onPress: executeUnassign, style: "destructive" }
-            ]
-        );
+        setConfirmType('unassign');
     };
 
     const executeUnassign = async () => {
+        if (!selectedSite) return;
         try {
             setUnsubmitting(true);
             const year = date.getFullYear();
@@ -419,6 +406,39 @@ export default function BackdateAssign() {
                     <Text style={styles.successMsg}>
                         {successCount} labour{successCount !== 1 && 's'} {isUnassignSuccess ? 'removed from' : 'successfully assigned to'}{" "}
                         <Text style={styles.successSiteName}>{successSite}</Text>.
+                    </Text>
+                </View>
+            </CustomModal>
+
+            {/* Confirm Modal */}
+            <CustomModal
+                visible={confirmType !== null}
+                onClose={() => setConfirmType(null)}
+                title={confirmType === 'assign' ? "Confirm Assignment" : "Confirm Unassignment"}
+                actions={[
+                    { text: "Cancel", onPress: () => setConfirmType(null), style: "cancel" },
+                    { text: "Continue", onPress: () => {
+                        const type = confirmType;
+                        setConfirmType(null);
+                        // small delay to allow modal to close before executing state changes
+                        setTimeout(() => {
+                            if (type === 'assign') executeSubmit();
+                            else executeUnassign();
+                        }, 50);
+                    }, style: "destructive" }
+                ]}
+            >
+                <View style={{ padding: 16 }}>
+                    <Text style={{ fontSize: 16, color: isDark ? "#F1F5F9" : "#0F172A", marginBottom: 12 }}>
+                        {confirmType === 'assign' 
+                            ? `You are assigning ${selectedLabourIds.size} labour(s) to ${selectedSite?.name} on ${date.toLocaleDateString()}.`
+                            : `You are removing ${selectedLabourIds.size} labour(s) from ${selectedSite?.name} explicitly on ${date.toLocaleDateString()}.`}
+                    </Text>
+                    <Text style={{ fontSize: 14, color: isDark ? "#FCA5A5" : "#EF4444", fontWeight: "600", lineHeight: 20 }}>
+                        {confirmType === 'assign'
+                            ? "Warning: Any unselected labours who were previously assigned specifically on this date will be removed from this site's history for this day. Labours smoothly assigned prior to this date will not be affected."
+                            : "Warning: Their historic assignment at this site will be ended a day prior."
+                        }
                     </Text>
                 </View>
             </CustomModal>
