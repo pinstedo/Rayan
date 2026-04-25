@@ -4,8 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { default as React, useEffect, useRef } from "react";
 import { Animated, useWindowDimensions, View } from "react-native";
-import { useTheme } from "../../context/ThemeContext";
 import { Sidebar } from "../../components/layout/Sidebar";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function RootLayout() {
   const { colors } = useTheme();
@@ -25,70 +25,70 @@ export default function RootLayout() {
             tabBarStyle: {
               display: isLargeScreen ? "none" : "flex",
               backgroundColor: colors.surface,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 8,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
-          elevation: 5,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "600",
-          marginTop: 2,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <IconWithAnimation
-              name={focused ? "home" : "home-outline"}
-              size={28}
-              color={color}
-              focused={focused}
-            />
-          ),
-        }}
-      />
+              height: 64,
+              paddingBottom: 8,
+              paddingTop: 8,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 5,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            },
+            tabBarLabelStyle: {
+              fontSize: 12,
+              fontWeight: "600",
+              marginTop: 2,
+            },
+          }}
+        >
+          <Tabs.Screen
+            name="home"
+            options={{
+              title: "Home",
+              tabBarIcon: ({ color, focused }) => (
+                <IconWithAnimation
+                  name={focused ? "home" : "home-outline"}
+                  size={20}
+                  color={color}
+                  focused={focused}
+                />
+              ),
+            }}
+          />
 
-      <Tabs.Screen
-        name="manage"
-        options={{
-          title: "Manage",
-          tabBarIcon: ({ color, focused }) => (
-            <IconWithAnimation
-              name={focused ? "briefcase" : "briefcase-outline"}
-              size={28}
-              color={color}
-              focused={focused}
-            />
-          ),
-        }}
-      />
+          <Tabs.Screen
+            name="manage"
+            options={{
+              title: "Manage",
+              tabBarIcon: ({ color, focused }) => (
+                <IconWithAnimation
+                  name={focused ? "briefcase" : "briefcase-outline"}
+                  size={20}
+                  color={color}
+                  focused={focused}
+                />
+              ),
+            }}
+          />
 
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, focused }) => (
-            <IconWithAnimation
-              name={focused ? "person" : "person-outline"}
-              size={28}
-              color={color}
-              focused={focused}
-            />
-          ),
-        }}
-      />
-    </Tabs>
-    </View>
+          <Tabs.Screen
+            name="profile"
+            options={{
+              title: "Settings",
+              tabBarIcon: ({ color, focused }) => (
+                <IconWithAnimation
+                  name={focused ? "person" : "person-outline"}
+                  size={20}
+                  color={color}
+                  focused={focused}
+                />
+              ),
+            }}
+          />
+        </Tabs>
+      </View>
     </View>
   );
 }
