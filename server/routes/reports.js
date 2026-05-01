@@ -301,6 +301,10 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         }
         const labours = await db.all(labourQuery, labourParams);
 
+        if (labours.length === 0) {
+            return res.json([]);
+        }
+
         // 2. Pre-fetch Food Provided Status
         const allowMap = new Map();
         const allStatus = await db.all(`SELECT site_id, date, food_provided FROM daily_site_attendance_status`);
@@ -314,42 +318,68 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         const rateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'food_allowance_rate'`);
         const globalFoodRate = rateRow ? parseFloat(rateRow.value) : 70;
 
+        // --- OPTIMIZED BULK FETCH ---
+        const labourIds = labours.map(l => l.id);
+
+        // 4. Pre-fetch all required data mapped by labour_id
+        const allAttendance = await db.all(`
+            SELECT labour_id, date, site_id, status, food_allowance, allowance
+            FROM attendance
+            WHERE date <= ?
+        `, [endDate]);
+
+        const allOvertime = await db.all(`
+            SELECT labour_id, date, amount
+            FROM overtime
+            WHERE date <= ?
+        `, [endDate]);
+
+        const allAdvances = await db.all(`
+            SELECT labour_id, date, amount
+            FROM advances
+            WHERE date <= ?
+        `, [endDate]);
+
+        const allPayments = await db.all(`
+            SELECT labour_id, date, amount
+            FROM salary_payments
+            WHERE date <= ?
+        `, [endDate]);
+
+        const attByLabour = {};
+        const otByLabour = {};
+        const advByLabour = {};
+        const payByLabour = {};
+
+        labourIds.forEach(id => {
+            attByLabour[id] = [];
+            otByLabour[id] = [];
+            advByLabour[id] = [];
+            payByLabour[id] = [];
+        });
+
+        allAttendance.forEach(a => { if (attByLabour[a.labour_id]) attByLabour[a.labour_id].push(a); });
+        allOvertime.forEach(o => { if (otByLabour[o.labour_id]) otByLabour[o.labour_id].push(o); });
+        allAdvances.forEach(a => { if (advByLabour[a.labour_id]) advByLabour[a.labour_id].push(a); });
+        allPayments.forEach(p => { if (payByLabour[p.labour_id]) payByLabour[p.labour_id].push(p); });
+
         // Helper to calculate financials for a date range
-        // If rangeEnd is null, it means "Before rangeStart" (Previous Balance)
-        // If rangeEnd is set, it means "Between rangeStart and rangeEnd" (Current Month)
-        const calculateStats = async (labour, rangeStart, rangeEnd, isPrevious) => {
+        const calculateStats = (labour, isPrevious) => {
             let fullDays = 0;
             let halfDays = 0;
             let foodAllowanceCount = 0;
             let wage = 0;
 
-            // -- Attendance --
-            let attQuery = `SELECT date, site_id, status, food_allowance, allowance FROM attendance WHERE labour_id = ?`;
-            const attParams = [labour.id];
-
-            if (isPrevious) {
-                attQuery += ` AND date < ?`;
-                attParams.push(rangeStart);
-            } else {
-                attQuery += ` AND date >= ? AND date <= ?`;
-                attParams.push(rangeStart);
-                attParams.push(rangeEnd);
-            }
-
-            const attendanceRecs = await db.all(attQuery, attParams);
-
-            attendanceRecs.forEach(rec => {
+            const attRecs = attByLabour[labour.id].filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate));
+            
+            attRecs.forEach(rec => {
                 if (rec.status === 'full') fullDays++;
                 if (rec.status === 'half') halfDays++;
 
-                // Food Allowance Logic
-                // Per-labour explicit allowance takes priority; otherwise site-level fallback
                 if (rec.status === 'full' || rec.status === 'half') {
                     if (rec.food_allowance) {
-                        // Per-labour food allowance explicitly set
                         foodAllowanceCount += Number(rec.allowance) || 0;
                     } else if (!allowMap.has(`${rec.site_id}:${rec.date}`)) {
-                        // Site-level: food not provided, add global rate
                         foodAllowanceCount += globalFoodRate;
                     }
                 }
@@ -359,51 +389,17 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             wage = (fullDays * 8 * rate) + (halfDays * 4 * rate);
             const foodAmount = foodAllowanceCount;
 
-            // -- Overtime --
-            let otQuery = `SELECT SUM(amount) as total FROM overtime WHERE labour_id = ?`;
-            const otParams = [labour.id];
-            if (isPrevious) {
-                otQuery += ` AND date < ?`;
-                otParams.push(rangeStart);
-            } else {
-                otQuery += ` AND date >= ? AND date <= ?`;
-                otParams.push(rangeStart);
-                otParams.push(rangeEnd);
-            }
-            const otRes = await db.get(otQuery, otParams);
-            const otAmount = otRes && otRes.total ? otRes.total : 0;
+            const otAmount = otByLabour[labour.id]
+                .filter(o => isPrevious ? o.date < startDate : (o.date >= startDate && o.date <= endDate))
+                .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
-            // -- Advances --
-            let advQuery = `SELECT SUM(amount) as total FROM advances WHERE labour_id = ?`;
-            const advParams = [labour.id];
-            if (isPrevious) {
-                advQuery += ` AND date < ?`;
-                advParams.push(rangeStart);
-            } else {
-                advQuery += ` AND date >= ? AND date <= ?`;
-                advParams.push(rangeStart);
-                advParams.push(rangeEnd);
-            }
-            const advRes = await db.get(advQuery, advParams);
-            const advAmount = advRes && advRes.total ? advRes.total : 0;
+            const advAmount = advByLabour[labour.id]
+                .filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate))
+                .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
-            // -- Salary Payments (for calculating previous balance net correctly)
-            let paidQuery = `SELECT SUM(amount) as total FROM salary_payments WHERE labour_id = ?`;
-            const paidParams = [labour.id];
-            if (isPrevious) {
-                // If previous, we subtract ANY salary payment made before this month
-                paidQuery += ` AND date < ?`;
-                paidParams.push(rangeStart);
-            } else {
-                // If current, we don't naturally subtract payments from the "net payable" 
-                // because net payable defines the AMOUNT OWED for the work done this month.
-                // We'll track what was PAID this month separately.
-                paidQuery += ` AND date >= ? AND date <= ?`;
-                paidParams.push(rangeStart);
-                paidParams.push(rangeEnd);
-            }
-            const paidRes = await db.get(paidQuery, paidParams);
-            const paidAmount = paidRes && paidRes.total ? paidRes.total : 0;
+            const paidAmount = payByLabour[labour.id]
+                .filter(p => isPrevious ? p.date < startDate : (p.date >= startDate && p.date <= endDate))
+                .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
             return {
                 wage,
@@ -418,51 +414,31 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             };
         };
 
-        const reports = [];
-
-        for (const labour of labours) {
-            // 1. Previous Balance (Before startDate)
-            const prevStats = await calculateStats(labour, startDate, null, true);
+        const reports = labours.map(labour => {
+            const prevStats = calculateStats(labour, true);
+            const currStats = calculateStats(labour, false);
+            
             const previous_balance = prevStats.net;
 
-            // 2. Current Month Stats (startDate to endDate)
-            const currStats = await calculateStats(labour, startDate, endDate, false);
-
-            reports.push({
+            return {
                 id: labour.id,
                 name: labour.name,
                 rate: labour.rate,
                 site_id: labour.site_id,
-
-                // Previous Balance
                 previous_balance: previous_balance,
-
-                // Current Month Details
                 current_wage: currStats.wage,
                 current_overtime_amount: currStats.otAmount,
                 current_food_allowance_amount: currStats.foodAmount,
                 current_advance_amount: currStats.advAmount,
-
                 current_full_days: currStats.fullDays,
                 current_half_days: currStats.halfDays,
                 current_food_allowance_days: currStats.foodAllowanceCount,
-
-                // Net for this month (Earnings - Advances)
                 current_net_payable: currStats.net,
-
-                // What was physically paid in this date range
                 salary_paid: currStats.paidAmount,
-
-                // Total Payable
                 total_payable: previous_balance + currStats.net,
-
-                // Closing Balance (Total Payable - Paid)
                 closing_balance: (previous_balance + currStats.net) - currStats.paidAmount
-            });
-        }
-
-        // Optional: filter out those entirely inactive (net 0, no previous balance, no current days)
-        // Usually handled dynamically on frontend.
+            };
+        });
 
         res.json(reports);
 

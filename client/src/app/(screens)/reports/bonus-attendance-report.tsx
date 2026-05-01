@@ -123,14 +123,22 @@ export default function BonusAttendanceReportScreen() {
     };
 
     const generatePDF = async () => {
-        if (reportData.length === 0) {
-            Alert.alert("No Data", "No data to generate report");
-            return;
-        }
-
+        if (generatingPdf) return;
         setGeneratingPdf(true);
 
         try {
+            const res = await api.post(`/reports/bonus-attendance-range`, { startDate, endDate });
+            const pdfData = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(pdfData.error || "Failed to fetch data for PDF");
+            }
+
+            if (!Array.isArray(pdfData) || pdfData.length === 0) {
+                Alert.alert("No Data", "No data to generate report");
+                return;
+            }
+
             const escapeHtml = (unsafe: string) => {
                 return (unsafe || '').replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
@@ -151,7 +159,7 @@ export default function BonusAttendanceReportScreen() {
 
             let tableRows = '';
 
-            reportData.forEach(item => {
+            pdfData.forEach((item: any) => {
                 let rowHtml = `<tr><td class="text-left">${escapeHtml(item.name)}</td>`;
 
                 monthsList.forEach(m => {
@@ -236,7 +244,7 @@ export default function BonusAttendanceReportScreen() {
                 return;
             }
             console.error("Print Error:", error);
-            Alert.alert("Print Error", error.message || "Failed to initiate print/save dialog.");
+            Alert.alert("Error", error.message || "Failed to generate PDF. Please try again.");
         } finally {
             setGeneratingPdf(false);
         }
@@ -292,7 +300,7 @@ export default function BonusAttendanceReportScreen() {
                             <MaterialIcons name="print" size={24} color="#fff" />
                         )}
                         <Text style={local.btnText}>
-                            {generatingPdf ? "Preparing Print..." : "Print / Save PDF Report"}
+                            {generatingPdf ? "Generating..." : "Generate PDF"}
                         </Text>
                     </TouchableOpacity>
 

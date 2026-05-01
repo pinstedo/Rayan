@@ -79,15 +79,23 @@ export default function WageReportScreen() {
     };
 
     const generateSummaryPDF = async () => {
-        if (reportData.length === 0) {
-            Alert.alert("No Data", "No data to generate report");
-            return;
-        }
-
+        if (generatingPdf) return;
         setGeneratingPdf(true);
 
         try {
-            const totals = reportData.reduce((acc, curr) => ({
+            const res = await api.post(`/reports/wage-month`, { month: monthStr });
+            const pdfData = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(pdfData.error || "Failed to fetch data for PDF");
+            }
+
+            if (!Array.isArray(pdfData) || pdfData.length === 0) {
+                Alert.alert("No Data", "No data to generate report");
+                return;
+            }
+
+            const totals = pdfData.reduce((acc: any, curr: any) => ({
                 wage: acc.wage + (curr.current_wage || 0),
                 ot: acc.ot + (curr.current_overtime_amount || 0),
                 food: acc.food + (curr.current_food_allowance_amount || 0),
@@ -147,7 +155,7 @@ export default function WageReportScreen() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${reportData.map(item => `
+                            ${pdfData.map((item: any) => `
                                 <tr>
                                     <td class="text-left">${escapeHtml(item.name)}</td>
                                     <td>${(item.rate || 0) * 8}</td>
@@ -210,21 +218,29 @@ export default function WageReportScreen() {
                 return;
             }
             console.error("Print Error:", error);
-            Alert.alert("Print Error", error.message || "Failed to initiate print/save dialog.");
+            Alert.alert("Error", error.message || "Failed to generate PDF. Please try again.");
         } finally {
             setGeneratingPdf(false);
         }
     };
 
     const generateIndividualBillsPDF = async () => {
-        if (reportData.length === 0) {
-            Alert.alert("No Data", "No data to generate bills");
-            return;
-        }
-
+        if (generatingPdf) return;
         setGeneratingPdf(true);
 
         try {
+            const res = await api.post(`/reports/wage-month`, { month: monthStr });
+            const pdfData = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(pdfData.error || "Failed to fetch data for PDF");
+            }
+
+            if (!Array.isArray(pdfData) || pdfData.length === 0) {
+                Alert.alert("No Data", "No data to generate bills");
+                return;
+            }
+
             const escapeHtml = (unsafe: string) => {
                 return (unsafe || '').replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
@@ -267,7 +283,7 @@ export default function WageReportScreen() {
                     </style>
                 </head>
                 <body>
-                    ${reportData.map(item => {
+                    ${pdfData.map((item: any) => {
                 const dailyRate = (item.rate || 0) * 8;
                 const grossWage = item.current_wage || 0;
                 const otAmount = item.current_overtime_amount || 0;
@@ -401,7 +417,7 @@ export default function WageReportScreen() {
                 return;
             }
             console.error("Print Error:", error);
-            Alert.alert("Print Error", error.message || "Failed to initiate print/save dialog.");
+            Alert.alert("Error", error.message || "Failed to generate PDF. Please try again.");
         } finally {
             setGeneratingPdf(false);
         }
@@ -412,7 +428,7 @@ export default function WageReportScreen() {
     };
 
     const filteredAndSortedData = useMemo(() => {
-        let filtered = reportData;
+        let filtered = Array.isArray(reportData) ? reportData : [];
         if (searchText) {
             filtered = filtered.filter(item => 
                 (item.name || '').toLowerCase().includes(searchText.toLowerCase())
@@ -459,18 +475,18 @@ export default function WageReportScreen() {
                         <View style={local.row}>
                             <Text style={local.label}>Total Payable:</Text>
                             <Text style={local.value}>
-                                ₹{formatCurrency(reportData.reduce((sum, item) => sum + item.total_payable, 0))}
+                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.total_payable || 0), 0))}
                             </Text>
                         </View>
                         <View style={local.row}>
                             <Text style={local.label}>Current Month Net:</Text>
                             <Text style={local.vVal}>
-                                ₹{formatCurrency(reportData.reduce((sum, item) => sum + item.current_net_payable, 0))}
+                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.current_net_payable || 0), 0))}
                             </Text>
                         </View>
                         <View style={local.row}>
                             <Text style={local.label}>Total Labours:</Text>
-                            <Text style={local.vVal}>{reportData.length}</Text>
+                            <Text style={local.vVal}>{(Array.isArray(reportData) ? reportData : []).length}</Text>
                         </View>
                     </View>
 
@@ -485,7 +501,7 @@ export default function WageReportScreen() {
                             <MaterialIcons name="print" size={24} color="#fff" />
                         )}
                         <Text style={local.btnText}>
-                            {generatingPdf ? "Preparing Print Check..." : "Print / Save Summary Report"}
+                            {generatingPdf ? "Generating..." : "Generate Summary PDF"}
                         </Text>
                     </TouchableOpacity>
 
@@ -500,7 +516,7 @@ export default function WageReportScreen() {
                             <MaterialIcons name="print" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
                         )}
                         <Text style={[local.btnText, { color: isDark ? '#4da6ff' : '#0a84ff' }]}>
-                            {generatingPdf ? "Preparing Print..." : "Print / Save Individual Bills"}
+                            {generatingPdf ? "Generating..." : "Generate Individual Bills PDF"}
                         </Text>
                     </TouchableOpacity>
 

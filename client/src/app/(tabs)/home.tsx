@@ -219,7 +219,7 @@ export default function HomeScreen() {
 	);
 
 	const quickActions = [
-		{ label: "Labours", icon: "account-group-outline", route: "/(screens)/labours", color: colors.secondary, iconColor: colors.primary },
+		{ label: "Labours", icon: "account-group-outline", route: "/(screens)/labours?view=flat", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Supervisors", icon: "account-tie-outline", route: "/(screens)/supervisors", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Wage Report", icon: "file-chart-outline", route: "/(screens)/reports/wage-report", color: colors.secondary, iconColor: colors.primary },
 		{ label: "Bonus & Increment", icon: "calendar-star", route: "/(screens)/reports/bonus-attendance-report", color: colors.secondary, iconColor: colors.success },

@@ -153,15 +153,21 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
                     {(isUnassigned || labour.status === 'leave') && showMoveAction && (
                         <TouchableOpacity
                             style={styles.actionBtn}
-                            onPress={() => onRevoke && onRevoke(labour)}
+                            onPress={() => {
+                                if (labour.status === 'leave') {
+                                    onRevoke && onRevoke(labour);
+                                } else {
+                                    onMove && onMove(labour);
+                                }
+                            }}
                         >
                             <MaterialIcons
-                                name={labour.status === 'leave' ? 'event-available' : 'check-circle'}
+                                name={labour.status === 'leave' ? 'event-available' : 'location-city'}
                                 size={16}
                                 color="#2e7d32"
                             />
                             <Text style={[styles.actionBtnText, { color: '#2e7d32' }]}>
-                                {labour.status === 'leave' ? 'End Leave' : 'Make Active'}
+                                {labour.status === 'leave' ? 'End Leave' : 'Assign Site'}
                             </Text>
                         </TouchableOpacity>
                     )}

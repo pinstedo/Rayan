@@ -18,6 +18,7 @@ import {
     View
 } from "react-native";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
+import { Calendar } from "../../components/Calendar";
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
 import { api } from "../../services/api";
@@ -63,6 +64,16 @@ export default function Advance() {
     const [notes, setNotes] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [date, setDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
+
+    const formatDate = (d: Date) => {
+        return d.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        });
+    };
 
     useFocusEffect(
         useCallback(() => {
@@ -113,6 +124,7 @@ export default function Advance() {
         setSelectedLabour(labour);
         setAmount("");
         setNotes("");
+        setDate(new Date());
         setShowAdvanceModal(true);
     };
 
@@ -131,7 +143,7 @@ export default function Advance() {
             setSubmitting(true);
             const response = await api.post(`/labours/${selectedLabour.id}/advance`, {
                 amount: Number(amount),
-                date: new Date().toISOString(), // Use current date/time
+                date: date.toISOString(), // Use selected date
                 notes: notes,
                 created_by: currentUserId
             });
@@ -223,6 +235,28 @@ export default function Advance() {
 
                             <ScrollView>
                                 <View style={local.inputGroup}>
+                                    <Text style={local.label}>Date</Text>
+                                    <TouchableOpacity style={[local.input, { justifyContent: 'center' }]} onPress={() => setShowDatePicker(!showDatePicker)}>
+                                        <Text style={{ color: isDark ? "#fff" : "#333", fontSize: 16 }}>
+                                            {formatDate(date)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {showDatePicker && (
+                                        <View style={{ marginTop: 10 }}>
+                                            <Calendar 
+                                                selectedDate={date}
+                                                onDateSelect={(d) => {
+                                                    setDate(d);
+                                                    setShowDatePicker(false);
+                                                }}
+                                                markedDates={[]}
+                                                onMonthChange={() => {}}
+                                            />
+                                        </View>
+                                    )}
+                                </View>
+
+                                <View style={local.inputGroup}>
                                     <Text style={local.label}>Amount (₹)</Text>
                                     <TextInput
                                         style={local.input}
@@ -313,16 +347,19 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         flex: 1,
         backgroundColor: "rgba(0,0,0,0.5)",
         justifyContent: "center",
+        alignItems: "center",
         padding: 20,
     },
     keyboardView: {
         width: '100%',
+        maxWidth: 500,
     },
     modalContent: {
         backgroundColor: isDark ? "#1e1e1e" : "#fff",
         borderRadius: 12,
         padding: 20,
         elevation: 5,
+        maxHeight: '90%',
     },
     modalHeader: {
         flexDirection: "row",

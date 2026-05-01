@@ -108,7 +108,7 @@ export default function SupervisorHome(): JSX.Element {
 
         if (key === "labours") {
             // Navigate to shared labours screen, it will handle fetching based on role/id
-            router.push("/(screens)/labours");
+            router.push("/(screens)/labours?view=flat");
             return;
         }
         if (key === "advance") {

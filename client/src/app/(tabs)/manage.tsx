@@ -21,7 +21,7 @@ export default function Manage(): JSX.Element {
 
   const onPress = (key: string) => {
     if (key === "labours") {
-      router.push("/(screens)/labours");
+      router.push("/(screens)/labours?view=flat");
       return;
     }
     if (key === "attendance") {
