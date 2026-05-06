@@ -140,7 +140,7 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
                         </>
                     )}
 
-                    {isActionable && onAdvance && (
+                    {onAdvance && (
                         <TouchableOpacity
                             style={styles.actionBtn}
                             onPress={() => onAdvance(labour)}

@@ -39,7 +39,18 @@ const sortOptions: SortOption[] = [
     { label: "Site", field: "site", type: "string" }
 ];
 
-const filterOptions: FilterOption[] = [];
+const filterOptions: FilterOption[] = [
+    {
+        label: "Status",
+        field: "status",
+        type: "select",
+        options: [
+            { label: "Active", value: "active" },
+            { label: "On Leave", value: "leave" },
+            { label: "Unassigned", value: "unassigned" }
+        ]
+    }
+];
 
 export default function Advance() {
     const router = useRouter();
@@ -102,8 +113,8 @@ export default function Advance() {
             if (isRefresh) {
                 setRefreshing(true);
             }
-            let queryString = '?status=active';
-            if (supId) queryString += `&supervisor_id=${supId}`;
+            let queryString = '';
+            if (supId) queryString = `?supervisor_id=${supId}`;
             const response = await api.get(`/labours${queryString}`);
             const data = await response.json();
             if (response.ok) {

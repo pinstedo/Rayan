@@ -1,8 +1,8 @@
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { CustomModal } from "../../components/CustomModal";
 import {
     ActivityIndicator,
     Alert,
@@ -15,6 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { CustomModal } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 
@@ -92,12 +93,23 @@ export default function LabourDetailsScreen() {
     const [isWorkDetailsExpanded, setIsWorkDetailsExpanded] = useState(false);
     const [labour, setLabour] = useState<Labour | null>(null);
     const [formData, setFormData] = useState<Partial<Labour>>({});
+    const [userRole, setUserRole] = useState<string>("");
 
     // Section data
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+    const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    });
+    const [isAttendanceDetailsExpanded, setIsAttendanceDetailsExpanded] = useState(false);
     const [overtime, setOvertime] = useState<OvertimeRecord[]>([]);
+    const [isOvertimeDetailsExpanded, setIsOvertimeDetailsExpanded] = useState(false);
     const [advances, setAdvances] = useState<AdvanceRecord[]>([]);
+    const [isAdvancesDetailsExpanded, setIsAdvancesDetailsExpanded] = useState(false);
     const [financialHistory, setFinancialHistory] = useState<FinancialHistoryRecord[]>([]);
+    const [isFinancialDetailsExpanded, setIsFinancialDetailsExpanded] = useState(false);
 
     // Section loading states
     const [loadingAttendance, setLoadingAttendance] = useState(false);
@@ -126,6 +138,18 @@ export default function LabourDetailsScreen() {
 
     useEffect(() => {
         if (!id) return;
+        const fetchUserRole = async () => {
+            try {
+                const userDataStr = await AsyncStorage.getItem("userData");
+                if (userDataStr) {
+                    const userData = JSON.parse(userDataStr);
+                    setUserRole(userData.role);
+                }
+            } catch (error) {
+                console.error("Error loading user role:", error);
+            }
+        };
+        fetchUserRole();
         fetchLabourDetails();
         fetchAttendance();
         fetchOvertime();
@@ -335,22 +359,44 @@ export default function LabourDetailsScreen() {
         }
     };
 
-    const getAttendanceStats = () => {
-        const total = attendance.length;
-        const full = attendance.filter(r => r.status === 'full').length;
-        const half = attendance.filter(r => r.status === 'half').length;
-        const absent = attendance.filter(r => r.status === 'absent').length;
+    const getAttendanceStats = (data: AttendanceRecord[]) => {
+        const total = data.length;
+        const full = data.filter(r => r.status === 'full').length;
+        const half = data.filter(r => r.status === 'half').length;
+        const absent = data.filter(r => r.status === 'absent').length;
         return { total, full, half, absent };
     };
 
-    const getOvertimeStats = () => {
-        const totalHours = overtime.reduce((sum, r) => sum + (r.hours || 0), 0);
-        const totalAmount = overtime.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const handlePrevMonth = () => {
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const prev = new Date(year, month - 2, 1);
+        const y = prev.getFullYear();
+        const m = String(prev.getMonth() + 1).padStart(2, '0');
+        setSelectedMonth(`${y}-${m}`);
+    };
+    
+    const handleNextMonth = () => {
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const next = new Date(year, month, 1);
+        const y = next.getFullYear();
+        const m = String(next.getMonth() + 1).padStart(2, '0');
+        setSelectedMonth(`${y}-${m}`);
+    };
+
+    const formatMonthYear = (yyyyMm: string) => {
+        const [year, month] = yyyyMm.split('-').map(Number);
+        const d = new Date(year, month - 1, 1);
+        return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    };
+
+    const getOvertimeStats = (data: OvertimeRecord[]) => {
+        const totalHours = data.reduce((sum, r) => sum + (r.hours || 0), 0);
+        const totalAmount = data.reduce((sum, r) => sum + (r.amount || 0), 0);
         return { totalHours, totalAmount };
     };
 
-    const getAdvancesStats = () => {
-        const total = advances.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const getAdvancesStats = (data: AdvanceRecord[]) => {
+        const total = data.reduce((sum, r) => sum + (r.amount || 0), 0);
         return { total };
     };
 
@@ -463,9 +509,16 @@ export default function LabourDetailsScreen() {
 
     // ─── Derived data ──────────────────────────────────────────────────────────
 
-    const attStats = getAttendanceStats();
-    const otStats = getOvertimeStats();
-    const advStats = getAdvancesStats();
+    const filteredAttendance = attendance.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const attStats = getAttendanceStats(filteredAttendance);
+    
+    const filteredOvertime = overtime.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const otStats = getOvertimeStats(filteredOvertime);
+
+    const filteredAdvances = advances.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const advStats = getAdvancesStats(filteredAdvances);
+
+    const filteredFinancial = financialHistory.filter(r => r.created_at && r.created_at.startsWith(selectedMonth));
     const sitesWorked = getSitesWorked();
 
     // ─── Render ────────────────────────────────────────────────────────────────
@@ -651,18 +704,29 @@ export default function LabourDetailsScreen() {
                     )}
                 </View>
 
+                {/* ── Month Selector (Common for below sections) ── */}
+                <View style={[local.monthSelector, { marginHorizontal: 16 }]}>
+                    <TouchableOpacity onPress={handlePrevMonth} style={local.monthBtn}>
+                        <Ionicons name="chevron-back" size={20} color={isDark ? '#fff' : '#333'} />
+                    </TouchableOpacity>
+                    <Text style={local.monthText}>{formatMonthYear(selectedMonth)}</Text>
+                    <TouchableOpacity onPress={handleNextMonth} style={local.monthBtn}>
+                        <Ionicons name="chevron-forward" size={20} color={isDark ? '#fff' : '#333'} />
+                    </TouchableOpacity>
+                </View>
+
                 {/* ══════════════════════════════════════ */}
                 {/* ── ATTENDANCE SECTION ── */}
                 {/* ══════════════════════════════════════ */}
                 <SectionCard>
-                    <SectionHeader title="Attendance" icon="calendar-check" count={attStats.total} />
+                    <SectionHeader title="Attendance" icon="calendar-check" count={filteredAttendance.length} />
 
                     {loadingAttendance ? (
                         <SectionLoading />
                     ) : errorAttendance ? (
                         <SectionError message={errorAttendance} onRetry={fetchAttendance} />
-                    ) : attendance.length === 0 ? (
-                        <SectionEmpty message="No attendance records found" />
+                    ) : filteredAttendance.length === 0 ? (
+                        <SectionEmpty message="No attendance records found for this month" />
                     ) : (
                         <>
                             {/* Stats row */}
@@ -675,25 +739,38 @@ export default function LabourDetailsScreen() {
 
                             <View style={local.divider} />
 
-                            {/* Attendance records (most recent 20) */}
-                            {attendance.slice(0, 20).map((rec) => {
-                                const sc = getStatusColor(rec.status);
-                                return (
-                                    <View key={rec.id} style={local.recordRow}>
-                                        <View style={local.recordLeft}>
-                                            <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
-                                            <Text style={local.recordSub} numberOfLines={1}>{rec.site_name || '—'}</Text>
-                                        </View>
-                                        <View style={[local.statusChip, { backgroundColor: sc.bg }]}>
-                                            <Text style={[local.statusChipText, { color: sc.text }]}>
-                                                {rec.status.charAt(0).toUpperCase() + rec.status.slice(1)}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                );
-                            })}
-                            {attendance.length > 20 && (
-                                <Text style={local.moreText}>+ {attendance.length - 20} more records</Text>
+                            <TouchableOpacity 
+                                style={local.sectionHeaderRowAccordion}
+                                onPress={() => setIsAttendanceDetailsExpanded(!isAttendanceDetailsExpanded)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[local.sectionCategory, { marginBottom: 0 }]}>Daily Details</Text>
+                                <Ionicons
+                                    name={isAttendanceDetailsExpanded ? "chevron-up" : "chevron-down"}
+                                    size={20}
+                                    color={isDark ? "#aaa" : "#666"}
+                                />
+                            </TouchableOpacity>
+
+                            {isAttendanceDetailsExpanded && (
+                                <View style={local.accordionBody}>
+                                    {filteredAttendance.map((rec) => {
+                                        const sc = getStatusColor(rec.status);
+                                        return (
+                                            <View key={rec.id} style={local.recordRow}>
+                                                <View style={local.recordLeft}>
+                                                    <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
+                                                    <Text style={local.recordSub} numberOfLines={1}>{rec.site_name || '—'}</Text>
+                                                </View>
+                                                <View style={[local.statusChip, { backgroundColor: sc.bg }]}>
+                                                    <Text style={[local.statusChipText, { color: sc.text }]}>
+                                                        {rec.status.charAt(0).toUpperCase() + rec.status.slice(1)}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
                             )}
                         </>
                     )}
@@ -703,39 +780,57 @@ export default function LabourDetailsScreen() {
                 {/* ── OVERTIME SECTION ── */}
                 {/* ══════════════════════════════════════ */}
                 <SectionCard>
-                    <SectionHeader title="Overtime" icon="clock-time-four-outline" count={overtime.length} />
+                    <SectionHeader title="Overtime" icon="clock-time-four-outline" count={filteredOvertime.length} />
 
                     {loadingOvertime ? (
                         <SectionLoading />
                     ) : errorOvertime ? (
                         <SectionError message={errorOvertime} onRetry={fetchOvertime} />
-                    ) : overtime.length === 0 ? (
-                        <SectionEmpty message="No overtime records found" />
+                    ) : filteredOvertime.length === 0 ? (
+                        <SectionEmpty message="No overtime records found for this month" />
                     ) : (
                         <>
                             {/* Stats row */}
                             <View style={local.statsRow}>
                                 <StatBox label="Total Hours" value={`${otStats.totalHours.toFixed(1)}h`} color={isDark ? '#64b5f6' : '#0a84ff'} />
-                                <StatBox label="Total Amount" value={`₹${otStats.totalAmount.toFixed(0)}`} color={isDark ? '#81c784' : '#2e7d32'} />
-                                <StatBox label="Sessions" value={overtime.length} />
+                                {userRole !== 'supervisor' && (
+                                    <StatBox label="Total Amount" value={`₹${otStats.totalAmount.toFixed(0)}`} color={isDark ? '#81c784' : '#2e7d32'} />
+                                )}
+                                <StatBox label="Sessions" value={filteredOvertime.length} />
                             </View>
 
                             <View style={local.divider} />
 
-                            {overtime.slice(0, 20).map((rec) => (
-                                <View key={rec.id} style={local.recordRow}>
-                                    <View style={local.recordLeft}>
-                                        <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
-                                        <Text style={local.recordSub} numberOfLines={1}>{rec.site_name || '—'}</Text>
-                                    </View>
-                                    <View style={local.recordRight}>
-                                        <Text style={local.recordPrimary}>{rec.hours}h</Text>
-                                        <Text style={local.recordSecondary}>₹{rec.amount}</Text>
-                                    </View>
+                            <TouchableOpacity 
+                                style={local.sectionHeaderRowAccordion}
+                                onPress={() => setIsOvertimeDetailsExpanded(!isOvertimeDetailsExpanded)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[local.sectionCategory, { marginBottom: 0 }]}>Daily Details</Text>
+                                <Ionicons
+                                    name={isOvertimeDetailsExpanded ? "chevron-up" : "chevron-down"}
+                                    size={20}
+                                    color={isDark ? "#aaa" : "#666"}
+                                />
+                            </TouchableOpacity>
+
+                            {isOvertimeDetailsExpanded && (
+                                <View style={local.accordionBody}>
+                                    {filteredOvertime.map((rec) => (
+                                        <View key={rec.id} style={local.recordRow}>
+                                            <View style={local.recordLeft}>
+                                                <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
+                                                <Text style={local.recordSub} numberOfLines={1}>{rec.site_name || '—'}</Text>
+                                            </View>
+                                            <View style={local.recordRight}>
+                                                <Text style={local.recordPrimary}>{rec.hours}h</Text>
+                                                {userRole !== 'supervisor' && (
+                                                    <Text style={local.recordSecondary}>₹{rec.amount}</Text>
+                                                )}
+                                            </View>
+                                        </View>
+                                    ))}
                                 </View>
-                            ))}
-                            {overtime.length > 20 && (
-                                <Text style={local.moreText}>+ {overtime.length - 20} more records</Text>
                             )}
                         </>
                     )}
@@ -772,39 +867,57 @@ export default function LabourDetailsScreen() {
                 {/* ── ADVANCES SECTION ── */}
                 {/* ══════════════════════════════════════ */}
                 <SectionCard>
-                    <SectionHeader title="Advances" icon="cash-multiple" count={advances.length} />
+                    <SectionHeader title="Advances" icon="cash-multiple" count={filteredAdvances.length} />
 
                     {loadingAdvances ? (
                         <SectionLoading />
                     ) : errorAdvances ? (
                         <SectionError message={errorAdvances} onRetry={fetchAdvances} />
-                    ) : advances.length === 0 ? (
-                        <SectionEmpty message="No advance records found" />
+                    ) : filteredAdvances.length === 0 ? (
+                        <SectionEmpty message="No advance records found for this month" />
                     ) : (
                         <>
                             {/* Total */}
                             <View style={local.statsRow}>
-                                <StatBox label="Total Advanced" value={`₹${advStats.total.toFixed(0)}`} color={isDark ? '#ef9a9a' : '#c62828'} />
-                                <StatBox label="No. of Advances" value={advances.length} />
+                                {userRole !== 'supervisor' && (
+                                    <StatBox label="Total Advanced" value={`₹${advStats.total.toFixed(0)}`} color={isDark ? '#ef9a9a' : '#c62828'} />
+                                )}
+                                <StatBox label="No. of Advances" value={filteredAdvances.length} />
                             </View>
 
                             <View style={local.divider} />
 
-                            {advances.slice(0, 20).map((rec) => (
-                                <View key={rec.id} style={local.recordRow}>
-                                    <View style={local.recordLeft}>
-                                        <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
-                                        {rec.notes ? (
-                                            <Text style={local.recordSub} numberOfLines={1}>{rec.notes}</Text>
-                                        ) : null}
-                                    </View>
-                                    <Text style={[local.recordPrimary, { color: isDark ? '#ef9a9a' : '#c62828' }]}>
-                                        ₹{rec.amount}
-                                    </Text>
+                            <TouchableOpacity 
+                                style={local.sectionHeaderRowAccordion}
+                                onPress={() => setIsAdvancesDetailsExpanded(!isAdvancesDetailsExpanded)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[local.sectionCategory, { marginBottom: 0 }]}>Daily Details</Text>
+                                <Ionicons
+                                    name={isAdvancesDetailsExpanded ? "chevron-up" : "chevron-down"}
+                                    size={20}
+                                    color={isDark ? "#aaa" : "#666"}
+                                />
+                            </TouchableOpacity>
+
+                            {isAdvancesDetailsExpanded && (
+                                <View style={local.accordionBody}>
+                                    {filteredAdvances.map((rec) => (
+                                        <View key={rec.id} style={local.recordRow}>
+                                            <View style={local.recordLeft}>
+                                                <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
+                                                {rec.notes ? (
+                                                    <Text style={local.recordSub} numberOfLines={1}>{rec.notes}</Text>
+                                                ) : null}
+                                            </View>
+                                            {userRole !== 'supervisor' && (
+                                                <Text style={[local.recordPrimary, { color: isDark ? '#ef9a9a' : '#c62828' }]}>
+                                                    ₹{rec.amount}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    ))}
                                 </View>
-                            ))}
-                            {advances.length > 20 && (
-                                <Text style={local.moreText}>+ {advances.length - 20} more records</Text>
                             )}
                         </>
                     )}
@@ -814,45 +927,61 @@ export default function LabourDetailsScreen() {
                 {/* ── FINANCIAL HISTORY SECTION ── */}
                 {/* ══════════════════════════════════════ */}
                 <SectionCard>
-                    <SectionHeader title="Financial History" icon="history" count={financialHistory.length} />
+                    <SectionHeader title="Financial History" icon="history" count={filteredFinancial.length} />
 
                     {loadingFinancial ? (
                         <SectionLoading />
                     ) : errorFinancial ? (
                         <SectionError message={errorFinancial} onRetry={fetchFinancialHistory} />
-                    ) : financialHistory.length === 0 ? (
-                        <SectionEmpty message="No bonus or increment records yet" />
+                    ) : filteredFinancial.length === 0 ? (
+                        <SectionEmpty message="No bonus or increment records for this month" />
                     ) : (
                         <>
-                            {financialHistory.slice(0, 30).map((rec) => {
-                                const isBonus = rec.type === 'bonus';
-                                return (
-                                    <View key={rec.id} style={local.recordRow}>
-                                        <View style={[
-                                            local.historyTypePill,
-                                            { backgroundColor: isBonus ? (isDark ? '#3d2c00' : '#fff3e0') : (isDark ? '#1b3a1b' : '#e8f5e9') }
-                                        ]}>
-                                            <MaterialCommunityIcons
-                                                name={isBonus ? 'gift' : 'trending-up'}
-                                                size={14}
-                                                color={isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32')}
-                                            />
-                                            <Text style={[local.historyTypeText, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
-                                                {isBonus ? 'Bonus' : 'Increment'}
-                                            </Text>
-                                        </View>
-                                        <View style={local.recordLeft}>
-                                            <Text style={local.recordDate}>{formatDate(rec.created_at)}</Text>
-                                            <Text style={local.recordSub}>{rec.worked_days_at_time} worked days</Text>
-                                        </View>
-                                        <Text style={[local.recordPrimary, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
-                                            ₹{Number(rec.amount).toFixed(2)}
-                                        </Text>
-                                    </View>
-                                );
-                            })}
-                            {financialHistory.length > 30 && (
-                                <Text style={local.moreText}>+ {financialHistory.length - 30} more records</Text>
+                            <TouchableOpacity 
+                                style={local.sectionHeaderRowAccordion}
+                                onPress={() => setIsFinancialDetailsExpanded(!isFinancialDetailsExpanded)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[local.sectionCategory, { marginBottom: 0 }]}>History Details</Text>
+                                <Ionicons
+                                    name={isFinancialDetailsExpanded ? "chevron-up" : "chevron-down"}
+                                    size={20}
+                                    color={isDark ? "#aaa" : "#666"}
+                                />
+                            </TouchableOpacity>
+
+                            {isFinancialDetailsExpanded && (
+                                <View style={local.accordionBody}>
+                                    {filteredFinancial.map((rec) => {
+                                        const isBonus = rec.type === 'bonus';
+                                        return (
+                                            <View key={rec.id} style={local.recordRow}>
+                                                <View style={[
+                                                    local.historyTypePill,
+                                                    { backgroundColor: isBonus ? (isDark ? '#3d2c00' : '#fff3e0') : (isDark ? '#1b3a1b' : '#e8f5e9') }
+                                                ]}>
+                                                    <MaterialCommunityIcons
+                                                        name={isBonus ? 'gift' : 'trending-up'}
+                                                        size={14}
+                                                        color={isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32')}
+                                                    />
+                                                    <Text style={[local.historyTypeText, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
+                                                        {isBonus ? 'Bonus' : 'Increment'}
+                                                    </Text>
+                                                </View>
+                                                <View style={local.recordLeft}>
+                                                    <Text style={local.recordDate}>{formatDate(rec.created_at)}</Text>
+                                                    <Text style={local.recordSub}>{rec.worked_days_at_time} worked days</Text>
+                                                </View>
+                                                {userRole !== 'supervisor' && (
+                                                    <Text style={[local.recordPrimary, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
+                                                        ₹{Number(rec.amount).toFixed(2)}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
                             )}
                         </>
                     )}
@@ -1470,6 +1599,26 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
         color: isDark ? '#81c784' : '#2e7d32',
+    },
+    monthSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+        backgroundColor: isDark ? '#2a2a2a' : '#f0f4ff',
+        borderRadius: 12,
+        paddingVertical: 8,
+    },
+    monthBtn: {
+        paddingHorizontal: 16,
+        paddingVertical: 4,
+    },
+    monthText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: isDark ? '#e0e0e0' : '#1e1e2e',
+        minWidth: 120,
+        textAlign: 'center',
     },
 });
 
