@@ -306,9 +306,9 @@ export default function Labours() {
 	return (
 		<ScrollView style={local.container}>
 			<View style={local.headerRow}>
-				<Pressable onPress={() => router.back()} style={local.backBtn}>
-					<Text style={local.backText}>← Back</Text>
-				</Pressable>
+				<TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
+					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
+				</TouchableOpacity>
 				<Text style={local.header}>
 					{siteNameFilter ? `${siteNameFilter}` : (supervisorId ? "My Labours" : "Manage Labours")}
 				</Text>

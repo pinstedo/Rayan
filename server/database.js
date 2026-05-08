@@ -55,7 +55,7 @@ class DatabaseWrapper {
         // prepare.run in sqlite can take spread arguments
         return self.client.query(converted, _normalizeParams(args));
       },
-      finalize: async () => {}
+      finalize: async () => { }
     };
   }
 }
@@ -316,7 +316,7 @@ async function initDb() {
       await db.exec(sql);
     } catch (e) {
       if (e.code !== '42P07') { // 42P07 = duplicate_table (often thrown for existing indexes)
-         // console.error(e);
+        // console.error(e);
       }
     }
   };
@@ -327,7 +327,7 @@ async function initDb() {
   await createIndexSafe('idx_users_name', 'CREATE INDEX idx_users_name ON users(name);');
   await createIndexSafe('idx_users_phone', 'CREATE INDEX idx_users_phone ON users(phone);');
   await createIndexSafe('idx_sites_name', 'CREATE INDEX idx_sites_name ON sites(name);');
-  
+
   await createIndexSafe('idx_history_logs_type', 'CREATE INDEX idx_history_logs_type ON history_logs(type);');
   await createIndexSafe('idx_history_logs_action', 'CREATE INDEX idx_history_logs_action ON history_logs(action);');
   await createIndexSafe('idx_history_logs_created_at', 'CREATE INDEX idx_history_logs_created_at ON history_logs(created_at);');

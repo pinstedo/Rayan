@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { CustomModal, ModalType } from "../../components/CustomModal";
 
 interface DeletedSupervisor {
     id: number;
@@ -30,6 +31,29 @@ export default function SupervisorBinScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalConfig, setModalConfig] = useState<{
+        title: string;
+        message: string;
+        type: ModalType;
+        actions: { text: string; onPress: () => void; style?: "cancel" | "destructive" | "default" }[];
+    }>({
+        title: "",
+        message: "",
+        type: "default",
+        actions: [],
+    });
+
+    const showModal = (
+        title: string,
+        message: string,
+        type: ModalType,
+        actions: { text: string; onPress: () => void; style?: "cancel" | "destructive" | "default" }[]
+    ) => {
+        setModalConfig({ title, message, type, actions });
+        setModalVisible(true);
+    };
+
     const fetchDeletedSupervisors = async (isRefresh = false) => {
         try {
             if (isRefresh) {
@@ -43,11 +67,15 @@ export default function SupervisorBinScreen() {
             if (response.ok) {
                 setSupervisors(data);
             } else {
-                Alert.alert("Error", data.error || "Failed to fetch deleted supervisors");
+                showModal("Error", data.error || "Failed to fetch deleted supervisors", "error", [
+                    { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                ]);
             }
         } catch (error) {
             console.error("Fetch deleted supervisors error:", error);
-            Alert.alert("Error", "Unable to connect to server");
+            showModal("Error", "Unable to connect to server", "error", [
+                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+            ]);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -55,26 +83,32 @@ export default function SupervisorBinScreen() {
     };
 
     const handleRestore = async (id: number) => {
-        Alert.alert(
+        showModal(
             "Restore Supervisor",
             "Are you sure you want to restore this supervisor to the active list?",
+            "confirmation",
             [
-                { text: "Cancel", style: "cancel" },
+                { text: "Cancel", style: "cancel", onPress: () => setModalVisible(false) },
                 {
                     text: "Restore",
                     style: "default",
                     onPress: async () => {
+                        setModalVisible(false);
                         try {
                             const response = await api.put(`/auth/supervisors/${id}/restore`, {});
                             const data = await response.json();
                             if (response.ok) {
                                 fetchDeletedSupervisors(false);
                             } else {
-                                Alert.alert("Error", data.error || "Failed to restore supervisor");
+                                showModal("Error", data.error || "Failed to restore supervisor", "error", [
+                                    { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                                ]);
                             }
                         } catch (error) {
                             console.error("Restore error:", error);
-                            Alert.alert("Error", "Unable to connect to server");
+                            showModal("Error", "Unable to connect to server", "error", [
+                                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                            ]);
                         }
                     }
                 }
@@ -83,26 +117,32 @@ export default function SupervisorBinScreen() {
     };
 
     const handlePermanentDelete = async (id: number) => {
-        Alert.alert(
+        showModal(
             "Permanently Delete",
             "Are you sure you want to PERMANENTLY delete this supervisor? This action cannot be undone.",
+            "warning",
             [
-                { text: "Cancel", style: "cancel" },
+                { text: "Cancel", style: "cancel", onPress: () => setModalVisible(false) },
                 {
                     text: "Delete",
                     style: "destructive",
                     onPress: async () => {
+                        setModalVisible(false);
                         try {
                             const response = await api.delete(`/auth/supervisors/${id}/permanent`);
                             const data = await response.json();
                             if (response.ok) {
                                 fetchDeletedSupervisors(false);
                             } else {
-                                Alert.alert("Error", data.error || "Failed to delete supervisor");
+                                showModal("Error", data.error || "Failed to delete supervisor", "error", [
+                                    { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                                ]);
                             }
                         } catch (error) {
                             console.error("Permanent delete error:", error);
-                            Alert.alert("Error", "Unable to connect to server");
+                            showModal("Error", "Unable to connect to server", "error", [
+                                { text: "OK", onPress: () => setModalVisible(false), style: "default" }
+                            ]);
                         }
                     }
                 }
@@ -179,6 +219,15 @@ export default function SupervisorBinScreen() {
                     }
                 />
             )}
+
+            <CustomModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                actions={modalConfig.actions}
+            />
         </View>
     );
 }

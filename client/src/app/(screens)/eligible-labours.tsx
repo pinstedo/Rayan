@@ -66,7 +66,7 @@ export default function EligibleLaboursScreen() {
 
     const renderItem = ({ item }: { item: EligibleLabour }) => {
         const pct = item.progress_percent;
-        const isFullyEligible = Number(item.worked_days_count) >= 275;
+        const isFullyEligible = Number(item.worked_days_count) >= 285;
 
         return (
             <TouchableOpacity
@@ -149,7 +149,7 @@ export default function EligibleLaboursScreen() {
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                     <Text style={local.title}>Eligible Labours</Text>
-                    <Text style={local.subtitle}>Worked days ≥ 275 • Bonus due: worked_days / 22</Text>
+                    <Text style={local.subtitle}>Worked days ≥ 285 • Bonus due: worked_days / 22</Text>
                 </View>
                 {!loading && (
                     <View style={local.countBadge}>
@@ -174,7 +174,7 @@ export default function EligibleLaboursScreen() {
             ) : labours.length === 0 ? (
                 <View style={local.center}>
                     <MaterialCommunityIcons name="calendar-check-outline" size={56} color={isDark ? '#333' : '#ddd'} />
-                    <Text style={local.centerText}>No labours have reached 275 worked days yet.</Text>
+                    <Text style={local.centerText}>No labours have reached 285 worked days yet.</Text>
                     <Text style={[local.centerText, { fontSize: 13, marginTop: 4 }]}>
                         Worked days accumulate automatically as attendance is marked.
                     </Text>

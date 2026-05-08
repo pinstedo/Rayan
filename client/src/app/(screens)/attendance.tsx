@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
@@ -617,10 +617,9 @@ export default function AttendanceScreen() {
 	return (
 		<ScrollView style={local.container}>
 			<View style={local.headerRow}>
-				<Pressable onPress={() => router.back()} style={local.backBtnText}>
-					<MaterialIcons name="arrow-back" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
-					<Text style={local.backText}>Back</Text>
-				</Pressable>
+				<TouchableOpacity onPress={() => router.back()} style={local.backButton}>
+					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
+				</TouchableOpacity>
 				<Text style={local.headerTitle}>{isGlobalView ? "All Attendance" : "Mark Attendance"}</Text>
 				<View style={{ width: 24 }} />
 			</View>
@@ -700,6 +699,12 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		borderBottomWidth: 1,
 		borderBottomColor: isDark ? '#333' : '#eee',
 		marginTop: 20
+	},
+	backButton: { padding: 8 },
+	title: {
+		fontSize: 18,
+		fontWeight: "600",
+		color: isDark ? "#fff" : "#333",
 	},
 	backBtnText: {
 		flexDirection: 'row',

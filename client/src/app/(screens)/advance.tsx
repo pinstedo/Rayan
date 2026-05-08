@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -17,8 +16,8 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { Calendar } from "../../components/Calendar";
+import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
 import { api } from "../../services/api";
@@ -31,7 +30,10 @@ interface Labour {
     rate?: number;
     site: string;
     site_id?: number;
-    status?: 'active' | 'unassigned';
+    status?: 'active' | 'unassigned' | 'leave' | 'pending';
+    profile_image?: string;
+    date_of_birth?: string;
+    emergency_phone?: string;
 }
 
 const sortOptions: SortOption[] = [
@@ -178,9 +180,9 @@ export default function Advance() {
     return (
         <ScrollView style={local.container}>
             <View style={local.headerRow}>
-                <Pressable onPress={() => router.back()} style={local.backBtn}>
-                    <Text style={local.backText}>← Back</Text>
-                </Pressable>
+                <TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
+                    <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
+                </TouchableOpacity>
                 <Text style={local.header}>Manage Advances</Text>
                 <View style={{ width: 50 }} />
             </View>
@@ -254,14 +256,14 @@ export default function Advance() {
                                     </TouchableOpacity>
                                     {showDatePicker && (
                                         <View style={{ marginTop: 10 }}>
-                                            <Calendar 
+                                            <Calendar
                                                 selectedDate={date}
                                                 onDateSelect={(d) => {
                                                     setDate(d);
                                                     setShowDatePicker(false);
                                                 }}
                                                 markedDates={[]}
-                                                onMonthChange={() => {}}
+                                                onMonthChange={() => { }}
                                             />
                                         </View>
                                     )}

@@ -167,10 +167,10 @@ router.post('/', authorizeRole(['admin']), async (req, res) => {
                      manual_note = ?
                  WHERE labour_id = ? AND date = ?`,
                 [site_id, supervisor_id, status,
-                 allowance, overtime_amount,
-                 signedBalance, balance_type,
-                 manual_note,
-                 labour_id, date]
+                    allowance, overtime_amount,
+                    signedBalance, balance_type,
+                    manual_note,
+                    labour_id, date]
             );
         } else {
             // Insert new manual record
@@ -181,9 +181,9 @@ router.post('/', authorizeRole(['admin']), async (req, res) => {
                     balance_adjustment, balance_type, manual_note)
                  VALUES (?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?)`,
                 [labour_id, site_id, supervisor_id, date, status,
-                 allowance, overtime_amount,
-                 signedBalance, balance_type,
-                 manual_note]
+                    allowance, overtime_amount,
+                    signedBalance, balance_type,
+                    manual_note]
             );
         }
 

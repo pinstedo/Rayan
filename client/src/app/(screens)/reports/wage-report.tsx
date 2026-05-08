@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CustomModal } from '../../../components/CustomModal';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
@@ -85,7 +85,7 @@ export default function WageReportScreen() {
         try {
             const res = await api.post(`/reports/wage-month`, { month: monthStr });
             const pdfData = await res.json();
-            
+
             if (!res.ok) {
                 throw new Error(pdfData.error || "Failed to fetch data for PDF");
             }
@@ -231,7 +231,7 @@ export default function WageReportScreen() {
         try {
             const res = await api.post(`/reports/wage-month`, { month: monthStr });
             const pdfData = await res.json();
-            
+
             if (!res.ok) {
                 throw new Error(pdfData.error || "Failed to fetch data for PDF");
             }
@@ -430,7 +430,7 @@ export default function WageReportScreen() {
     const filteredAndSortedData = useMemo(() => {
         let filtered = Array.isArray(reportData) ? reportData : [];
         if (searchText) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 (item.name || '').toLowerCase().includes(searchText.toLowerCase())
             );
         }
@@ -526,7 +526,7 @@ export default function WageReportScreen() {
                     </Text>
 
                     <Text style={[local.summaryTitle, { marginTop: 20 }]}>Labour Details</Text>
-                    
+
                     <View style={{ marginBottom: 15 }}>
                         <SearchBar
                             value={searchText}

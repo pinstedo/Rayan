@@ -234,7 +234,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         const labourIds = records.map(r => r.labour_id);
         const qMarks = labourIds.map(() => '?').join(',');
         const laboursData = await db.all(`SELECT id, status, site_id, worked_days_count FROM labours WHERE id IN (${qMarks})`, labourIds);
-        
+
         const laboursMap = new Map();
         laboursData.forEach(l => laboursMap.set(l.id, l));
 
@@ -270,7 +270,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
         for (const record of records) {
             const { labour_id, site_id: r_site_id, supervisor_id, date: r_date, status,
-                    food_allowance = false, food_allowance_amount = 0 } = record;
+                food_allowance = false, food_allowance_amount = 0 } = record;
             if (!labour_id || !r_site_id || !supervisor_id || !r_date || !status) {
                 throw new Error('Missing fields in attendance record');
             }
@@ -308,8 +308,8 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 
             supervisor_id_to_lock = supervisor_id;
             await stmt.run(labour_id, r_site_id, supervisor_id, r_date, status,
-                           !!food_allowance, food_allowance ? Number(food_allowance_amount) || 0 : 0,
-                           labour.status, labour.site_id);
+                !!food_allowance, food_allowance ? Number(food_allowance_amount) || 0 : 0,
+                labour.status, labour.site_id);
         }
 
         await stmt.finalize();
@@ -330,7 +330,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         for (const lid of labourIdsToCheck) {
             await checkAndRecordBonus(db, lid);
         }
-        
+
         await logHistory({
             type: 'attendance',
             action: 'marked',

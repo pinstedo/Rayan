@@ -371,7 +371,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             let wage = 0;
 
             const attRecs = attByLabour[labour.id].filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate));
-            
+
             attRecs.forEach(rec => {
                 if (rec.status === 'full') fullDays++;
                 if (rec.status === 'half') halfDays++;
@@ -417,7 +417,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         const reports = labours.map(labour => {
             const prevStats = calculateStats(labour, true);
             const currStats = calculateStats(labour, false);
-            
+
             const previous_balance = prevStats.net;
 
             return {

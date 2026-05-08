@@ -3,19 +3,19 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
     RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
+import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
-import { api } from "../../services/api";
 import { useListManager } from "../../hooks/useListManager";
-import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from "../../components/list";
+import { api } from "../../services/api";
 
 interface Site {
     id: number;
@@ -40,15 +40,15 @@ const sortOptions: SortOption[] = [
 ];
 
 const filterOptions: FilterOption[] = [
-    { 
-        label: "Status", 
-        field: "status", 
-        type: "select", 
+    {
+        label: "Status",
+        field: "status",
+        type: "select",
         options: [
             { label: "Active", value: "active" },
             { label: "Inactive", value: "inactive" },
             { label: "Completed", value: "completed" },
-        ] 
+        ]
     }
 ];
 
@@ -177,7 +177,7 @@ export default function SitesScreen() {
     };
 
     const visibleAllSites = allSites.filter(s => s.status !== "completed");
-    
+
     // Check which filter is active for the tabs UI
     const statusFilter = listManager.config.filters?.find(f => f.field === "status");
     let activeTab: FilterType = "all";
@@ -192,7 +192,7 @@ export default function SitesScreen() {
     };
 
     return (
-        <View style={local.container}>
+        <ScrollView style={local.container}>
             <View style={local.header}>
                 <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
@@ -227,14 +227,14 @@ export default function SitesScreen() {
 
             {/* List Manager Controls */}
             <View style={local.controlsRow}>
-                <SearchBar 
+                <SearchBar
                     value={listManager.searchText}
                     onChangeText={listManager.setSearchText}
                     placeholder="Search sites by name or address..."
                     style={local.searchBar}
                 />
                 <View style={local.actionRow}>
-                    <FilterPanel 
+                    <FilterPanel
                         availableFilters={filterOptions}
                         activeFilters={listManager.config.filters || []}
                         onApplyFilter={(f) => {
@@ -244,7 +244,7 @@ export default function SitesScreen() {
                         }}
                         onRemoveFilter={listManager.removeFilter}
                     />
-                    <SortSelector 
+                    <SortSelector
                         options={sortOptions}
                         currentSort={listManager.config.sort?.[0]}
                         onSortChange={listManager.toggleSort}
@@ -278,7 +278,7 @@ export default function SitesScreen() {
                     }
                 />
             )}
-        </View>
+        </ScrollView>
     );
 }
 

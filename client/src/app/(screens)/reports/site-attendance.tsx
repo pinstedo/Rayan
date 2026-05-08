@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { sortByName } from "../../../utils/sort";
 import {
     ActivityIndicator,
     Alert,
@@ -15,6 +15,7 @@ import { Calendar } from "../../../components/Calendar";
 import { CustomModal } from "../../../components/CustomModal";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
+import { sortByName } from "../../../utils/sort";
 
 interface SiteReport {
     site_id: number;
@@ -87,11 +88,9 @@ export default function SiteAttendanceReport() {
     return (
         <View style={local.container}>
             <Stack.Screen options={{ headerShown: false }} />
-
             <View style={local.headerRow}>
                 <TouchableOpacity onPress={() => router.back()} style={local.backBtnText}>
-                    <Ionicons name="arrow-back" size={20} color={isDark ? "#4da6ff" : "#0a84ff"} />
-                    <Text style={local.backText}>Back</Text>
+                    <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={local.headerTitle}>Site Attendance Report</Text>
                 <View style={{ width: 40 }} />

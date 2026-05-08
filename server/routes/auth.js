@@ -446,6 +446,9 @@ router.delete('/supervisors/:id/permanent', authenticateToken, async (req, res) 
         await db.run(`DELETE FROM users WHERE id = ?`, [id]);
         res.json({ message: 'Supervisor permanently deleted' });
     } catch (err) {
+        if (err.code === '23503' || err.message.includes('foreign key')) {
+            return res.status(400).json({ error: 'Cannot delete supervisor because they have associated records (e.g., attendance or sites).' });
+        }
         res.status(500).json({ error: err.message });
     }
 });
