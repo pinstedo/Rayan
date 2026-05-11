@@ -27,7 +27,7 @@ export default function RootLayout() {
               backgroundColor: colors.surface,
               height: 64,
               paddingBottom: 8,
-              paddingTop: 8,
+              paddingTop: 0,
               shadowColor: "#000",
               shadowOffset: { width: 0, height: -2 },
               shadowOpacity: 0.05,

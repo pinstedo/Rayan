@@ -35,7 +35,8 @@ router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (r
             FROM sites s
             LEFT JOIN daily_site_attendance_status d ON s.id = d.site_id AND d.date = ?
             WHERE s.status = 'active'
-               OR d.site_id IS NOT NULL 
+           
+            OR d.site_id IS NOT NULL 
                OR (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ?) > 0
             GROUP BY s.id
         `;
@@ -217,12 +218,38 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 }
             });
 
+            // Salary History
+            let historyQuery = `SELECT previous_rate, new_rate, date FROM salary_history WHERE labour_id = ? ORDER BY date ASC`;
+            const history = await db.all(historyQuery, [labour.id]);
+
+            const getRateForDate = (date) => {
+                if (!history || history.length === 0) return labour.rate || 0;
+                let applicableRate = null;
+                for (let i = history.length - 1; i >= 0; i--) {
+                    if (history[i].date <= date) {
+                        applicableRate = history[i].new_rate;
+                        break;
+                    }
+                }
+                if (applicableRate !== null) return applicableRate;
+                return history[0].previous_rate || labour.rate || 0;
+            };
+
+            let wage = 0;
+            detailedAttendance.forEach(record => {
+                const dailyRate = getRateForDate(record.date);
+                if (record.status === 'full') {
+                    wage += 8 * dailyRate;
+                } else if (record.status === 'half') {
+                    wage += 4 * dailyRate;
+                }
+            });
+
             const siteLevelFoodAmount = siteLevelFoodCount * globalFoodRate;
             const foodAllowanceAmount = perLabourFoodAmount + siteLevelFoodAmount;
 
             // Calculation
-            const hourlyRate = labour.rate || 0;
-            const wage = (fullDays * 8 * hourlyRate) + (halfDays * 4 * hourlyRate);
+            const hourlyRate = labour.rate || 0; // Current rate just for display
             const netPayable = wage + overtimeAmount - advanceAmount + foodAllowanceAmount;
 
             reports.push({
@@ -341,27 +368,36 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         `, [endDate]);
 
         const allPayments = await db.all(`
-            SELECT labour_id, date, amount
+            SELECT labour_id, date, month_reference, amount
             FROM salary_payments
+        `);
+
+        const allSalaryHistory = await db.all(`
+            SELECT labour_id, previous_rate, new_rate, date
+            FROM salary_history
             WHERE date <= ?
+            ORDER BY date ASC
         `, [endDate]);
 
         const attByLabour = {};
         const otByLabour = {};
         const advByLabour = {};
         const payByLabour = {};
+        const histByLabour = {};
 
         labourIds.forEach(id => {
             attByLabour[id] = [];
             otByLabour[id] = [];
             advByLabour[id] = [];
             payByLabour[id] = [];
+            histByLabour[id] = [];
         });
 
         allAttendance.forEach(a => { if (attByLabour[a.labour_id]) attByLabour[a.labour_id].push(a); });
         allOvertime.forEach(o => { if (otByLabour[o.labour_id]) otByLabour[o.labour_id].push(o); });
         allAdvances.forEach(a => { if (advByLabour[a.labour_id]) advByLabour[a.labour_id].push(a); });
         allPayments.forEach(p => { if (payByLabour[p.labour_id]) payByLabour[p.labour_id].push(p); });
+        allSalaryHistory.forEach(h => { if (histByLabour[h.labour_id]) histByLabour[h.labour_id].push(h); });
 
         // Helper to calculate financials for a date range
         const calculateStats = (labour, isPrevious) => {
@@ -372,9 +408,31 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
             const attRecs = attByLabour[labour.id].filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate));
 
+            const getRateForDate = (date) => {
+                const history = histByLabour[labour.id];
+                if (!history || history.length === 0) return labour.rate || 0;
+                
+                let applicableRate = null;
+                for (let i = history.length - 1; i >= 0; i--) {
+                    if (history[i].date <= date) {
+                        applicableRate = history[i].new_rate;
+                        break;
+                    }
+                }
+                if (applicableRate !== null) return applicableRate;
+                return history[0].previous_rate || labour.rate || 0;
+            };
+
             attRecs.forEach(rec => {
-                if (rec.status === 'full') fullDays++;
-                if (rec.status === 'half') halfDays++;
+                const dailyRate = getRateForDate(rec.date);
+                if (rec.status === 'full') {
+                    fullDays++;
+                    wage += 8 * dailyRate;
+                }
+                if (rec.status === 'half') {
+                    halfDays++;
+                    wage += 4 * dailyRate;
+                }
 
                 if (rec.status === 'full' || rec.status === 'half') {
                     if (rec.food_allowance) {
@@ -384,9 +442,6 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                     }
                 }
             });
-
-            const rate = labour.rate || 0;
-            wage = (fullDays * 8 * rate) + (halfDays * 4 * rate);
             const foodAmount = foodAllowanceCount;
 
             const otAmount = otByLabour[labour.id]
@@ -397,9 +452,20 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 .filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate))
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
+            // Payments are matched by month_reference so a payment recorded today
+            // for last month is correctly attributed to the right month.
             const paidAmount = payByLabour[labour.id]
-                .filter(p => isPrevious ? p.date < startDate : (p.date >= startDate && p.date <= endDate))
+                .filter(p => {
+                    if (isPrevious) {
+                        // For previous months: all payments whose month_reference is before current month
+                        return p.month_reference && p.month_reference < month;
+                    } else {
+                        // For current month: payments whose month_reference matches exactly
+                        return p.month_reference === month;
+                    }
+                })
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
+
 
             return {
                 wage,
