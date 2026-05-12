@@ -303,35 +303,35 @@ export default function WageReportScreen() {
                 let basicWageRowsHtml = '';
 
                 if (item.wage_breakdown && item.wage_breakdown.length > 0) {
-                    rateHtml = item.wage_breakdown.map((wb: any) => \`₹\${formatCurrency(wb.rate * 8)}/day\`).join(' & ');
+                    rateHtml = item.wage_breakdown.map((wb: any) => `₹${formatCurrency(wb.rate * 8)}/day`).join(' & ');
                     
                     if (item.wage_breakdown.length > 1) {
                          attendanceHtml = item.wage_breakdown.map((wb: any) => 
-                            \`<div><span class="info-value">\${wb.fullDays} F, \${wb.halfDays} H (@ ₹\${formatCurrency(wb.rate * 8)})</span></div>\`
+                            `<div><span class="info-value">${wb.fullDays} F, ${wb.halfDays} H (@ ₹${formatCurrency(wb.rate * 8)})</span></div>`
                          ).join('');
                          
-                         basicWageRowsHtml = item.wage_breakdown.map((wb: any) => \`
+                         basicWageRowsHtml = item.wage_breakdown.map((wb: any) => `
                                     <tr>
-                                        <td>Basic Wage (Rate: ₹\${formatCurrency(wb.rate * 8)}/day)</td>
-                                        <td class="amount">\${formatCurrency(wb.wage)}</td>
+                                        <td>Basic Wage (Rate: ₹${formatCurrency(wb.rate * 8)}/day)</td>
+                                        <td class="amount">${formatCurrency(wb.wage)}</td>
                                     </tr>
-                         \`).join('');
+                         `).join('');
                     } else {
-                         attendanceHtml = \`<div><span class="info-value">\${item.current_full_days} Full Days</span>, <span class="info-value">\${item.current_half_days} Half Days</span></div>\`;
-                         basicWageRowsHtml = \`
+                         attendanceHtml = `<div><span class="info-value">${item.current_full_days} Full Days</span>, <span class="info-value">${item.current_half_days} Half Days</span></div>`;
+                         basicWageRowsHtml = `
                                     <tr>
                                         <td>Basic Wage</td>
-                                        <td class="amount">\${formatCurrency(grossWage)}</td>
-                                    </tr>\`;
+                                        <td class="amount">${formatCurrency(grossWage)}</td>
+                                    </tr>`;
                     }
                 } else {
-                    rateHtml = \`₹\${formatCurrency(dailyRate)}/day\`;
-                    attendanceHtml = \`<div><span class="info-value">\${item.current_full_days} Full Days</span>, <span class="info-value">\${item.current_half_days} Half Days</span></div>\`;
-                    basicWageRowsHtml = \`
+                    rateHtml = `₹${formatCurrency(dailyRate)}/day`;
+                    attendanceHtml = `<div><span class="info-value">${item.current_full_days} Full Days</span>, <span class="info-value">${item.current_half_days} Half Days</span></div>`;
+                    basicWageRowsHtml = `
                                     <tr>
                                         <td>Basic Wage</td>
-                                        <td class="amount">\${formatCurrency(grossWage)}</td>
-                                    </tr>\`;
+                                        <td class="amount">${formatCurrency(grossWage)}</td>
+                                    </tr>`;
                 }
 
                 return `
