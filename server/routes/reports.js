@@ -423,15 +423,25 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 return history[0].previous_rate || labour.rate || 0;
             };
 
+            let wageBreakdownMap = {};
+
             attRecs.forEach(rec => {
                 const dailyRate = getRateForDate(rec.date);
+                if (!wageBreakdownMap[dailyRate]) {
+                    wageBreakdownMap[dailyRate] = { fullDays: 0, halfDays: 0, wage: 0 };
+                }
+
                 if (rec.status === 'full') {
                     fullDays++;
                     wage += 8 * dailyRate;
+                    wageBreakdownMap[dailyRate].fullDays++;
+                    wageBreakdownMap[dailyRate].wage += 8 * dailyRate;
                 }
                 if (rec.status === 'half') {
                     halfDays++;
                     wage += 4 * dailyRate;
+                    wageBreakdownMap[dailyRate].halfDays++;
+                    wageBreakdownMap[dailyRate].wage += 4 * dailyRate;
                 }
 
                 if (rec.status === 'full' || rec.status === 'half') {
@@ -467,8 +477,16 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
 
+            const wageBreakdown = Object.keys(wageBreakdownMap).map(rate => ({
+                rate: parseFloat(rate),
+                fullDays: wageBreakdownMap[rate].fullDays,
+                halfDays: wageBreakdownMap[rate].halfDays,
+                wage: wageBreakdownMap[rate].wage
+            }));
+
             return {
                 wage,
+                wageBreakdown,
                 otAmount,
                 foodAmount,
                 advAmount,
@@ -493,6 +511,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 site_id: labour.site_id,
                 previous_balance: previous_balance,
                 current_wage: currStats.wage,
+                wage_breakdown: currStats.wageBreakdown,
                 current_overtime_amount: currStats.otAmount,
                 current_food_allowance_amount: currStats.foodAmount,
                 current_advance_amount: currStats.advAmount,

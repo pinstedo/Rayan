@@ -155,10 +155,14 @@ export default function WageReportScreen() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${pdfData.map((item: any) => `
+                            ${pdfData.map((item: any) => {
+                                const rateDisplay = item.wage_breakdown && item.wage_breakdown.length > 1 
+                                    ? item.wage_breakdown.map((wb: any) => wb.rate * 8).join(', ') 
+                                    : (item.rate || 0) * 8;
+                                return `
                                 <tr>
                                     <td class="text-left">${escapeHtml(item.name)}</td>
-                                    <td>${(item.rate || 0) * 8}</td>
+                                    <td>${rateDisplay}</td>
                                     <td>${item.current_full_days}</td>
                                     <td>${item.current_half_days}</td>
                                     <td>${formatCurrency(item.current_wage)}</td>
@@ -171,7 +175,8 @@ export default function WageReportScreen() {
                                     <td>${formatCurrency(item.salary_paid)}</td>
                                     <td><strong>${formatCurrency(item.closing_balance)}</strong></td>
                                 </tr>
-                            `).join('')}
+                                `;
+                            }).join('')}
                             <tr class="total-row">
                                 <td class="text-left">TOTAL</td>
                                 <td>-</td>
@@ -293,6 +298,42 @@ export default function WageReportScreen() {
                 const netPayable = item.total_payable || 0;
                 const currentNet = item.current_net_payable || 0;
 
+                let rateHtml = '';
+                let attendanceHtml = '';
+                let basicWageRowsHtml = '';
+
+                if (item.wage_breakdown && item.wage_breakdown.length > 0) {
+                    rateHtml = item.wage_breakdown.map((wb: any) => \`₹\${formatCurrency(wb.rate * 8)}/day\`).join(' & ');
+                    
+                    if (item.wage_breakdown.length > 1) {
+                         attendanceHtml = item.wage_breakdown.map((wb: any) => 
+                            \`<div><span class="info-value">\${wb.fullDays} F, \${wb.halfDays} H (@ ₹\${formatCurrency(wb.rate * 8)})</span></div>\`
+                         ).join('');
+                         
+                         basicWageRowsHtml = item.wage_breakdown.map((wb: any) => \`
+                                    <tr>
+                                        <td>Basic Wage (Rate: ₹\${formatCurrency(wb.rate * 8)}/day)</td>
+                                        <td class="amount">\${formatCurrency(wb.wage)}</td>
+                                    </tr>
+                         \`).join('');
+                    } else {
+                         attendanceHtml = \`<div><span class="info-value">\${item.current_full_days} Full Days</span>, <span class="info-value">\${item.current_half_days} Half Days</span></div>\`;
+                         basicWageRowsHtml = \`
+                                    <tr>
+                                        <td>Basic Wage</td>
+                                        <td class="amount">\${formatCurrency(grossWage)}</td>
+                                    </tr>\`;
+                    }
+                } else {
+                    rateHtml = \`₹\${formatCurrency(dailyRate)}/day\`;
+                    attendanceHtml = \`<div><span class="info-value">\${item.current_full_days} Full Days</span>, <span class="info-value">\${item.current_half_days} Half Days</span></div>\`;
+                    basicWageRowsHtml = \`
+                                    <tr>
+                                        <td>Basic Wage</td>
+                                        <td class="amount">\${formatCurrency(grossWage)}</td>
+                                    </tr>\`;
+                }
+
                 return `
                         <div class="bill-page">
                             <div class="header">
@@ -307,13 +348,12 @@ export default function WageReportScreen() {
                                 </div>
                                 <div class="info-row">
                                     <span class="info-label">Rate per Day:</span>
-                                    <span class="info-value">₹${formatCurrency(dailyRate)}</span>
+                                    <span class="info-value">${rateHtml}</span>
                                 </div>
                                 <div class="info-row">
                                     <span class="info-label">Attendance:</span>
-                                    <div>
-                                        <span class="info-value">${item.current_full_days} Full Days</span>, 
-                                        <span class="info-value">${item.current_half_days} Half Days</span>
+                                    <div style="text-align: right;">
+                                        ${attendanceHtml}
                                     </div>
                                 </div>
                             </div>
@@ -323,13 +363,10 @@ export default function WageReportScreen() {
                                     <tr>
                                         <th width="60%">Description</th>
                                         <th width="40%" style="text-align: right;">Amount (₹)</th>
-                                    </ul>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td>Basic Wage</td>
-                                        <td class="amount">${formatCurrency(grossWage)}</td>
-                                    </tr>
+                                    ${basicWageRowsHtml}
                                     ${otAmount > 0 ? `
                                     <tr>
                                         <td>Overtime</td>
