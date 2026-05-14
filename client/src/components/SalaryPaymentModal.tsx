@@ -46,19 +46,7 @@ export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
             return;
         }
 
-        if (numAmount > totalPayable) {
-            // Might be an advance, but let's warn them
-            Alert.alert(
-                'Overpayment Warning',
-                `You are paying ₹${numAmount}, which is more than the total payable of ₹${totalPayable}. Are you sure?`,
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Yes, Proceed', onPress: submitPayment }
-                ]
-            );
-        } else {
-            submitPayment();
-        }
+        submitPayment();
     };
 
     const submitPayment = async () => {
@@ -105,7 +93,7 @@ export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
         >
             <View style={styles.formContainer}>
                 <Text style={styles.infoText}>Paying: <Text style={styles.bold}>{labourName}</Text></Text>
-                <Text style={styles.infoText}>Max Payable: <Text style={styles.bold}>₹{totalPayable}</Text></Text>
+                <Text style={styles.infoText}>Total Payable: <Text style={styles.bold}>₹{totalPayable}</Text></Text>
 
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Amount Paid (₹)</Text>

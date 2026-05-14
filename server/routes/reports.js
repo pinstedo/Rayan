@@ -375,9 +375,8 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         const allSalaryHistory = await db.all(`
             SELECT labour_id, previous_rate, new_rate, date
             FROM salary_history
-            WHERE date <= ?
             ORDER BY date ASC
-        `, [endDate]);
+        `);
 
         const attByLabour = {};
         const otByLabour = {};

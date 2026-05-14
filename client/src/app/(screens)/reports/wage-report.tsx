@@ -95,6 +95,8 @@ export default function WageReportScreen() {
                 return;
             }
 
+            pdfData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+
             const totals = pdfData.reduce((acc: any, curr: any) => ({
                 wage: acc.wage + (curr.current_wage || 0),
                 ot: acc.ot + (curr.current_overtime_amount || 0),
@@ -156,10 +158,10 @@ export default function WageReportScreen() {
                         </thead>
                         <tbody>
                             ${pdfData.map((item: any) => {
-                                const rateDisplay = item.wage_breakdown && item.wage_breakdown.length > 1 
-                                    ? item.wage_breakdown.map((wb: any) => wb.rate * 8).join(', ') 
-                                    : (item.rate || 0) * 8;
-                                return `
+                const rateDisplay = item.wage_breakdown && item.wage_breakdown.length > 1
+                    ? item.wage_breakdown.map((wb: any) => wb.rate * 8).join(', ')
+                    : (item.rate || 0) * 8;
+                return `
                                 <tr>
                                     <td class="text-left">${escapeHtml(item.name)}</td>
                                     <td>${rateDisplay}</td>
@@ -176,7 +178,7 @@ export default function WageReportScreen() {
                                     <td><strong>${formatCurrency(item.closing_balance)}</strong></td>
                                 </tr>
                                 `;
-                            }).join('')}
+            }).join('')}
                             <tr class="total-row">
                                 <td class="text-left">TOTAL</td>
                                 <td>-</td>
@@ -229,22 +231,27 @@ export default function WageReportScreen() {
         }
     };
 
-    const generateIndividualBillsPDF = async () => {
+    const generateIndividualBillsPDF = async (specificData?: any[]) => {
         if (generatingPdf) return;
         setGeneratingPdf(true);
 
         try {
-            const res = await api.post(`/reports/wage-month`, { month: monthStr });
-            const pdfData = await res.json();
+            let pdfData = Array.isArray(specificData) ? specificData : null;
+            if (!pdfData) {
+                const res = await api.post(`/reports/wage-month`, { month: monthStr });
+                pdfData = await res.json();
 
-            if (!res.ok) {
-                throw new Error(pdfData.error || "Failed to fetch data for PDF");
+                if (!res.ok) {
+                    throw new Error(pdfData.error || "Failed to fetch data for PDF");
+                }
             }
 
             if (!Array.isArray(pdfData) || pdfData.length === 0) {
                 Alert.alert("No Data", "No data to generate bills");
                 return;
             }
+
+            pdfData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 
             const escapeHtml = (unsafe: string) => {
                 return (unsafe || '').replace(/&/g, "&amp;")
@@ -304,21 +311,21 @@ export default function WageReportScreen() {
 
                 if (item.wage_breakdown && item.wage_breakdown.length > 0) {
                     rateHtml = item.wage_breakdown.map((wb: any) => `₹${formatCurrency(wb.rate * 8)}/day`).join(' & ');
-                    
+
                     if (item.wage_breakdown.length > 1) {
-                         attendanceHtml = item.wage_breakdown.map((wb: any) => 
+                        attendanceHtml = item.wage_breakdown.map((wb: any) =>
                             `<div><span class="info-value">${wb.fullDays} F, ${wb.halfDays} H (@ ₹${formatCurrency(wb.rate * 8)})</span></div>`
-                         ).join('');
-                         
-                         basicWageRowsHtml = item.wage_breakdown.map((wb: any) => `
+                        ).join('');
+
+                        basicWageRowsHtml = item.wage_breakdown.map((wb: any) => `
                                     <tr>
                                         <td>Basic Wage (Rate: ₹${formatCurrency(wb.rate * 8)}/day)</td>
                                         <td class="amount">${formatCurrency(wb.wage)}</td>
                                     </tr>
                          `).join('');
                     } else {
-                         attendanceHtml = `<div><span class="info-value">${item.current_full_days} Full Days</span>, <span class="info-value">${item.current_half_days} Half Days</span></div>`;
-                         basicWageRowsHtml = `
+                        attendanceHtml = `<div><span class="info-value">${item.current_full_days} Full Days</span>, <span class="info-value">${item.current_half_days} Half Days</span></div>`;
+                        basicWageRowsHtml = `
                                     <tr>
                                         <td>Basic Wage</td>
                                         <td class="amount">${formatCurrency(grossWage)}</td>
@@ -573,7 +580,11 @@ export default function WageReportScreen() {
                     </View>
 
                     {filteredAndSortedData.map((item, index) => (
-                        <View key={item.id.toString() + index} style={local.labourCard}>
+                        <TouchableOpacity 
+                            key={item.id.toString() + index} 
+                            style={local.labourCard}
+                            onPress={() => generateIndividualBillsPDF([item])}
+                        >
                             <View style={local.labourRow}>
                                 <Text style={local.labourName}>{item.name}</Text>
                                 <View style={local.balanceBadge}>
@@ -596,7 +607,7 @@ export default function WageReportScreen() {
                                     <Text style={local.payBtnText}>Record Payment</Text>
                                 </TouchableOpacity>
                             </View>
-                        </View>
+                        </TouchableOpacity>
                     ))}
                 </ScrollView>
             )}
