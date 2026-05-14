@@ -236,7 +236,7 @@ export default function WageReportScreen() {
         setGeneratingPdf(true);
 
         try {
-            let pdfData = Array.isArray(specificData) ? specificData : null;
+            let pdfData: any = Array.isArray(specificData) ? specificData : null;
             if (!pdfData) {
                 const res = await api.post(`/reports/wage-month`, { month: monthStr });
                 pdfData = await res.json();
@@ -551,7 +551,7 @@ export default function WageReportScreen() {
 
                     <TouchableOpacity
                         style={[local.pdfBtn, local.secondaryBtn, generatingPdf && local.disabledBtn]}
-                        onPress={generateIndividualBillsPDF}
+                        onPress={() => generateIndividualBillsPDF()}
                         disabled={generatingPdf}
                     >
                         {generatingPdf ? (
@@ -580,8 +580,8 @@ export default function WageReportScreen() {
                     </View>
 
                     {filteredAndSortedData.map((item, index) => (
-                        <TouchableOpacity 
-                            key={item.id.toString() + index} 
+                        <TouchableOpacity
+                            key={item.id.toString() + index}
                             style={local.labourCard}
                             onPress={() => generateIndividualBillsPDF([item])}
                         >
