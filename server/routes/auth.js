@@ -107,7 +107,7 @@ router.post('/signin', async (req, res) => {
             return res.json({
                 message: 'Login successful',
                 ...tokens,
-                user: { id: user.id, name: user.name, phone: user.phone, role: user.role, profile_image: user.profile_image }
+                user: { id: user.id, name: user.name, phone: user.phone, role: user.role, profile_image: user.profile_image, password_reset_required: !!user.password_reset_required }
             });
         }
 
@@ -142,7 +142,7 @@ router.post('/signin', async (req, res) => {
                 message: 'Login successful',
                 accessToken,
                 refreshToken,
-                user: { id: labour.id, name: labour.name, phone: labour.phone, role: 'labour', profile_image: labour.profile_image }
+                user: { id: labour.id, name: labour.name, phone: labour.phone, role: 'labour', profile_image: labour.profile_image, password_reset_required: !!labour.password_reset_required }
             });
         }
 
@@ -511,7 +511,7 @@ router.put('/admins/:id/reject', authenticateToken, async (req, res) => {
 });
 
 // Change Password (Authenticated Users)
-router.put('/change-password', authenticateToken, async (req, res) => {
+const changePasswordHandler = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
@@ -544,16 +544,30 @@ router.put('/change-password', authenticateToken, async (req, res) => {
         }
 
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        const timestamp = new Date().toISOString();
+        
         await db.run(
-            `UPDATE ${table} SET password_hash = ? WHERE id = ?`,
-            [hashedNewPassword, userId]
+            `UPDATE ${table} 
+             SET password_hash = ?, password_reset_required = false, last_password_changed_at = ? 
+             WHERE id = ?`,
+            [hashedNewPassword, timestamp, userId]
         );
+
+        // Revoke existing sessions (force relogin for safety on password change)
+        if (userRole === 'labour') {
+            await db.run(`UPDATE labour_refresh_tokens SET revoked = true WHERE labour_id = ?`, [userId]);
+        } else {
+            await db.run(`UPDATE refresh_tokens SET revoked = true WHERE user_id = ?`, [userId]);
+        }
 
         res.json({ message: 'Password changed successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
-});
+};
+
+router.put('/change-password', authenticateToken, changePasswordHandler);
+router.post('/change-password', authenticateToken, changePasswordHandler);
 
 // Update Profile (Authenticated Users)
 router.put('/profile', authenticateToken, async (req, res) => {

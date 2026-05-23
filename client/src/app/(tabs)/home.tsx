@@ -34,6 +34,19 @@ export default function HomeScreen() {
 	const [query, setQuery] = useState("");
 	const { newActivity } = useLocalSearchParams();
 
+	useEffect(() => {
+		const checkPasswordReset = async () => {
+			const userData = await AsyncStorage.getItem("userData");
+			if (userData) {
+				const user = JSON.parse(userData);
+				if (user.password_reset_required) {
+					router.replace("/auth/create-new-password" as any);
+				}
+			}
+		};
+		checkPasswordReset();
+	}, []);
+
 	const [userName, setUserName] = useState("Admin");
 	const [profileImage, setProfileImage] = useState<string | null>(null);
 

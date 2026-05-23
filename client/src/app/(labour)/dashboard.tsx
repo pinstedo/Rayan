@@ -26,6 +26,20 @@ const LabourDashboard = () => {
     const router = useRouter();
     const { theme, toggleTheme, isDark } = useTheme();
     const [labour, setLabour] = useState<any>(null);
+
+    useEffect(() => {
+        const checkPasswordReset = async () => {
+            const userData = await AsyncStorage.getItem("userData");
+            if (userData) {
+                const user = JSON.parse(userData);
+                if (user.password_reset_required) {
+                    router.replace("/auth/create-new-password" as any);
+                }
+            }
+        };
+        checkPasswordReset();
+    }, []);
+
     const [attendance, setAttendance] = useState<any[]>([]);
     const [selectedAttendance, setSelectedAttendance] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);

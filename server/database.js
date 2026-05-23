@@ -309,6 +309,15 @@ async function initDb() {
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS labour_status TEXT`);
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS site_id_snapshot INTEGER`);
 
+  // Password reset columns for users & labours
+  await alterSafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_required BOOLEAN DEFAULT false`);
+  await alterSafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_generated_at TIMESTAMP DEFAULT NULL`);
+  await alterSafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_password_changed_at TIMESTAMP DEFAULT NULL`);
+
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS password_reset_required BOOLEAN DEFAULT false`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS password_reset_generated_at TIMESTAMP DEFAULT NULL`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS last_password_changed_at TIMESTAMP DEFAULT NULL`);
+
   // Search Indexes - PostgreSQL doesn't support IF NOT EXISTS for indexes directly in standard CREATE INDEX syntax 
   // without a slightly different query or just catching the error.
   const createIndexSafe = async (idxName, sql) => {

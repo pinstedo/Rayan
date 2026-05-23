@@ -52,7 +52,9 @@ export default function SignInScreen() {
 				await AsyncStorage.setItem("token", String(data.accessToken));
 				await AsyncStorage.setItem("refreshToken", String(data.refreshToken));
 
-				if (data.user.role === 'admin') {
+				if (data.user.password_reset_required) {
+					router.replace("/auth/create-new-password" as any);
+				} else if (data.user.role === 'admin') {
 					router.replace("/(tabs)/home");
 				} else if (data.user.role === 'supervisor') {
 					router.replace("/supervisor/(tabs)/home");

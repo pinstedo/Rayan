@@ -14,6 +14,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Clipboard,
 } from "react-native";
 import { CustomModal } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
@@ -94,6 +95,13 @@ export default function LabourDetailsScreen() {
     const [labour, setLabour] = useState<Labour | null>(null);
     const [formData, setFormData] = useState<Partial<Labour>>({});
     const [userRole, setUserRole] = useState<string>("");
+
+    // Forgot/Reset Password States
+    const [adminPasswordModalVisible, setAdminPasswordModalVisible] = useState(false);
+    const [adminPassword, setAdminPassword] = useState("");
+    const [isVerifyingAdmin, setIsVerifyingAdmin] = useState(false);
+    const [tempPasswordModalVisible, setTempPasswordModalVisible] = useState(false);
+    const [generatedTempPassword, setGeneratedTempPassword] = useState("");
 
     // Section data
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -337,6 +345,54 @@ export default function LabourDetailsScreen() {
         } finally {
             setSavingIncrement(false);
         }
+    };
+
+    const handlePasswordReset = async () => {
+        if (!adminPassword.trim()) {
+            Alert.alert("Error", "Please enter your admin password.");
+            return;
+        }
+
+        setIsVerifyingAdmin(true);
+        try {
+            // Step 1: Verify admin password
+            const verifyRes = await api.post("/admin/verify-password", { password: adminPassword });
+            const verifyData = await verifyRes.json();
+
+            if (!verifyRes.ok) {
+                Alert.alert("Verification Failed", verifyData.error || "Invalid admin password.");
+                setIsVerifyingAdmin(false);
+                return;
+            }
+
+            const { verificationToken } = verifyData;
+
+            // Step 2: Reset labour password
+            const resetRes = await api.post(`/admin/users/${id}/reset-password`, {
+                verificationToken,
+                role: 'labour'
+            });
+            const resetData = await resetRes.json();
+
+            if (resetRes.ok) {
+                setGeneratedTempPassword(resetData.temporaryPassword);
+                setAdminPassword("");
+                setAdminPasswordModalVisible(false);
+                setTempPasswordModalVisible(true);
+            } else {
+                Alert.alert("Reset Failed", resetData.error || "Failed to reset labour password.");
+            }
+        } catch (error) {
+            console.error("Password reset error:", error);
+            Alert.alert("Error", "Unable to connect to server.");
+        } finally {
+            setIsVerifyingAdmin(false);
+        }
+    };
+
+    const handleCopyPassword = () => {
+        Clipboard.setString(generatedTempPassword);
+        Alert.alert("Copied", "Temporary password copied to clipboard!");
     };
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -690,6 +746,26 @@ export default function LabourDetailsScreen() {
 
                             <View style={local.divider} />
                             {renderDetailItem({ label: "Notes", value: labour.notes, field: "notes", icon: "document-text-outline", isEditable: true })}
+                        </View>
+                    )}
+
+                    {userRole === 'admin' && (
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 15, marginBottom: 10, gap: 10 }}>
+                            <TouchableOpacity
+                                style={[local.forgotButton, { flex: 1 }]}
+                                onPress={() => setAdminPasswordModalVisible(true)}
+                            >
+                                <Ionicons name="key-outline" size={18} color="#0a84ff" style={{ marginRight: 6 }} />
+                                <Text style={local.forgotButtonText}>Forgot Pass</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[local.resetButton, { flex: 1 }]}
+                                onPress={() => setAdminPasswordModalVisible(true)}
+                            >
+                                <Ionicons name="refresh-outline" size={18} color="#0a84ff" style={{ marginRight: 6 }} />
+                                <Text style={local.resetButtonText}>Reset Pass</Text>
+                            </TouchableOpacity>
                         </View>
                     )}
 
@@ -1066,6 +1142,120 @@ export default function LabourDetailsScreen() {
                     )}
                 </View>
             </CustomModal>
+            {/* Admin Password verification Modal */}
+            <CustomModal
+                visible={adminPasswordModalVisible}
+                onClose={() => {
+                    setAdminPasswordModalVisible(false);
+                    setAdminPassword("");
+                }}
+                title="Enter Admin Password"
+                message="Please verify your admin password to perform this secure reset operation."
+                actions={[
+                    {
+                        text: "Cancel",
+                        onPress: () => {
+                            setAdminPasswordModalVisible(false);
+                            setAdminPassword("");
+                        },
+                        style: "cancel"
+                    },
+                    {
+                        text: isVerifyingAdmin ? "Verifying..." : "Verify & Reset",
+                        onPress: handlePasswordReset,
+                        style: "default"
+                    }
+                ]}
+            >
+                <View style={{ width: "100%", marginTop: 10 }}>
+                    <TextInput
+                        style={{
+                            height: 50,
+                            backgroundColor: isDark ? "#2a2a2a" : "#f5f6fa",
+                            borderColor: isDark ? "#444" : "#e1e1e1",
+                            borderWidth: 1,
+                            borderRadius: 12,
+                            paddingHorizontal: 15,
+                            fontSize: 16,
+                            color: isDark ? "#fff" : "#2d3436"
+                        }}
+                        placeholder="Admin password"
+                        placeholderTextColor={isDark ? "#888" : "#999"}
+                        secureTextEntry
+                        value={adminPassword}
+                        onChangeText={setAdminPassword}
+                    />
+                </View>
+            </CustomModal>
+
+            {/* Temporary Password Display Modal */}
+            <CustomModal
+                visible={tempPasswordModalVisible}
+                onClose={() => {
+                    setTempPasswordModalVisible(false);
+                    setGeneratedTempPassword("");
+                }}
+                title="Temporary Password Generated"
+                type="success"
+                actions={[
+                    {
+                        text: "Done",
+                        onPress: () => {
+                            setTempPasswordModalVisible(false);
+                            setGeneratedTempPassword("");
+                        },
+                        style: "default"
+                    }
+                ]}
+            >
+                <View style={{ width: "100%", alignItems: "center", marginTop: 10 }}>
+                    <Text style={{
+                        color: "#ff3b30",
+                        fontWeight: "700",
+                        fontSize: 14,
+                        textAlign: "center",
+                        marginBottom: 15
+                    }}>
+                        ⚠️ Save this password now. It cannot be viewed again.
+                    </Text>
+
+                    <View style={{
+                        backgroundColor: isDark ? "#2a2a2a" : "#f5f6fa",
+                        paddingVertical: 15,
+                        paddingHorizontal: 25,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: isDark ? "#444" : "#e1e1e1",
+                        width: "100%",
+                        alignItems: "center",
+                        marginBottom: 15,
+                    }}>
+                        <Text style={{
+                            fontSize: 22,
+                            fontWeight: "bold",
+                            color: isDark ? "#fff" : "#2d3436",
+                            letterSpacing: 1.5,
+                        }}>
+                            {generatedTempPassword}
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={{
+                            flexDirection: "row",
+                            backgroundColor: "#0a84ff",
+                            borderRadius: 8,
+                            paddingVertical: 10,
+                            paddingHorizontal: 15,
+                            alignItems: "center"
+                        }}
+                        onPress={handleCopyPassword}
+                    >
+                        <Ionicons name="copy-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={{ color: "#fff", fontWeight: "600" }}>Copy Password</Text>
+                    </TouchableOpacity>
+                </View>
+            </CustomModal>
         </KeyboardAvoidingView>
     );
 }
@@ -1289,6 +1479,38 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         height: 1,
         backgroundColor: isDark ? "#2a2a2a" : "#f0f0f0",
         marginVertical: 16,
+    },
+    forgotButton: {
+        flexDirection: "row",
+        backgroundColor: isDark ? "#172d42" : "#e3f2fd",
+        borderRadius: 12,
+        height: 52,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: isDark ? "#1d4469" : "#bbdefb",
+        marginTop: 16,
+    },
+    forgotButtonText: {
+        color: "#0a84ff",
+        fontSize: 15,
+        fontWeight: "600",
+    },
+    resetButton: {
+        flexDirection: "row",
+        backgroundColor: isDark ? "#172d42" : "#e3f2fd",
+        borderRadius: 12,
+        height: 52,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: isDark ? "#1d4469" : "#bbdefb",
+        marginTop: 16,
+    },
+    resetButtonText: {
+        color: "#0a84ff",
+        fontSize: 15,
+        fontWeight: "600",
     },
     saveButton: {
         backgroundColor: "#0a84ff",

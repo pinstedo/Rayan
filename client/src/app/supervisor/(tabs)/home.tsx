@@ -25,6 +25,19 @@ export default function SupervisorHome(): JSX.Element {
     const router = useRouter();
     const { isDark } = useTheme();
     const styles = getLocalStyles(isDark);
+
+    React.useEffect(() => {
+        const checkPasswordReset = async () => {
+            const userData = await AsyncStorage.getItem("userData");
+            if (userData) {
+                const user = JSON.parse(userData);
+                if (user.password_reset_required) {
+                    router.replace("/auth/create-new-password" as any);
+                }
+            }
+        };
+        checkPasswordReset();
+    }, []);
     const [assignedSites, setAssignedSites] = useState<Site[]>([]);
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
     const [loading, setLoading] = useState(true);

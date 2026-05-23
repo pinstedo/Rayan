@@ -8,6 +8,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const sitesRoutes = require('./routes/sites');
 const attendanceRoutes = require('./routes/attendance');
 const searchRoutes = require('./routes/search');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -27,6 +28,7 @@ const { authenticateToken } = require('./middleware/auth');
 // Routes
 app.use('/api/sites', authenticateToken, sitesRoutes);
 app.use('/api/auth', authRoutes); // Auth routes (signin/signup) remain public
+app.use('/api/admin', adminRoutes); // Admin routes
 
 app.use('/api/labours', authenticateToken, labourRoutes);
 app.use('/api/dashboard', authenticateToken, dashboardRoutes);

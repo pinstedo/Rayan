@@ -16,6 +16,11 @@ export default function SplashScreen() {
 				const userDataStr = await AsyncStorage.getItem("userData");
 
 				if (token && userDataStr) {
+					const user = JSON.parse(userDataStr);
+					if (user && user.password_reset_required) {
+						router.replace("/auth/create-new-password" as any);
+						return;
+					}
 					// Ideally, we should verify the token with the backend here or check expiration
 					// For now, we'll try to use the token. If it fails later, the user will be logged out.
 					// However, strict security would require validation.
