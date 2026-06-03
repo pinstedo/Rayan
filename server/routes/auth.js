@@ -3,7 +3,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { openDb, pool } = require('../database');
 
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, authorizeRole } = require('../middleware/auth');
+const { ROLES, ADMIN_ROLES, OWNER_ROLES, ADMIN_OR_OWNER_ROLES } = require('../roles');
 
 const router = express.Router();
 const SECRET_KEY = process.env.JWT_SECRET || 'secret_key';
@@ -96,7 +97,7 @@ router.post('/signin', async (req, res) => {
             }
 
             // Single Session Enforcement for Supervisors
-            if (user.role === 'supervisor') {
+            if (user.role === ROLES.SUPERVISOR || user.role === ROLES.SPECIAL_SUPERVISOR) {
                 await db.run(
                     `UPDATE refresh_tokens SET revoked = true WHERE user_id = ? AND revoked = false`,
                     [user.id]
@@ -251,23 +252,23 @@ router.post('/refresh-token', async (req, res) => {
 
 
 // Get all supervisors
-router.get('/supervisors', authenticateToken, async (req, res) => {
+router.get('/supervisors', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
     try {
         const db = await openDb();
 
         // Automatic cleanup: permanently delete supervisors in bin for > 7 days
-        await db.run(`DELETE FROM users WHERE role = 'supervisor' AND is_deleted = true AND deleted_at < NOW() - INTERVAL '7 days'`);
+        await db.run(`DELETE FROM users WHERE role IN ('supervisor', 'special_supervisor') AND is_deleted = true AND deleted_at < NOW() - INTERVAL '7 days'`);
 
-        const supervisors = await db.all(`SELECT id, name, phone FROM users WHERE role = 'supervisor' AND is_deleted = false`);
+        const supervisors = await db.all(`SELECT id, name, phone, role FROM users WHERE role IN ('supervisor', 'special_supervisor') AND is_deleted = false`);
         res.json(supervisors);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Add Supervisor (Admin Only)
-router.post('/add-supervisor', authenticateToken, async (req, res) => {
-    const { name, phone, password } = req.body;
+// Add Supervisor or Special Supervisor (Admin Only)
+router.post('/add-supervisor', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
+    const { name, phone, password, role = ROLES.SUPERVISOR } = req.body;
 
     if (!name || !phone || !password) {
         return res.status(400).json({ error: 'All fields are required' });
@@ -277,12 +278,16 @@ router.post('/add-supervisor', authenticateToken, async (req, res) => {
         const db = await openDb();
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        if (![ROLES.SUPERVISOR, ROLES.SPECIAL_SUPERVISOR].includes(role)) {
+            return res.status(400).json({ error: 'Invalid staff role' });
+        }
+
         await db.run(
             `INSERT INTO users (name, phone, password_hash, role) VALUES (?, ?, ?, ?)`,
-            [name, phone, hashedPassword, 'supervisor']
+            [name, phone, hashedPassword, role]
         );
 
-        res.status(201).json({ message: 'Supervisor added successfully' });
+        res.status(201).json({ message: role === ROLES.SPECIAL_SUPERVISOR ? 'Special supervisor added successfully' : 'Supervisor added successfully' });
     } catch (err) {
         if (err.code === '23505' || err.message.includes('unique')) {
             return res.status(400).json({ error: 'Phone number already registered' });
@@ -292,7 +297,7 @@ router.post('/add-supervisor', authenticateToken, async (req, res) => {
 });
 
 // Update Supervisor (Admin Only)
-router.put('/supervisors/:id', authenticateToken, async (req, res) => {
+router.put('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { name, phone, password } = req.body;
 
@@ -302,7 +307,7 @@ router.put('/supervisors/:id', authenticateToken, async (req, res) => {
 
     try {
         const db = await openDb();
-        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor')`, [id]);
 
         if (!existing) {
             return res.status(404).json({ error: 'Supervisor not found' });
@@ -331,13 +336,13 @@ router.put('/supervisors/:id', authenticateToken, async (req, res) => {
 });
 
 // Get Deleted Supervisors (Bin) — must be registered BEFORE /:id to avoid route conflict
-router.get('/supervisors/bin', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'admin') {
+router.get('/supervisors/bin', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
+    if (req.user.role !== ROLES.ADMIN) {
         return res.status(403).json({ error: 'Only admins can view the bin' });
     }
     try {
         const db = await openDb();
-        const supervisors = await db.all(`SELECT id, name, phone, deleted_at FROM users WHERE role = 'supervisor' AND is_deleted = true`);
+        const supervisors = await db.all(`SELECT id, name, phone, role, deleted_at FROM users WHERE role IN ('supervisor', 'special_supervisor') AND is_deleted = true`);
         res.json(supervisors);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -345,16 +350,16 @@ router.get('/supervisors/bin', authenticateToken, async (req, res) => {
 });
 
 // Soft Delete a Supervisor (Admin Only)
-router.delete('/supervisors/:id', authenticateToken, async (req, res) => {
+router.delete('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
         return res.status(403).json({ error: 'Only admins can delete supervisors' });
     }
 
     const client = await pool.connect();
     try {
         const db = await openDb();
-        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor')`, [id]);
         if (!existing) {
             client.release();
             return res.status(404).json({ error: 'Supervisor not found' });
@@ -376,11 +381,11 @@ router.delete('/supervisors/:id', authenticateToken, async (req, res) => {
 });
 
 // Admin changes Supervisor Password
-router.put('/supervisors/:id/change-password', authenticateToken, async (req, res) => {
+router.put('/supervisors/:id/change-password', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
     const { newPassword } = req.body;
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
         return res.status(403).json({ error: 'Only admins can change supervisor passwords' });
     }
 
@@ -390,7 +395,7 @@ router.put('/supervisors/:id/change-password', authenticateToken, async (req, re
 
     try {
         const db = await openDb();
-        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor')`, [id]);
 
         if (!existing) {
             return res.status(404).json({ error: 'Supervisor not found' });
@@ -409,15 +414,15 @@ router.put('/supervisors/:id/change-password', authenticateToken, async (req, re
 });
 
 // Restore a Supervisor
-router.put('/supervisors/:id/restore', authenticateToken, async (req, res) => {
+router.put('/supervisors/:id/restore', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
         return res.status(403).json({ error: 'Only admins can restore supervisors' });
     }
 
     try {
         const db = await openDb();
-        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor' AND is_deleted = true`, [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor') AND is_deleted = true`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Deleted supervisor not found' });
         }
@@ -430,15 +435,15 @@ router.put('/supervisors/:id/restore', authenticateToken, async (req, res) => {
 });
 
 // Permanently Delete a Supervisor
-router.delete('/supervisors/:id/permanent', authenticateToken, async (req, res) => {
+router.delete('/supervisors/:id/permanent', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
         return res.status(403).json({ error: 'Only admins can permanently delete supervisors' });
     }
 
     try {
         const db = await openDb();
-        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor' AND is_deleted = true`, [id]);
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor') AND is_deleted = true`, [id]);
         if (!existing) {
             return res.status(404).json({ error: 'Deleted supervisor not found' });
         }
@@ -454,8 +459,8 @@ router.delete('/supervisors/:id/permanent', authenticateToken, async (req, res) 
 });
 
 // Get Pending Admins (Admin Only)
-router.get('/admins/pending', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'admin') {
+router.get('/admins/pending', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
+    if (![ROLES.ADMIN, ROLES.OWNER].includes(req.user.role)) {
         return res.status(403).json({ error: 'Only approved admins can view pending requests' });
     }
 
@@ -469,9 +474,9 @@ router.get('/admins/pending', authenticateToken, async (req, res) => {
 });
 
 // Approve Pending Admin
-router.put('/admins/:id/approve', authenticateToken, async (req, res) => {
+router.put('/admins/:id/approve', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
     const { id } = req.params;
-    if (req.user.role !== 'admin') {
+    if (![ROLES.ADMIN, ROLES.OWNER].includes(req.user.role)) {
         return res.status(403).json({ error: 'Only approved admins can approve requests' });
     }
 
@@ -490,9 +495,9 @@ router.put('/admins/:id/approve', authenticateToken, async (req, res) => {
 });
 
 // Reject Pending Admin
-router.put('/admins/:id/reject', authenticateToken, async (req, res) => {
+router.put('/admins/:id/reject', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
     const { id } = req.params;
-    if (req.user.role !== 'admin') {
+    if (![ROLES.ADMIN, ROLES.OWNER].includes(req.user.role)) {
         return res.status(403).json({ error: 'Only approved admins can reject requests' });
     }
 
@@ -506,6 +511,177 @@ router.put('/admins/:id/reject', authenticateToken, async (req, res) => {
         await db.run(`UPDATE users SET status = 'rejected' WHERE id = ?`, [id]);
         res.json({ message: 'Admin registration rejected' });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Owner-only Admin Management
+router.get('/admins', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    try {
+        const db = await openDb();
+        const admins = await db.all(`
+            SELECT id, name, phone, status, is_deleted, deleted_at, created_at
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY created_at DESC
+        `);
+        res.json(admins);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/admins', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    const { name, phone, password } = req.body;
+
+    if (!name || !phone || !password) {
+        return res.status(400).json({ error: 'Name, phone, and password are required' });
+    }
+    if (password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    try {
+        const db = await openDb();
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await db.run(
+            `INSERT INTO users (name, phone, password_hash, role, status) VALUES (?, ?, ?, 'admin', 'approved') RETURNING id`,
+            [name, phone, hashedPassword]
+        );
+
+        const admin = await db.get(
+            `SELECT id, name, phone, status, is_deleted, deleted_at, created_at FROM users WHERE id = ?`,
+            [result.lastID]
+        );
+        res.status(201).json(admin);
+    } catch (err) {
+        if (err.code === '23505' || err.message.includes('unique')) {
+            return res.status(400).json({ error: 'Phone number already registered' });
+        }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/admins/:id', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { name, phone, password } = req.body;
+
+    if (!name || !phone) {
+        return res.status(400).json({ error: 'Name and phone are required' });
+    }
+
+    try {
+        const db = await openDb();
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin'`, [id]);
+        if (!existing) {
+            return res.status(404).json({ error: 'Admin not found' });
+        }
+
+        if (password) {
+            if (password.length < 6) {
+                return res.status(400).json({ error: 'Password must be at least 6 characters' });
+            }
+            const hashedPassword = await bcrypt.hash(password, 10);
+            await db.run(`UPDATE users SET name = ?, phone = ?, password_hash = ? WHERE id = ?`, [name, phone, hashedPassword, id]);
+            await db.run(`UPDATE refresh_tokens SET revoked = true WHERE user_id = ?`, [id]);
+        } else {
+            await db.run(`UPDATE users SET name = ?, phone = ? WHERE id = ?`, [name, phone, id]);
+        }
+
+        const admin = await db.get(
+            `SELECT id, name, phone, status, is_deleted, deleted_at, created_at FROM users WHERE id = ?`,
+            [id]
+        );
+        res.json(admin);
+    } catch (err) {
+        if (err.code === '23505' || err.message.includes('unique')) {
+            return res.status(400).json({ error: 'Phone number already registered' });
+        }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/admins/:id/reset-password', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    try {
+        const db = await openDb();
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin'`, [id]);
+        if (!existing) {
+            return res.status(404).json({ error: 'Admin not found' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await db.run(
+            `UPDATE users SET password_hash = ?, password_reset_required = true, password_reset_generated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            [hashedPassword, id]
+        );
+        await db.run(`UPDATE refresh_tokens SET revoked = true WHERE user_id = ?`, [id]);
+        res.json({ message: 'Admin password reset successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/admins/:id', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+    if (Number(id) === Number(req.user.id)) {
+        return res.status(400).json({ error: 'Owners cannot disable themselves through admin management' });
+    }
+
+    try {
+        const db = await openDb();
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin'`, [id]);
+        if (!existing) {
+            return res.status(404).json({ error: 'Admin not found' });
+        }
+
+        await db.run(`UPDATE users SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+        await db.run(`UPDATE refresh_tokens SET revoked = true WHERE user_id = ?`, [id]);
+        res.json({ message: 'Admin disabled successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/admins/:id/restore', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const db = await openDb();
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin' AND is_deleted = true`, [id]);
+        if (!existing) {
+            return res.status(404).json({ error: 'Disabled admin not found' });
+        }
+
+        await db.run(`UPDATE users SET is_deleted = false, deleted_at = NULL, status = 'approved' WHERE id = ?`, [id]);
+        res.json({ message: 'Admin restored successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/admins/:id/permanent', authenticateToken, authorizeRole(OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const db = await openDb();
+        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'admin' AND is_deleted = true`, [id]);
+        if (!existing) {
+            return res.status(404).json({ error: 'Disabled admin not found' });
+        }
+
+        await db.run(`DELETE FROM users WHERE id = ?`, [id]);
+        res.json({ message: 'Admin permanently deleted' });
+    } catch (err) {
+        if (err.code === '23503' || err.message.includes('foreign key')) {
+            return res.status(400).json({ error: 'Cannot delete admin because related records exist. Disable the account instead.' });
+        }
         res.status(500).json({ error: err.message });
     }
 });

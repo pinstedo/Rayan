@@ -6,9 +6,10 @@ const router = express.Router();
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 const { updateSiteHistory } = require('../utils/siteHistory');
+const { FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES } = require('../roles');
 
 // List all sites (supports ?status=active|inactive filter)
-router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const { status } = req.query;
@@ -40,7 +41,7 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Get ACTIVE sites assigned to a supervisor - MUST be before /:id route
-router.get('/supervisor/:supervisorId', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/supervisor/:supervisorId', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const sites = await db.all(`
@@ -57,7 +58,7 @@ router.get('/supervisor/:supervisorId', authorizeRole(['admin', 'supervisor']), 
 });
 
 // Create new site
-router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { name, address, description, created_by } = req.body;
 
     if (!name) {
@@ -89,7 +90,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Get site details with assigned supervisors
-router.get('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/:id', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const site = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
@@ -118,7 +119,7 @@ router.get('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Update site details (name, address, description, completion_percentage)
-router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { name, address, description, completion_percentage } = req.body;
 
     try {
@@ -189,7 +190,7 @@ router.put('/:id/status', authorizeRole(['admin']), async (req, res) => {
 });
 
 // Update site completion progress
-router.put('/:id/progress', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.put('/:id/progress', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     let { progress } = req.body;
 
     if (progress === undefined || isNaN(progress)) {
@@ -233,7 +234,7 @@ router.put('/:id/progress', authorizeRole(['admin', 'supervisor']), async (req, 
 });
 
 // Assign supervisor to site
-router.post('/:id/assign', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/:id/assign', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { supervisor_id } = req.body;
 
     if (!supervisor_id) {
@@ -268,7 +269,7 @@ router.post('/:id/assign', authorizeRole(['admin', 'supervisor']), async (req, r
 });
 
 // Remove supervisor from site
-router.delete('/:id/unassign/:supervisorId', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.delete('/:id/unassign/:supervisorId', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         await db.run(
@@ -282,7 +283,7 @@ router.delete('/:id/unassign/:supervisorId', authorizeRole(['admin', 'supervisor
 });
 
 // Assign labour to site — blocked for inactive sites
-router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/:id/assign-labour', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     const { labour_id } = req.body;
     if (!labour_id) {
         return res.status(400).json({ error: 'Labour ID is required' });
@@ -312,7 +313,7 @@ router.post('/:id/assign-labour', authorizeRole(['admin', 'supervisor']), async 
 });
 
 // Remove labour from site
-router.delete('/:id/unassign-labour/:labourId', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.delete('/:id/unassign-labour/:labourId', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         await db.run('UPDATE labours SET site_id = NULL, site = NULL, status = "unassigned" WHERE id = ?', [req.params.labourId]);
@@ -324,7 +325,7 @@ router.delete('/:id/unassign-labour/:labourId', authorizeRole(['admin', 'supervi
 });
 
 // Get labours for a specific site
-router.get('/:id/labours', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/:id/labours', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const labours = await db.all(

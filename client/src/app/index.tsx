@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { ActivityIndicator, Image, StatusBar, View } from "react-native";
 import { API_URL } from "../constants";
+import { getHomeRouteForRole } from "../utils/roles";
 import { styles } from "./style/stylesheet";
 
 export default function SplashScreen() {
@@ -50,15 +51,7 @@ export default function SplashScreen() {
 								await AsyncStorage.setItem("refreshToken", data.refreshToken);
 
 								const user = JSON.parse(userDataStr);
-								if (user.role === 'admin') {
-									router.replace("/(tabs)/home");
-								} else if (user.role === 'supervisor') {
-									router.replace("/supervisor/(tabs)/home" as any);
-								} else if (user.role === 'labour') {
-									router.replace("/(labour)/dashboard" as any);
-								} else {
-									router.replace("/(tabs)/home");
-								}
+								router.replace(getHomeRouteForRole(user.role) as any);
 								return;
 							}
 						} catch (e) {
@@ -67,15 +60,7 @@ export default function SplashScreen() {
 					} else {
 						// Fallback if only access token exists (legacy?)
 						const user = JSON.parse(userDataStr);
-						if (user.role === 'admin') {
-							router.replace("/(tabs)/home");
-						} else if (user.role === 'supervisor') {
-							router.replace("/supervisor/(tabs)/home" as any);
-						} else if (user.role === 'labour') {
-							router.replace("/(labour)/dashboard" as any);
-						} else {
-							router.replace("/(tabs)/home");
-						}
+						router.replace(getHomeRouteForRole(user.role) as any);
 						return;
 					}
 				}

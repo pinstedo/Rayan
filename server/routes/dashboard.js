@@ -4,8 +4,9 @@ const { openDb } = require('../database');
 const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
+const { FIELD_SUPERVISOR_ROLES, OWNER_ROLES } = require('../roles');
 
-router.get('/stats', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/stats', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
 
@@ -33,7 +34,119 @@ router.get('/stats', authorizeRole(['admin', 'supervisor']), async (req, res) =>
     }
 });
 
-router.get('/recent', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/owner-daily', authorizeRole(OWNER_ROLES), async (req, res) => {
+    try {
+        const db = await openDb();
+        const date = req.query.date || new Date().toISOString().split('T')[0];
+
+        const siteRows = await db.all(`
+            SELECT
+                s.id,
+                s.name,
+                s.address,
+                s.status,
+                s.completion_percentage,
+                COUNT(DISTINCT CASE WHEN l.status = 'active' THEN l.id END) as active_labour_count,
+                COUNT(DISTINCT l.id) as total_labour_count,
+                COUNT(DISTINCT CASE WHEN a.status = 'full' THEN a.labour_id END) as full_count,
+                COUNT(DISTINCT CASE WHEN a.status = 'half' THEN a.labour_id END) as half_count,
+                COUNT(DISTINCT CASE WHEN a.status = 'absent' THEN a.labour_id END) as absent_marked_count,
+                COUNT(DISTINCT a.labour_id) as total_marked
+            FROM sites s
+            LEFT JOIN labours l ON l.site_id = s.id
+            LEFT JOIN attendance a ON a.site_id = s.id AND a.date = ?
+            GROUP BY s.id
+            ORDER BY s.name ASC
+        `, [date]);
+
+        const advanceRows = await db.all(`
+            SELECT
+                COALESCE(s.id, 0) as site_id,
+                COALESCE(s.name, 'Unassigned') as site_name,
+                COUNT(a.id) as count,
+                COALESCE(SUM(a.amount), 0) as total_amount
+            FROM advances a
+            JOIN labours l ON a.labour_id = l.id
+            LEFT JOIN sites s ON l.site_id = s.id
+            WHERE a.date = ?
+            GROUP BY s.id, s.name
+            ORDER BY site_name ASC
+        `, [date]);
+
+        const siteStatusSummary = await db.all(`
+            SELECT COALESCE(status, 'active') as status, COUNT(*) as count
+            FROM sites
+            GROUP BY COALESCE(status, 'active')
+        `);
+
+        const totals = siteRows.reduce((acc, site) => {
+            const full = Number(site.full_count) || 0;
+            const half = Number(site.half_count) || 0;
+            const present = full + half;
+            const activeLabours = Number(site.active_labour_count) || 0;
+            const absentMarked = Number(site.absent_marked_count) || 0;
+            acc.present += present;
+            acc.totalMarked += Number(site.total_marked) || 0;
+            acc.totalLabours += Number(site.total_labour_count) || 0;
+            acc.activeLabours += activeLabours;
+            acc.computedAbsent += Math.max(absentMarked, Math.max(0, activeLabours - present));
+            return acc;
+        }, { present: 0, totalMarked: 0, totalLabours: 0, activeLabours: 0, computedAbsent: 0 });
+
+        const advancesTotal = advanceRows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+        const advancesCount = advanceRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+
+        const statusCounts = siteStatusSummary.reduce((acc, row) => {
+            acc[row.status] = Number(row.count) || 0;
+            return acc;
+        }, {});
+
+        res.json({
+            date,
+            summary: {
+                present: totals.present,
+                computedAbsent: totals.computedAbsent,
+                totalMarked: totals.totalMarked,
+                totalLabours: totals.totalLabours,
+                activeLabours: totals.activeLabours,
+                totalAdvances: advancesTotal,
+                advanceCount: advancesCount,
+                totalSites: siteRows.length,
+                activeSites: statusCounts.active || 0,
+                inactiveSites: statusCounts.inactive || 0,
+                completedSites: statusCounts.completed || 0,
+            },
+            sites: siteRows.map(site => {
+                const full = Number(site.full_count) || 0;
+                const half = Number(site.half_count) || 0;
+                const present = full + half;
+                const activeLabours = Number(site.active_labour_count) || 0;
+                const absentMarked = Number(site.absent_marked_count) || 0;
+                return {
+                    ...site,
+                    active_labour_count: activeLabours,
+                    total_labour_count: Number(site.total_labour_count) || 0,
+                    full_count: full,
+                    half_count: half,
+                    present_count: present,
+                    absent_marked_count: absentMarked,
+                    computed_absent_count: Math.max(absentMarked, Math.max(0, activeLabours - present)),
+                    total_marked: Number(site.total_marked) || 0,
+                };
+            }),
+            advancesBySite: advanceRows.map(row => ({
+                site_id: Number(row.site_id) || null,
+                site_name: row.site_name,
+                count: Number(row.count) || 0,
+                total_amount: Number(row.total_amount) || 0,
+            })),
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/recent', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
 

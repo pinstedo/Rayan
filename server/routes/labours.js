@@ -10,9 +10,10 @@ const router = express.Router();
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 const { updateSiteHistory } = require('../utils/siteHistory');
+const { ROLES, FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES } = require('../roles');
 
 // List all labours or filter by supervisor
-router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const { supervisor_id, status } = req.query;
@@ -45,6 +46,10 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             conditions.push("l.status = 'active'");
         }
 
+        if (req.user?.role === ROLES.SPECIAL_SUPERVISOR) {
+            conditions.push("status IN ('active', 'unassigned', 'leave')");
+        }
+
         if (conditions.length > 0) {
             if (supervisor_id) {
                 query = `
@@ -70,7 +75,7 @@ router.get('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Add new labour
-router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { name, phone, password, aadhaar, site, site_id, rate, notes, date_of_birth } = req.body;
 
     if (!name) {
@@ -144,7 +149,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Get labours assigned to a site on a specific date based on history
-router.get('/by-site-date', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/by-site-date', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const { siteId, date } = req.query;
         if (!siteId || !date) {
@@ -353,7 +358,7 @@ router.put('/me', async (req, res) => {
 
 // Get labours eligible for bonus (worked_days_count >= 275)
 // NOTE: Must be defined BEFORE /:id route to avoid param matching
-router.get('/eligible', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const labours = await db.all(
@@ -377,7 +382,7 @@ router.get('/eligible', authorizeRole(['admin', 'supervisor']), async (req, res)
 });
 
 // Get labour details
-router.get('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const labour = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
@@ -398,7 +403,7 @@ router.get('/debug-me', (req, res) => {
 });
 
 // Update labour
-router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { name, phone, aadhaar, site, site_id, rate, notes, profile_image, date_of_birth, emergency_phone } = req.body;
 
     try {
@@ -453,7 +458,7 @@ router.put('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Delete labour
-router.delete('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.delete('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         await db.run('DELETE FROM labours WHERE id = ?', [req.params.id]);
@@ -463,12 +468,16 @@ router.delete('/:id', authorizeRole(['admin', 'supervisor']), async (req, res) =
     }
 });
 // Update labour status
-router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.put('/:id/status', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     let { status } = req.body;
     const allowedStatuses = ['active', 'unassigned', 'pending', 'leave'];
 
     if (!allowedStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    if (req.user?.role === ROLES.SPECIAL_SUPERVISOR && !['active', 'unassigned', 'leave'].includes(status)) {
+        return res.status(403).json({ error: 'Special supervisors can only set active, unassigned, or leave statuses.' });
     }
 
     try {
@@ -521,7 +530,7 @@ router.put('/:id/status', authorizeRole(['admin', 'supervisor']), async (req, re
 });
 
 // Add Bonus (manual legacy endpoint kept for backward compat)
-router.post('/:id/bonus', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { amount, date, notes } = req.body;
     const labour_id = req.params.id;
 
@@ -614,7 +623,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
 });
 
 // Get financial history (bonus + increment) for a labour
-router.get('/:id/financial-history', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/:id/financial-history', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const records = await db.all(
@@ -628,7 +637,7 @@ router.get('/:id/financial-history', authorizeRole(['admin', 'supervisor']), asy
 });
 
 // Add Advance
-router.post('/:id/advance', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/:id/advance', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { amount, date, notes, created_by } = req.body;
     const labour_id = req.params.id;
 
@@ -654,7 +663,7 @@ router.post('/:id/advance', authorizeRole(['admin', 'supervisor']), async (req, 
 });
 
 // Get Advances for a Labour
-router.get('/:id/advances', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/:id/advances', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     // Note: Labours should only see their own advances.
     // The query filters by labour_id (params.id).
     // If a labour fetches /:id/advances, we must ensure :id matches req.user.id if they are a labour.

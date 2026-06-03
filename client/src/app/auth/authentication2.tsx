@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { API_URL } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
+import { getHomeRouteForRole } from "../../utils/roles";
 
 export default function SignInScreen() {
 	const { isDark } = useTheme();
@@ -54,14 +55,8 @@ export default function SignInScreen() {
 
 				if (data.user.password_reset_required) {
 					router.replace("/auth/create-new-password" as any);
-				} else if (data.user.role === 'admin') {
-					router.replace("/(tabs)/home");
-				} else if (data.user.role === 'supervisor') {
-					router.replace("/supervisor/(tabs)/home");
-				} else if (data.user.role === 'labour') {
-					router.replace("/(labour)/dashboard");
 				} else {
-					router.replace("/(tabs)/home");
+					router.replace(getHomeRouteForRole(data.user.role) as any);
 				}
 			} else {
 				Alert.alert("Sign In Failed", data.error || "Invalid credentials");

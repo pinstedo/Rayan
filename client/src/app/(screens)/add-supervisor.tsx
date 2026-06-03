@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { ROLES, getRoleLabel } from "../../utils/roles";
 
 export default function AddSupervisorScreen() {
     const router = useRouter();
@@ -23,6 +24,7 @@ export default function AddSupervisorScreen() {
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
+    const [role, setRole] = useState<string>(ROLES.SUPERVISOR);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -54,15 +56,16 @@ export default function AddSupervisorScreen() {
                 name,
                 phone,
                 password,
+                role,
             });
 
             const data = await response.json();
 
             if (response.ok) {
                 if (Platform.OS === 'web') {
-                    window.alert("Supervisor added successfully!");
+                    window.alert(`${getRoleLabel(role)} added successfully!`);
                 } else {
-                    Alert.alert("Success", "Supervisor added successfully!");
+                    Alert.alert("Success", `${getRoleLabel(role)} added successfully!`);
                 }
                 router.back();
             } else {
@@ -95,6 +98,23 @@ export default function AddSupervisorScreen() {
 
                 <View style={local.formContainer}>
                     <Text style={local.sectionTitle}>New Account Details</Text>
+
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Role</Text>
+                        <View style={local.roleSelector}>
+                            {[ROLES.SUPERVISOR, ROLES.SPECIAL_SUPERVISOR].map((option) => (
+                                <TouchableOpacity
+                                    key={option}
+                                    style={[local.roleOption, role === option && local.roleOptionActive]}
+                                    onPress={() => setRole(option)}
+                                >
+                                    <Text style={[local.roleOptionText, role === option && local.roleOptionTextActive]}>
+                                        {getRoleLabel(option)}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
 
                     <View style={local.inputGroup}>
                         <Text style={local.label}>Full Name</Text>
@@ -157,7 +177,7 @@ export default function AddSupervisorScreen() {
                         disabled={loading}
                     >
                         <Text style={local.submitButtonText}>
-                            {loading ? "Creating..." : "Create Account"}
+                            {loading ? "Creating..." : `Create ${getRoleLabel(role)}`}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -243,6 +263,31 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontSize: 16,
         color: isDark ? "#fff" : "#2d3436",
         height: "100%",
+    },
+    roleSelector: {
+        flexDirection: "row",
+        gap: 10,
+    },
+    roleOption: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: isDark ? "#444" : "#d6dbe3",
+        backgroundColor: isDark ? "#2a2a2a" : "#f5f6fa",
+        alignItems: "center",
+    },
+    roleOptionActive: {
+        borderColor: "#0a84ff",
+        backgroundColor: isDark ? "#123456" : "#e8f4ff",
+    },
+    roleOptionText: {
+        color: isDark ? "#ccc" : "#333",
+        fontWeight: "600",
+    },
+    roleOptionTextActive: {
+        color: isDark ? "#8cc8ff" : "#0a84ff",
     },
     eyeIcon: {
         padding: 8,

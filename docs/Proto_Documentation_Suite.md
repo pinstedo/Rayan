@@ -219,7 +219,7 @@ Stores credentials for Admins and Supervisors.
 | `name` | TEXT | Full name |
 | `phone` | TEXT | Mobile number (Login ID) |
 | `password_hash` | TEXT | Bcrypt hashed password |
-| `role` | TEXT | `admin` or `supervisor` |
+| `role` | TEXT | `admin`, `owner`, `supervisor`, or `special_supervisor` |
 | `created_at` | DATETIME | Timestamp |
 
 ### **Labours (`labours`)**
