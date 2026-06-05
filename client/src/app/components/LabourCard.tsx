@@ -1,12 +1,13 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useTheme } from "../../context/ThemeContext";
+import { getDailyWage } from "../../utils/wages";
 
 interface Labour {
     id: number;
     name: string;
     phone: string;
+    daily_wage?: number;
     rate?: number;
     site: string;
     site_id?: number;
@@ -29,7 +30,6 @@ interface LabourCardProps {
 }
 
 export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onMarkLeave, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
-    const { isDark } = useTheme();
     const getStatusColor = (status?: string) => {
         switch (status) {
             case 'unassigned': return '#9e9e9e';
@@ -49,6 +49,7 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
     const age = calculateAge(labour.date_of_birth);
     const isActionable = labour.status !== 'unassigned' && labour.status !== 'leave';
     const isUnassigned = labour.status === 'unassigned';
+    const dailyWage = getDailyWage(labour);
 
     const CardContent = (
         <View style={[
@@ -87,7 +88,7 @@ export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, on
                     <View style={styles.rateContainer}>
                         <Text style={styles.rateLabel}>Rate/day</Text>
                         <Text style={styles.rate}>
-                            {labour.rate ? `₹${Number(labour.rate * 8).toFixed(2)}` : "-"}
+                            {dailyWage > 0 ? `₹${dailyWage.toFixed(2)}` : "-"}
                         </Text>
                     </View>
                 )}

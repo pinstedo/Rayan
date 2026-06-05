@@ -9,6 +9,7 @@ import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
 import { api } from "../../services/api";
+import { getHourlyRate } from "../../utils/wages";
 
 interface Labour {
 	id: number;
@@ -16,6 +17,7 @@ interface Labour {
 	role: string;
 	site?: string;
 	site_id?: number | string;
+	daily_wage?: number;
 	rate?: number;
 	status?: string;
 }
@@ -335,7 +337,7 @@ export default function AttendanceScreen() {
 				for (const [labourId, hours] of overtimeData.entries()) {
 					if (hours >= 0) { // Send 0 to allow clearing
 						const labour = labours.find(l => l.id === labourId);
-						const rate = labour?.rate || 0;
+						const rate = getHourlyRate(labour);
 						overtimeRecords.push({
 							labour_id: labourId,
 							site_id: siteId,

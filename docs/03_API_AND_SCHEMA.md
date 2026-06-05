@@ -22,7 +22,8 @@ Profiles of all workers in the system.
 | `phone` | TEXT | Contact number (optional) |
 | `aadhaar` | TEXT | Identification number (optional) |
 | `site_id` | INTEGER FK | Current assigned site (`sites.id`) |
-| `rate` | REAL | Daily wage rate |
+| `daily_wage` | REAL | Daily wage rate |
+| `rate` | REAL | Deprecated legacy hourly-rate compatibility backup |
 | `trade` | TEXT | Skill (e.g., Mason, Helper) |
 | `status` | TEXT | `active`, `inactive` |
 

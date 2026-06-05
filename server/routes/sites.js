@@ -7,6 +7,7 @@ const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 const { updateSiteHistory } = require('../utils/siteHistory');
 const { FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES } = require('../roles');
+const { withWageCompatibilityList } = require('../utils/wages');
 
 // List all sites (supports ?status=active|inactive filter)
 router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
@@ -112,7 +113,7 @@ router.get('/:id', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
             SELECT * FROM labours WHERE site_id = ? AND status = 'active'
         `, [req.params.id]);
 
-        res.json({ ...site, supervisors, labours });
+        res.json({ ...site, supervisors, labours: withWageCompatibilityList(labours) });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -332,7 +333,7 @@ router.get('/:id/labours', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => 
             "SELECT * FROM labours WHERE site_id = ? AND status = 'active' ORDER BY created_at DESC",
             [req.params.id]
         );
-        res.json(labours);
+        res.json(withWageCompatibilityList(labours));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

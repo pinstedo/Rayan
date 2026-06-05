@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 require('dotenv').config();
+const { STANDARD_DAILY_HOURS } = require('./utils/wages');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/proto',
@@ -117,6 +118,9 @@ async function initDb() {
       site TEXT,
       site_id INTEGER REFERENCES sites(id),
       rate REAL,
+      daily_wage REAL,
+      legacy_hourly_rate_backup REAL,
+      opening_balance REAL DEFAULT 0,
       notes TEXT,
       trade TEXT,
       date_of_birth TEXT,
@@ -231,6 +235,10 @@ async function initDb() {
       labour_id INTEGER NOT NULL REFERENCES labours(id) ON DELETE CASCADE,
       previous_rate REAL,
       new_rate REAL NOT NULL,
+      previous_daily_wage REAL,
+      new_daily_wage REAL,
+      previous_hourly_rate_backup REAL,
+      new_hourly_rate_backup REAL,
       date TEXT NOT NULL,
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -304,6 +312,65 @@ async function initDb() {
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS worked_days_count NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS increment_cycle_count INTEGER DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS total_bonus_earned NUMERIC DEFAULT 0`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS daily_wage REAL`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS legacy_hourly_rate_backup REAL`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS opening_balance REAL DEFAULT 0`);
+  await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS previous_daily_wage REAL`);
+  await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS new_daily_wage REAL`);
+  await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS previous_hourly_rate_backup REAL`);
+  await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS new_hourly_rate_backup REAL`);
+
+  const wageMigration = await db.get(`SELECT value FROM app_settings WHERE key = 'wage_storage_migrated_to_daily'`);
+  if (!wageMigration || wageMigration.value !== 'true') {
+    const migrationDb = await openTransactionDb();
+    try {
+      await migrationDb.run('BEGIN');
+      await migrationDb.run(
+        `UPDATE labours
+         SET legacy_hourly_rate_backup = COALESCE(legacy_hourly_rate_backup, rate),
+             daily_wage = COALESCE(daily_wage, rate * ?)
+         WHERE rate IS NOT NULL`,
+        [STANDARD_DAILY_HOURS]
+      );
+      await migrationDb.run(
+        `UPDATE salary_history
+         SET previous_hourly_rate_backup = COALESCE(previous_hourly_rate_backup, previous_rate),
+             new_hourly_rate_backup = COALESCE(new_hourly_rate_backup, new_rate),
+             previous_daily_wage = COALESCE(previous_daily_wage, previous_rate * ?),
+             new_daily_wage = COALESCE(new_daily_wage, new_rate * ?)
+         WHERE previous_rate IS NOT NULL OR new_rate IS NOT NULL`,
+        [STANDARD_DAILY_HOURS, STANDARD_DAILY_HOURS]
+      );
+      await migrationDb.run(
+        `INSERT INTO app_settings (key, value) VALUES ('wage_storage_migrated_to_daily', 'true')
+         ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = CURRENT_TIMESTAMP`
+      );
+      await migrationDb.run('COMMIT');
+    } catch (e) {
+      await migrationDb.run('ROLLBACK');
+      throw e;
+    } finally {
+      if (migrationDb.release) migrationDb.release();
+    }
+  } else {
+    await db.run(
+      `UPDATE labours
+       SET legacy_hourly_rate_backup = COALESCE(legacy_hourly_rate_backup, rate),
+           daily_wage = COALESCE(daily_wage, rate * ?)
+       WHERE rate IS NOT NULL AND daily_wage IS NULL`,
+      [STANDARD_DAILY_HOURS]
+    );
+    await db.run(
+      `UPDATE salary_history
+       SET previous_hourly_rate_backup = COALESCE(previous_hourly_rate_backup, previous_rate),
+           new_hourly_rate_backup = COALESCE(new_hourly_rate_backup, new_rate),
+           previous_daily_wage = COALESCE(previous_daily_wage, previous_rate * ?),
+           new_daily_wage = COALESCE(new_daily_wage, new_rate * ?)
+       WHERE (previous_rate IS NOT NULL OR new_rate IS NOT NULL)
+         AND (previous_daily_wage IS NULL OR new_daily_wage IS NULL)`,
+      [STANDARD_DAILY_HOURS, STANDARD_DAILY_HOURS]
+    );
+  }
 
   // Labour status integration
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS labour_status TEXT`);

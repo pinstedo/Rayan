@@ -122,6 +122,24 @@ export default function BonusAttendanceReportScreen() {
         return '';
     };
 
+    const getMonthMarkers = (monthData: any) => {
+        if (!monthData) return [];
+        const markers = [];
+        if (monthData.bonus_amount > 0) {
+            markers.push({ label: 'BONUS', detail: formatCurrency(monthData.bonus_amount), type: 'bonus' });
+        }
+        if (monthData.has_increment) {
+            markers.push({ label: 'INC', detail: '', type: 'increment' });
+        }
+        return markers;
+    };
+
+    const getCellLabel = (monthData: any) => {
+        const markers = getMonthMarkers(monthData);
+        if (markers.length === 0) return '';
+        return markers.map(marker => marker.label).join(' + ');
+    };
+
     const generatePDF = async () => {
         if (generatingPdf) return;
         setGeneratingPdf(true);
@@ -166,7 +184,15 @@ export default function BonusAttendanceReportScreen() {
                     const mData = item.monthly_data?.[m];
                     const att = mData ? mData.attendance : 0;
                     const style = getCellColorPDF(mData);
-                    rowHtml += `<td style="${style}">${att > 0 ? att : ''}</td>`;
+                    const markers = getMonthMarkers(mData);
+                    const markerHtml = markers.map(marker =>
+                        `<div class="marker marker-${marker.type}">${marker.label}${marker.detail ? ` ${marker.detail}` : ''}</div>`
+                    ).join('');
+                    rowHtml += `
+                        <td style="${style}" class="${markers.length > 0 ? 'event-cell' : ''}">
+                            <div class="attendance">${att > 0 ? att : ''}</div>
+                            ${markerHtml}
+                        </td>`;
                 });
 
                 rowHtml += `
@@ -184,16 +210,22 @@ export default function BonusAttendanceReportScreen() {
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
                     <style>
                         @page { size: landscape; }
+                        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         body { font-family: 'Helvetica', sans-serif; padding: 20px; }
                         h1 { text-align: center; color: #333; }
                         .header { margin-bottom: 20px; text-align: center; }
                         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-                        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; }
+                        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; vertical-align: top; }
                         th { background-color: #f2f2f2; }
                         .text-left { text-align: left; }
                         .legend { display: flex; justify-content: center; gap: 15px; margin-top: 10px; font-size: 11px; }
                         .legend-item { display: flex; align-items: center; gap: 5px; }
                         .box { width: 12px; height: 12px; border: 1px solid #999; }
+                        .event-cell { min-width: 58px; font-weight: bold; }
+                        .attendance { font-size: 11px; min-height: 12px; }
+                        .marker { margin-top: 2px; padding: 2px 3px; border-radius: 3px; font-size: 8px; line-height: 1.1; color: #111; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.15); }
+                        .marker-bonus { color: #7a3d00; }
+                        .marker-increment { color: #004c8c; }
                     </style>
                 </head>
                 <body>
@@ -300,7 +332,7 @@ export default function BonusAttendanceReportScreen() {
                             <MaterialIcons name="print" size={24} color="#fff" />
                         )}
                         <Text style={local.btnText}>
-                            {generatingPdf ? "Generating..." : "Generate PDF"}
+                            {generatingPdf ? "Generating..." : "Generate"}
                         </Text>
                     </TouchableOpacity>
 
@@ -335,11 +367,17 @@ export default function BonusAttendanceReportScreen() {
                                             const mData = item.monthly_data?.[m];
                                             const bgColor = getCellColor(mData);
                                             const att = mData ? mData.attendance : 0;
+                                            const label = getCellLabel(mData);
                                             return (
                                                 <View key={m} style={[local.tableCell, local.monthColumn, { backgroundColor: bgColor }]}>
                                                     <Text style={[local.tableCellText, bgColor !== 'transparent' && { color: '#fff', fontWeight: 'bold' }]}>
                                                         {att > 0 ? att : ''}
                                                     </Text>
+                                                    {label ? (
+                                                        <Text style={local.monthMarkerText} numberOfLines={2}>
+                                                            {label}
+                                                        </Text>
+                                                    ) : null}
                                                 </View>
                                             );
                                         })}
@@ -498,8 +536,20 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: isDark ? '#ddd' : '#333',
     },
     nameColumn: { width: 150, alignItems: 'flex-start' },
-    monthColumn: { width: 50 },
+    monthColumn: { width: 64, minHeight: 44 },
     totalColumn: { width: 60 },
+    monthMarkerText: {
+        marginTop: 3,
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 4,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.88)',
+        color: '#111',
+        fontSize: 8,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
 
     modalOverlay: {
         flex: 1,

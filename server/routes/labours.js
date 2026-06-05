@@ -11,6 +11,13 @@ const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 const { updateSiteHistory } = require('../utils/siteHistory');
 const { ROLES, FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES } = require('../roles');
+const {
+    dailyWageFromPayload,
+    getLabourDailyWage,
+    hourlyFromDailyWage,
+    withWageCompatibility,
+    withWageCompatibilityList
+} = require('../utils/wages');
 
 // List all labours or filter by supervisor
 router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
@@ -68,7 +75,7 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
         query += ' ORDER BY created_at DESC';
 
         const labours = await db.all(query, params);
-        res.json(labours);
+        res.json(withWageCompatibilityList(labours));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -76,7 +83,14 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
 
 // Add new labour
 router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
-    const { name, phone, password, aadhaar, site, site_id, rate, notes, date_of_birth } = req.body;
+    const { name, phone, password, aadhaar, site, site_id, notes, date_of_birth } = req.body;
+    const dailyWage = dailyWageFromPayload(req.body);
+    const openingWorkingDays = req.body.opening_working_days === undefined || req.body.opening_working_days === null || req.body.opening_working_days === ''
+        ? 0
+        : Number(req.body.opening_working_days);
+    const openingBalance = req.body.opening_balance === undefined || req.body.opening_balance === null || req.body.opening_balance === ''
+        ? 0
+        : Number(req.body.opening_balance);
 
     if (!name) {
         return res.status(400).json({ error: 'Name is required' });
@@ -90,8 +104,16 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
         return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    if (rate && isNaN(parseFloat(rate))) {
-        return res.status(400).json({ error: 'Rate must be a valid number' });
+    if (dailyWage !== null && dailyWage <= 0) {
+        return res.status(400).json({ error: 'Daily wage must be a positive number' });
+    }
+
+    if (!Number.isFinite(openingWorkingDays) || openingWorkingDays < 0) {
+        return res.status(400).json({ error: 'Opening working days must be a non-negative number' });
+    }
+
+    if (!Number.isFinite(openingBalance)) {
+        return res.status(400).json({ error: 'Opening balance must be a valid number' });
     }
 
     try {
@@ -122,12 +144,14 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
         // If supervisor is creating, status is pending. If admin creates without a site, it's unassigned.
         const initialStatus = req.user && req.user.role === 'supervisor' ? 'pending' : (site_id ? 'active' : 'unassigned');
 
+        const legacyHourlyRate = dailyWage === null ? null : hourlyFromDailyWage(dailyWage);
+
         const result = await db.run(
-            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, notes, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-            [name, phone, password_hash, aadhaar, site, site_id, rate, notes, date_of_birth, initialStatus]
+            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, daily_wage, opening_balance, worked_days_count, notes, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+            [name, phone, password_hash, aadhaar, site, site_id, legacyHourlyRate, dailyWage, openingBalance, openingWorkingDays, notes, date_of_birth, initialStatus]
         );
 
-        const newLabour = await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]);
+        const newLabour = withWageCompatibility(await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]));
 
         if (site_id) {
             await updateSiteHistory(db, result.lastID, site_id);
@@ -138,7 +162,7 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             action: 'created',
             reference_id: result.lastID,
             name: name,
-            metadata: { phone, site, status: initialStatus },
+            metadata: { phone, site, status: initialStatus, opening_balance: openingBalance, opening_working_days: openingWorkingDays },
             created_by: req.user ? req.user.id : null
         });
 
@@ -168,7 +192,7 @@ router.get('/by-site-date', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, r
             ORDER BY l.name ASC
         `, [siteId, date, date, siteId, date]);
 
-        res.json(labours);
+        res.json(withWageCompatibilityList(labours));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -327,7 +351,7 @@ router.get('/me', async (req, res) => {
         if (!labour) {
             return res.status(404).json({ error: 'Labour not found' });
         }
-        res.json(labour);
+        res.json(withWageCompatibility(labour));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -349,7 +373,7 @@ router.put('/me', async (req, res) => {
             [profile_image, date_of_birth, emergency_phone, req.user.id]
         );
 
-        const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.user.id]);
+        const updated = withWageCompatibility(await db.get('SELECT * FROM labours WHERE id = ?', [req.user.id]));
         res.json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -369,12 +393,15 @@ router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) 
              ORDER BY worked_days_count DESC`
         );
         // Add calculated bonus to each labour
-        const result = labours.map(l => ({
-            ...l,
-            rate: (l.rate || 0) * 8,  // convert hourly -> daily for display
-            bonus_due: Math.round((Number(l.worked_days_count) / 22) * 100) / 100,
-            progress_percent: Math.min(100, Math.round((Number(l.worked_days_count) / 275) * 100))
-        }));
+        const result = labours.map(l => {
+            const normal = withWageCompatibility(l);
+            return {
+                ...normal,
+                rate: normal.daily_wage || 0,
+                bonus_due: Math.round((Number(l.worked_days_count) / 22) * 100) / 100,
+                progress_percent: Math.min(100, Math.round((Number(l.worked_days_count) / 275) * 100))
+            };
+        });
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -391,7 +418,7 @@ router.get('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             return res.status(404).json({ error: 'Labour not found' });
         }
 
-        res.json(labour);
+        res.json(withWageCompatibility(labour));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -404,7 +431,8 @@ router.get('/debug-me', (req, res) => {
 
 // Update labour
 router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
-    const { name, phone, aadhaar, site, site_id, rate, notes, profile_image, date_of_birth, emergency_phone } = req.body;
+    const { name, phone, aadhaar, site, site_id, notes, profile_image, date_of_birth, emergency_phone } = req.body;
+    const dailyWage = dailyWageFromPayload(req.body);
 
     try {
         const db = await openDb();
@@ -413,12 +441,26 @@ router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             return res.status(404).json({ error: 'Labour not found' });
         }
 
-        // Handle rate change history
-        if (rate !== undefined && parseFloat(rate) !== currentLabour.rate) {
+        const currentDailyWage = getLabourDailyWage(currentLabour);
+        const nextDailyWage = dailyWage !== null ? dailyWage : currentDailyWage;
+        const legacyHourlyRate = hourlyFromDailyWage(nextDailyWage);
+
+        // Handle wage change history
+        if (dailyWage !== null && dailyWage !== currentDailyWage) {
             const today = new Date().toISOString().split('T')[0];
             await db.run(
-                `INSERT INTO salary_history (labour_id, previous_rate, new_rate, date, created_by) VALUES (?, ?, ?, ?, ?)`,
-                [req.params.id, currentLabour.rate || 0, parseFloat(rate), today, req.user ? req.user.id : null]
+                `INSERT INTO salary_history (labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, previous_hourly_rate_backup, new_hourly_rate_backup, date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    req.params.id,
+                    hourlyFromDailyWage(currentDailyWage),
+                    legacyHourlyRate,
+                    currentDailyWage,
+                    nextDailyWage,
+                    hourlyFromDailyWage(currentDailyWage),
+                    legacyHourlyRate,
+                    today,
+                    req.user ? req.user.id : null
+                ]
             );
         }
 
@@ -432,22 +474,22 @@ router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
         }
 
         await db.run(
-            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, notes = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ? WHERE id = ?`,
-            [name, phone, aadhaar, site, site_id, rate, notes, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
+            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, daily_wage = ?, notes = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ? WHERE id = ?`,
+            [name, phone, aadhaar, site, site_id, legacyHourlyRate, nextDailyWage, notes, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
         );
 
         if (site_id != currentLabour.site_id) {
             await updateSiteHistory(db, req.params.id, site_id || null);
         }
 
-        const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
+        const updated = withWageCompatibility(await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]));
 
         await logHistory({
             type: 'labour',
             action: 'updated',
             reference_id: req.params.id,
             name: name,
-            metadata: { phone, site, rate },
+            metadata: { phone, site, daily_wage: nextDailyWage },
             created_by: req.user ? req.user.id : null
         });
 
@@ -512,7 +554,7 @@ router.put('/:id/status', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
             );
         }
 
-        const updated = await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]);
+        const updated = withWageCompatibility(await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]));
 
         await logHistory({
             type: 'labour',
@@ -568,31 +610,41 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
     try {
         await db.run('BEGIN');
 
-        // Fetch current labour (rate is stored as hourly = daily / 8)
+        // Fetch current labour. daily_wage is the source of truth.
         const labour = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
         if (!labour) {
             await db.run('ROLLBACK');
             return res.status(404).json({ error: 'Labour not found' });
         }
 
-        const currentDailyRate = (labour.rate || 0) * 8; // convert hourly → daily
+        const currentDailyRate = getLabourDailyWage(labour);
         const newDailyRate = currentDailyRate + incrementAmt;
-        const newHourlyRate = newDailyRate / 8;
+        const newHourlyRate = hourlyFromDailyWage(newDailyRate);
         const workedDaysAtTime = Number(labour.worked_days_count) || 0;
         const today = new Date().toISOString().split('T')[0];
 
-        // Update salary (stored as hourly), reset worked_days_count, increment cycle count
+        // Update salary, reset worked_days_count, increment cycle count.
         await db.run(
             `UPDATE labours 
-             SET rate = ?, worked_days_count = 0, increment_cycle_count = increment_cycle_count + 1
+             SET rate = ?, daily_wage = ?, worked_days_count = 0, increment_cycle_count = increment_cycle_count + 1
              WHERE id = ?`,
-            [newHourlyRate, labour_id]
+            [newHourlyRate, newDailyRate, labour_id]
         );
 
-        // Record in legacy salary_history table (backward compatibility)
+        // Record history with daily wage as source of truth and legacy hourly backup.
         await db.run(
-            `INSERT INTO salary_history (labour_id, previous_rate, new_rate, date, created_by) VALUES (?, ?, ?, ?, ?)`,
-            [labour_id, labour.rate || 0, newHourlyRate, today, req.user ? req.user.id : null]
+            `INSERT INTO salary_history (labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, previous_hourly_rate_backup, new_hourly_rate_backup, date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                labour_id,
+                hourlyFromDailyWage(currentDailyRate),
+                newHourlyRate,
+                currentDailyRate,
+                newDailyRate,
+                hourlyFromDailyWage(currentDailyRate),
+                newHourlyRate,
+                today,
+                req.user ? req.user.id : null
+            ]
         );
 
         // Record in new financial history table
@@ -612,7 +664,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
             created_by: req.user ? req.user.id : null
         });
 
-        const updated = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
+        const updated = withWageCompatibility(await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]));
         res.json(updated);
     } catch (err) {
         await db.run('ROLLBACK');

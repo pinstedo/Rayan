@@ -4,6 +4,7 @@ const { openDb } = require('../database');
 const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
+const { getLabourDailyWage, getLabourHourlyRate, hourlyFromDailyWage } = require('../utils/wages');
 
 // POST /api/reports/site-attendance
 router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (req, res) => {
@@ -219,20 +220,24 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             });
 
             // Salary History
-            let historyQuery = `SELECT previous_rate, new_rate, date FROM salary_history WHERE labour_id = ? ORDER BY date ASC`;
+            let historyQuery = `SELECT previous_rate, new_rate, previous_daily_wage, new_daily_wage, date FROM salary_history WHERE labour_id = ? ORDER BY date ASC`;
             const history = await db.all(historyQuery, [labour.id]);
 
             const getRateForDate = (date) => {
-                if (!history || history.length === 0) return labour.rate || 0;
+                if (!history || history.length === 0) return getLabourHourlyRate(labour);
                 let applicableRate = null;
                 for (let i = history.length - 1; i >= 0; i--) {
                     if (history[i].date <= date) {
-                        applicableRate = history[i].new_rate;
+                        applicableRate = history[i].new_daily_wage !== null && history[i].new_daily_wage !== undefined
+                            ? hourlyFromDailyWage(history[i].new_daily_wage)
+                            : history[i].new_rate;
                         break;
                     }
                 }
                 if (applicableRate !== null) return applicableRate;
-                return history[0].previous_rate || labour.rate || 0;
+                return history[0].previous_daily_wage !== null && history[0].previous_daily_wage !== undefined
+                    ? hourlyFromDailyWage(history[0].previous_daily_wage)
+                    : (history[0].previous_rate || getLabourHourlyRate(labour));
             };
 
             let wage = 0;
@@ -249,13 +254,15 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             const foodAllowanceAmount = perLabourFoodAmount + siteLevelFoodAmount;
 
             // Calculation
-            const hourlyRate = labour.rate || 0; // Current rate just for display
+            const hourlyRate = getLabourHourlyRate(labour); // Legacy compatibility value
+            const dailyWage = getLabourDailyWage(labour);
             const netPayable = wage + overtimeAmount - advanceAmount + foodAllowanceAmount;
 
             reports.push({
                 id: labour.id,
                 name: labour.name,
                 rate: hourlyRate,
+                daily_wage: dailyWage,
                 full_days: fullDays,
                 half_days: halfDays,
                 absent_days: absentDays,
@@ -304,20 +311,49 @@ router.post('/payments/salary', authorizeRole(['admin', 'supervisor']), async (r
 router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { month, site_id } = req.body; // format: YYYY-MM
+        const { month, startDate: requestedStartDate, endDate: requestedEndDate, site_id } = req.body; // month: YYYY-MM, dates: YYYY-MM-DD
 
-        if (!month) {
-            return res.status(400).json({ error: 'Month is required (YYYY-MM)' });
+        let startDate;
+        let endDate;
+        let reportReference;
+        const isRangeReport = Boolean(requestedStartDate || requestedEndDate);
+        const isValidDateString = (value) => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+            const [year, monthNum, day] = value.split('-').map(Number);
+            const parsed = new Date(Date.UTC(year, monthNum - 1, day));
+            return parsed.getUTCFullYear() === year
+                && parsed.getUTCMonth() === monthNum - 1
+                && parsed.getUTCDate() === day;
+        };
+
+        if (isRangeReport) {
+            if (!requestedStartDate || !requestedEndDate) {
+                return res.status(400).json({ error: 'startDate and endDate are required for a date range report' });
+            }
+            if (!isValidDateString(requestedStartDate) || !isValidDateString(requestedEndDate)) {
+                return res.status(400).json({ error: 'Dates must be in YYYY-MM-DD format' });
+            }
+            if (requestedStartDate > requestedEndDate) {
+                return res.status(400).json({ error: 'startDate cannot be after endDate' });
+            }
+
+            startDate = requestedStartDate;
+            endDate = requestedEndDate;
+            reportReference = `${startDate}_${endDate}`;
+        } else {
+            if (!month) {
+                return res.status(400).json({ error: 'Month is required (YYYY-MM) or provide startDate and endDate' });
+            }
+
+            const [year, monthNum] = month.split('-');
+            startDate = `${month}-01`;
+            // Calculate last day of month
+            const lastDay = new Date(year, monthNum, 0).getDate();
+            endDate = `${month}-${lastDay}`;
+            reportReference = month;
         }
 
-        const [year, monthNum] = month.split('-');
-        const startDate = `${month}-01`;
-        // Calculate last day of month
-        const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${month}-${lastDay}`;
-        const prevEndDate = `${month}-01`; // exclusive
-
-        console.log('Generating wage report for:', { month, startDate, endDate, site_id });
+        console.log('Generating wage report for:', { month, startDate, endDate, site_id, isRangeReport });
 
         // 1. Get Labours (filter by site if needed)
         let labourQuery = `SELECT * FROM labours`;
@@ -373,7 +409,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         `);
 
         const allSalaryHistory = await db.all(`
-            SELECT labour_id, previous_rate, new_rate, date
+            SELECT labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, date
             FROM salary_history
             ORDER BY date ASC
         `);
@@ -409,17 +445,21 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
             const getRateForDate = (date) => {
                 const history = histByLabour[labour.id];
-                if (!history || history.length === 0) return labour.rate || 0;
+                if (!history || history.length === 0) return getLabourHourlyRate(labour);
                 
                 let applicableRate = null;
                 for (let i = history.length - 1; i >= 0; i--) {
                     if (history[i].date <= date) {
-                        applicableRate = history[i].new_rate;
+                        applicableRate = history[i].new_daily_wage !== null && history[i].new_daily_wage !== undefined
+                            ? hourlyFromDailyWage(history[i].new_daily_wage)
+                            : history[i].new_rate;
                         break;
                     }
                 }
                 if (applicableRate !== null) return applicableRate;
-                return history[0].previous_rate || labour.rate || 0;
+                return history[0].previous_daily_wage !== null && history[0].previous_daily_wage !== undefined
+                    ? hourlyFromDailyWage(history[0].previous_daily_wage)
+                    : (history[0].previous_rate || getLabourHourlyRate(labour));
             };
 
             let wageBreakdownMap = {};
@@ -461,14 +501,20 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 .filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate))
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
-            // Payments are matched by month_reference so a payment recorded today
-            // for last month is correctly attributed to the right month.
             const paidAmount = payByLabour[labour.id]
                 .filter(p => {
-                    if (isPrevious) {
-                        // For previous months: all payments whose month_reference is before current month
-                        return p.month_reference && p.month_reference < month;
+                    if (isRangeReport) {
+                        if (isPrevious) {
+                            return p.month_reference !== reportReference && p.date < startDate;
+                        }
+
+                        return p.month_reference === reportReference || (p.date >= startDate && p.date <= endDate);
                     } else {
+                        if (isPrevious) {
+                            // For previous months: all payments whose month_reference is before current month
+                            return p.month_reference && p.month_reference < month;
+                        }
+
                         // For current month: payments whose month_reference matches exactly
                         return p.month_reference === month;
                     }
@@ -476,12 +522,16 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
 
-            const wageBreakdown = Object.keys(wageBreakdownMap).map(rate => ({
-                rate: parseFloat(rate),
-                fullDays: wageBreakdownMap[rate].fullDays,
-                halfDays: wageBreakdownMap[rate].halfDays,
-                wage: wageBreakdownMap[rate].wage
-            }));
+            const wageBreakdown = Object.keys(wageBreakdownMap).map(rate => {
+                const hourlyRate = parseFloat(rate);
+                return {
+                    rate: hourlyRate,
+                    daily_wage: hourlyRate * 8,
+                    fullDays: wageBreakdownMap[rate].fullDays,
+                    halfDays: wageBreakdownMap[rate].halfDays,
+                    wage: wageBreakdownMap[rate].wage
+                };
+            });
 
             return {
                 wage,
@@ -501,12 +551,13 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             const prevStats = calculateStats(labour, true);
             const currStats = calculateStats(labour, false);
 
-            const previous_balance = prevStats.net;
+            const previous_balance = (Number(labour.opening_balance) || 0) + prevStats.net;
 
             return {
                 id: labour.id,
                 name: labour.name,
-                rate: labour.rate,
+                rate: getLabourHourlyRate(labour),
+                daily_wage: getLabourDailyWage(labour),
                 site_id: labour.site_id,
                 previous_balance: previous_balance,
                 current_wage: currStats.wage,
@@ -747,7 +798,8 @@ router.post('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), a
             reports.push({
                 id: labour.id,
                 name: labour.name,
-                rate: labour.rate,
+                rate: getLabourHourlyRate(labour),
+                daily_wage: getLabourDailyWage(labour),
                 site_id: labour.site_id,
                 total_working_days: fullDaysTotal + (halfDaysTotal * 0.5),
                 full_days: fullDaysTotal,

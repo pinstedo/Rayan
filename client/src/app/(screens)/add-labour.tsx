@@ -37,6 +37,8 @@ export default function AddLabour() {
   const [aadhaar, setAadhaar] = useState("");
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [rate, setRate] = useState("");
+  const [openingWorkingDays, setOpeningWorkingDays] = useState("");
+  const [openingBalance, setOpeningBalance] = useState("");
   const [notes, setNotes] = useState("");
 
   const [sites, setSites] = useState<Site[]>([]);
@@ -141,6 +143,16 @@ export default function AddLabour() {
       return;
     }
 
+    if (openingWorkingDays && (isNaN(parseFloat(openingWorkingDays)) || parseFloat(openingWorkingDays) < 0)) {
+      showModal("Validation", "Opening working days must be a valid non-negative number.", 'warning');
+      return;
+    }
+
+    if (openingBalance && isNaN(parseFloat(openingBalance))) {
+      showModal("Validation", "Opening balance must be a valid number.", 'warning');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
@@ -150,7 +162,9 @@ export default function AddLabour() {
         aadhaar,
         site: selectedSite?.name || "",
         site_id: selectedSite?.id || null,
-        rate: rate ? (parseFloat(rate) / 8).toString() : rate,
+        daily_wage: rate ? parseFloat(rate) : null,
+        opening_working_days: openingWorkingDays ? parseFloat(openingWorkingDays) : 0,
+        opening_balance: openingBalance ? parseFloat(openingBalance) : 0,
         notes,
         date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null
       };
@@ -239,6 +253,31 @@ export default function AddLabour() {
             <TextInput style={local.input} value={rate} onChangeText={setRate} placeholder="e.g., 400.00" placeholderTextColor={isDark ? "#888" : "#999"} keyboardType="decimal-pad" />
           </>
         )}
+
+        <View style={local.openingGrid}>
+          <View style={local.openingField}>
+            <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Opening working days:</Text>
+            <TextInput
+              style={local.input}
+              value={openingWorkingDays}
+              onChangeText={setOpeningWorkingDays}
+              placeholder="e.g., 120"
+              placeholderTextColor={isDark ? "#888" : "#999"}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={local.openingField}>
+            <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Opening balance:</Text>
+            <TextInput
+              style={local.input}
+              value={openingBalance}
+              onChangeText={setOpeningBalance}
+              placeholder="e.g., 2500"
+              placeholderTextColor={isDark ? "#888" : "#999"}
+              keyboardType="numbers-and-punctuation"
+            />
+          </View>
+        </View>
 
         <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Notes:</Text>
         <TextInput style={[local.input, { height: 90 }]} value={notes} onChangeText={setNotes} placeholder="Optional notes" placeholderTextColor={isDark ? "#888" : "#999"} multiline />
@@ -357,6 +396,16 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     backgroundColor: isDark ? "#2a2a2a" : "#fafafa",
+  },
+  openingGrid: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 4,
+  },
+  openingField: {
+    flex: 1,
+    minWidth: 150,
   },
   siteSelectorContent: {
     flexDirection: "row",

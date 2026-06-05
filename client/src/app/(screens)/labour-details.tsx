@@ -19,6 +19,7 @@ import {
 import { CustomModal } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { getDailyWage } from "../../utils/wages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ interface Labour {
     name: string;
     phone: string;
     aadhaar: string;
+    daily_wage?: number;
     rate: number;
     site: string;
     site_id: number;
@@ -171,7 +173,7 @@ export default function LabourDetailsScreen() {
             const response = await api.get(`/labours/${id}`);
             if (response.ok) {
                 const data = await response.json();
-                if (data.rate) data.rate = data.rate * 8;
+                data.rate = getDailyWage(data);
                 setLabour(data);
                 setFormData(data);
             } else {
@@ -268,11 +270,11 @@ export default function LabourDetailsScreen() {
         }
         try {
             setSaving(true);
-            const payload = { ...formData, rate: Number(formData.rate) / 8 };
+            const payload = { ...formData, daily_wage: Number(formData.rate) };
             const response = await api.put(`/labours/${id}`, payload);
             const data = await response.json();
             if (response.ok) {
-                if (data.rate) data.rate = data.rate * 8;
+                data.rate = getDailyWage(data);
                 setLabour(data as Labour);
                 setIsEditing(false);
                 Alert.alert("Success", "Labour details updated successfully");
@@ -326,8 +328,7 @@ export default function LabourDetailsScreen() {
             });
             const data = await response.json();
             if (response.ok) {
-                // data.rate comes back as hourly — convert to daily for display
-                if (data.rate) data.rate = data.rate * 8;
+                data.rate = getDailyWage(data);
                 setLabour(data as Labour);
                 setFormData(data as Labour);
                 setShowIncrementModal(false);
@@ -1843,4 +1844,3 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         textAlign: 'center',
     },
 });
-

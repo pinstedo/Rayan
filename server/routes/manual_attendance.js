@@ -2,6 +2,7 @@ const express = require('express');
 const { openDb } = require('../database');
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
+const { getLabourHourlyRate, withWageCompatibility } = require('../utils/wages');
 
 const router = express.Router();
 
@@ -39,12 +40,12 @@ router.get('/preview', authorizeRole(['admin']), async (req, res) => {
 
         // Labour basic info (name + rate)
         const labour = await db.get(
-            `SELECT id, name, rate, phone, trade FROM labours WHERE id = ?`,
+            `SELECT id, name, rate, daily_wage, phone, trade FROM labours WHERE id = ?`,
             [labour_id]
         );
 
         res.json({
-            labour,
+            labour: withWageCompatibility(labour),
             total_advances: advancesResult?.total_advances || 0,
             last_attendance: lastAttendance || null,
         });
@@ -256,7 +257,7 @@ router.get('/history', authorizeRole(['admin']), async (req, res) => {
                a.allowance, a.overtime_amount,
                a.balance_adjustment, a.balance_type, a.manual_note,
                a.created_at,
-               l.id as labour_id, l.name as labour_name, l.rate as labour_rate,
+               l.id as labour_id, l.name as labour_name, l.rate as labour_rate, l.daily_wage as labour_daily_wage,
                s.id as site_id, s.name as site_name,
                u.name as recorded_by
              FROM attendance a
@@ -274,8 +275,13 @@ router.get('/history', authorizeRole(['admin']), async (req, res) => {
             params
         );
 
+        const normalizedRecords = records.map(record => ({
+            ...record,
+            labour_rate: getLabourHourlyRate({ rate: record.labour_rate, daily_wage: record.labour_daily_wage }),
+        }));
+
         res.json({
-            records,
+            records: normalizedRecords,
             total: countResult?.total || 0,
             page: Number(page),
             limit: Number(limit),

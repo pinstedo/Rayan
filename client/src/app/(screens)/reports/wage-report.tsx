@@ -2,12 +2,38 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { CustomModal } from '../../../components/CustomModal';
+import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { SearchBar } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
+import { getDailyWage } from '../../../utils/wages';
+
+const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const getCurrentMonthRange = () => {
+    const now = new Date();
+    return {
+        startDate: formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+        endDate: formatDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    };
+};
+
+const isValidDateInput = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00`);
+    return !Number.isNaN(parsed.getTime()) && formatDateInput(parsed) === value;
+};
+
+const formatReportDate = (value: string) => {
+    const parsed = new Date(`${value}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 export default function WageReportScreen() {
     const router = useRouter();
@@ -19,23 +45,26 @@ export default function WageReportScreen() {
 
     const [generatingPdf, setGeneratingPdf] = useState(false);
 
-    // Month Picker state
-    const [showMonthPicker, setShowMonthPicker] = useState(false);
-    const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
-
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLabour, setSelectedLabour] = useState<any>(null);
     const [searchText, setSearchText] = useState("");
 
-    // Month Selection
-    const [date, setDate] = useState(new Date());
+    const initialRange = useMemo(() => getCurrentMonthRange(), []);
+    const [draftStartDate, setDraftStartDate] = useState(initialRange.startDate);
+    const [draftEndDate, setDraftEndDate] = useState(initialRange.endDate);
+    const [reportRange, setReportRange] = useState(initialRange);
 
-    const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+    const reportPayload = useMemo(() => ({
+        startDate: reportRange.startDate,
+        endDate: reportRange.endDate,
+    }), [reportRange]);
+    const reportReference = `${reportRange.startDate}_${reportRange.endDate}`;
+    const reportPeriodLabel = `${formatReportDate(reportRange.startDate)} to ${formatReportDate(reportRange.endDate)}`;
 
     useEffect(() => {
         fetchReport();
-    }, [monthStr]);
+    }, [reportRange.startDate, reportRange.endDate]);
 
     const fetchReport = async (isRefresh = false) => {
         try {
@@ -44,7 +73,7 @@ export default function WageReportScreen() {
             } else {
                 setLoading(true);
             }
-            const res = await api.post(`/reports/wage-month`, { month: monthStr });
+            const res = await api.post(`/reports/wage-month`, reportPayload);
             const data = await res.json();
             if (res.ok) {
                 setReportData(data);
@@ -64,18 +93,18 @@ export default function WageReportScreen() {
         fetchReport(true);
     };
 
-    const changeMonth = (delta: number) => {
-        const newDate = new Date(date);
-        newDate.setMonth(newDate.getMonth() + delta);
-        setDate(newDate);
-    };
+    const applyDateRange = () => {
+        if (!isValidDateInput(draftStartDate) || !isValidDateInput(draftEndDate)) {
+            Alert.alert("Invalid Date", "Please enter dates in YYYY-MM-DD format.");
+            return;
+        }
 
-    const getFormattedFilename = (prefix: string) => {
-        const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).replace(/ /g, '_');
-        const now = new Date();
-        const timestamp = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}-${now.getMinutes().toString().padStart(2, '0')}-${now.getSeconds().toString().padStart(2, '0')}`;
-        // Clean filename to remove potentially problematic characters
-        return `${prefix}_${monthName}_${timestamp}`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+        if (draftStartDate > draftEndDate) {
+            Alert.alert("Invalid Range", "From date cannot be after To date.");
+            return;
+        }
+
+        setReportRange({ startDate: draftStartDate, endDate: draftEndDate });
     };
 
     const generateSummaryPDF = async () => {
@@ -83,7 +112,7 @@ export default function WageReportScreen() {
         setGeneratingPdf(true);
 
         try {
-            const res = await api.post(`/reports/wage-month`, { month: monthStr });
+            const res = await api.post(`/reports/wage-month`, reportPayload);
             const pdfData = await res.json();
 
             if (!res.ok) {
@@ -134,7 +163,7 @@ export default function WageReportScreen() {
                 <body>
                     <div class="header">
                         <h1>Salary Report</h1>
-                        <h3>Month: ${date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
+                        <h3>Period: ${reportPeriodLabel}</h3>
                         <p>Generated on: ${new Date().toLocaleDateString()}</p>
                     </div>
     
@@ -142,7 +171,7 @@ export default function WageReportScreen() {
                         <thead>
                             <tr>
                                 <th class="text-left">Name</th>
-                                <th>Rate</th>
+                                <th>Rate/day</th>
                                 <th>Full Days</th>
                                 <th>Half Days</th>
                                 <th>Wage</th>
@@ -158,9 +187,9 @@ export default function WageReportScreen() {
                         </thead>
                         <tbody>
                             ${pdfData.map((item: any) => {
-                const rateDisplay = item.wage_breakdown && item.wage_breakdown.length > 1
-                    ? item.wage_breakdown.map((wb: any) => wb.rate * 8).join(', ')
-                    : (item.rate || 0) * 8;
+                const rateDisplay = item.wage_breakdown && item.wage_breakdown.length > 0
+                    ? item.wage_breakdown.map((wb: any) => formatCurrency(getDailyWage(wb))).join(', ')
+                    : formatCurrency(getDailyWage(item));
                 return `
                                 <tr>
                                     <td class="text-left">${escapeHtml(item.name)}</td>
@@ -238,7 +267,7 @@ export default function WageReportScreen() {
         try {
             let pdfData: any = Array.isArray(specificData) ? specificData : null;
             if (!pdfData) {
-                const res = await api.post(`/reports/wage-month`, { month: monthStr });
+                const res = await api.post(`/reports/wage-month`, reportPayload);
                 pdfData = await res.json();
 
                 if (!res.ok) {
@@ -296,7 +325,7 @@ export default function WageReportScreen() {
                 </head>
                 <body>
                     ${pdfData.map((item: any) => {
-                const dailyRate = (item.rate || 0) * 8;
+                const dailyRate = getDailyWage(item);
                 const grossWage = item.current_wage || 0;
                 const otAmount = item.current_overtime_amount || 0;
                 const foodAmount = item.current_food_allowance_amount || 0;
@@ -310,16 +339,16 @@ export default function WageReportScreen() {
                 let basicWageRowsHtml = '';
 
                 if (item.wage_breakdown && item.wage_breakdown.length > 0) {
-                    rateHtml = item.wage_breakdown.map((wb: any) => `₹${formatCurrency(wb.rate * 8)}/day`).join(' & ');
+                    rateHtml = item.wage_breakdown.map((wb: any) => `₹${formatCurrency(getDailyWage(wb))}/day`).join(' & ');
 
                     if (item.wage_breakdown.length > 1) {
                         attendanceHtml = item.wage_breakdown.map((wb: any) =>
-                            `<div><span class="info-value">${wb.fullDays} F, ${wb.halfDays} H (@ ₹${formatCurrency(wb.rate * 8)})</span></div>`
+                            `<div><span class="info-value">${wb.fullDays} F, ${wb.halfDays} H (@ ₹${formatCurrency(getDailyWage(wb))})</span></div>`
                         ).join('');
 
                         basicWageRowsHtml = item.wage_breakdown.map((wb: any) => `
                                     <tr>
-                                        <td>Basic Wage (Rate: ₹${formatCurrency(wb.rate * 8)}/day)</td>
+                                        <td>Basic Wage (Rate: ₹${formatCurrency(getDailyWage(wb))}/day)</td>
                                         <td class="amount">${formatCurrency(wb.wage)}</td>
                                     </tr>
                          `).join('');
@@ -345,7 +374,7 @@ export default function WageReportScreen() {
                         <div class="bill-page">
                             <div class="header">
                                 <h1>Salary Bill</h1>
-                                <p>For the month of ${date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</p>
+                                <p>For ${reportPeriodLabel}</p>
                             </div>
     
                             <div class="info-section">
@@ -492,17 +521,41 @@ export default function WageReportScreen() {
             </View>
 
             <View style={local.controls}>
-                <TouchableOpacity onPress={() => changeMonth(-1)} style={local.arrowBtn}>
-                    <MaterialIcons name="chevron-left" size={30} color={isDark ? "#fff" : "#333"} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setPickerYear(date.getFullYear()); setShowMonthPicker(true); }}>
-                    <Text style={[local.monthText, { color: isDark ? '#4da6ff' : '#0a84ff', textDecorationLine: 'underline' }]}>
-                        {date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => changeMonth(1)} style={local.arrowBtn}>
-                    <MaterialIcons name="chevron-right" size={30} color={isDark ? "#fff" : "#333"} />
-                </TouchableOpacity>
+                <View style={local.dateRangeHeader}>
+                    <View>
+                        <Text style={local.dateRangeTitle}>Report Period</Text>
+                        <Text style={local.dateHelperText}>{reportPeriodLabel}</Text>
+                    </View>
+                    <MaterialIcons name="date-range" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                </View>
+                <View style={local.dateInputGrid}>
+                    <View style={local.dateField}>
+                        <Text style={local.dateLabel}>From Date</Text>
+                        <TextInput
+                            style={local.dateInput}
+                            value={draftStartDate}
+                            onChangeText={setDraftStartDate}
+                            placeholder="YYYY-MM-DD"
+                            placeholderTextColor={isDark ? "#777" : "#999"}
+                            keyboardType="numbers-and-punctuation"
+                        />
+                    </View>
+                    <View style={local.dateField}>
+                        <Text style={local.dateLabel}>To Date</Text>
+                        <TextInput
+                            style={local.dateInput}
+                            value={draftEndDate}
+                            onChangeText={setDraftEndDate}
+                            placeholder="YYYY-MM-DD"
+                            placeholderTextColor={isDark ? "#777" : "#999"}
+                            keyboardType="numbers-and-punctuation"
+                        />
+                    </View>
+                    <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
+                        <MaterialIcons name="check" size={18} color="#fff" />
+                        <Text style={local.applyRangeText}>Apply</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {loading ? (
@@ -515,7 +568,7 @@ export default function WageReportScreen() {
                     }
                 >
                     <View style={local.summaryCard}>
-                        <Text style={local.summaryTitle}>Month Summary</Text>
+                        <Text style={local.summaryTitle}>Date Range Summary</Text>
                         <View style={local.row}>
                             <Text style={local.label}>Total Payable:</Text>
                             <Text style={local.value}>
@@ -523,7 +576,7 @@ export default function WageReportScreen() {
                             </Text>
                         </View>
                         <View style={local.row}>
-                            <Text style={local.label}>Current Month Net:</Text>
+                            <Text style={local.label}>Selected Range Net:</Text>
                             <Text style={local.vVal}>
                                 ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.current_net_payable || 0), 0))}
                             </Text>
@@ -566,7 +619,7 @@ export default function WageReportScreen() {
 
                     <Text style={local.note}>
                         * Wages are paid on the 10th of each month.
-                        * Report includes previous month balance.
+                        * Report includes previous balance before the selected from date.
                     </Text>
 
                     <Text style={[local.summaryTitle, { marginTop: 20 }]}>Labour Details</Text>
@@ -623,52 +676,9 @@ export default function WageReportScreen() {
                     labourId={selectedLabour.id}
                     labourName={selectedLabour.name}
                     totalPayable={selectedLabour.total_payable}
-                    monthReference={monthStr}
+                    monthReference={reportReference}
                 />
             )}
-
-            <CustomModal
-                visible={showMonthPicker}
-                onClose={() => setShowMonthPicker(false)}
-                title="Select Month"
-                actions={[
-                    { text: "Cancel", onPress: () => setShowMonthPicker(false), style: "cancel" }
-                ]}
-            >
-                <View style={{ alignItems: 'center', padding: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-                        <TouchableOpacity onPress={() => setPickerYear(y => y - 1)} style={{ padding: 10 }}>
-                            <MaterialIcons name="chevron-left" size={30} color={isDark ? "#fff" : "#333"} />
-                        </TouchableOpacity>
-                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? "#fff" : "#333", marginHorizontal: 30 }}>{pickerYear}</Text>
-                        <TouchableOpacity onPress={() => setPickerYear(y => y + 1)} style={{ padding: 10 }}>
-                            <MaterialIcons name="chevron-right" size={30} color={isDark ? "#fff" : "#333"} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
-                        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => {
-                            const isSelected = date.getMonth() === i && date.getFullYear() === pickerYear;
-                            return (
-                                <TouchableOpacity
-                                    key={m}
-                                    style={{
-                                        paddingVertical: 12, width: '28%', alignItems: 'center',
-                                        backgroundColor: isSelected ? '#0a84ff' : (isDark ? '#333' : '#eee'),
-                                        borderRadius: 8
-                                    }}
-                                    onPress={() => {
-                                        const newDate = new Date(pickerYear, i, 1);
-                                        setDate(newDate);
-                                        setShowMonthPicker(false);
-                                    }}
-                                >
-                                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : (isDark ? '#fff' : '#333'), fontWeight: isSelected ? 'bold' : '500' }}>{m}</Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                </View>
-            </CustomModal>
         </View>
     );
 }
@@ -684,12 +694,66 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     backText: { color: isDark ? '#4da6ff' : '#0a84ff', fontSize: 16 },
     headerTitle: { fontSize: 20, fontWeight: 'bold', color: isDark ? '#fff' : '#000' },
     controls: {
-        flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-        padding: 20, backgroundColor: isDark ? '#1e1e1e' : '#fff', marginTop: 10, marginHorizontal: 20,
+        padding: 16, backgroundColor: isDark ? '#1e1e1e' : '#fff', marginTop: 10, marginHorizontal: 20,
         borderRadius: 10, elevation: 2
     },
-    arrowBtn: { padding: 10 },
-    monthText: { fontSize: 18, fontWeight: 'bold', color: isDark ? '#fff' : '#000', marginHorizontal: 20, minWidth: 150, textAlign: 'center' },
+    dateRangeHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+    dateRangeTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: isDark ? '#fff' : '#333',
+    },
+    dateHelperText: {
+        fontSize: 12,
+        color: isDark ? '#aaa' : '#666',
+        marginTop: 3,
+    },
+    dateInputGrid: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 10,
+        flexWrap: 'wrap',
+    },
+    dateField: {
+        flex: 1,
+        minWidth: 130,
+    },
+    dateLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: isDark ? '#bbb' : '#555',
+        marginBottom: 6,
+    },
+    dateInput: {
+        borderWidth: 1,
+        borderColor: isDark ? '#333' : '#ddd',
+        backgroundColor: isDark ? '#2a2a2a' : '#fafafa',
+        color: isDark ? '#fff' : '#111',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 14,
+    },
+    applyRangeBtn: {
+        minHeight: 43,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: '#0a84ff',
+        borderRadius: 8,
+        paddingHorizontal: 16,
+    },
+    applyRangeText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '700',
+    },
     content: { padding: 20 },
     summaryCard: {
         backgroundColor: isDark ? '#1e1e1e' : '#fff', padding: 20, borderRadius: 12, marginBottom: 20, elevation: 2

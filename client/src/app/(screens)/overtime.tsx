@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { getDailyWage, getHourlyRate } from "../../utils/wages";
 import { sortByName } from "../../utils/sort";
 
 // Helper for date formatting
@@ -16,6 +17,7 @@ interface Labour {
 	role: string;
 	site?: string;
 	site_id?: number;
+	daily_wage?: number;
 	rate?: number;
 }
 
@@ -140,7 +142,7 @@ export default function OvertimeScreen() {
 					amount: 0
 				});
 			} else {
-				const rate = labour.rate || 0;
+				const rate = getHourlyRate(labour);
 				const parsedHours = parseFloat(text) || 0;
 				newMap.set(labour.id, {
 					...current,
@@ -217,7 +219,7 @@ export default function OvertimeScreen() {
 		// If hours is string, keep it (e.g., "0."), otherwise convert number to string
 		const hours = record ? (typeof record.hours === 'string' ? record.hours : record.hours.toString()) : "0";
 		const amount = record ? record.amount.toFixed(2) : "0.00";
-		const rate = item.rate || 0;
+		const dailyWage = getDailyWage(item);
 
 		return (
 			<View style={local.card}>
@@ -229,7 +231,7 @@ export default function OvertimeScreen() {
 							<Text style={local.siteInfo}>Site: {item.site}</Text>
 						)}
 						{isAdmin && (
-							<Text style={local.rateInfo}>Rate: ₹{rate * 8}/day</Text>
+							<Text style={local.rateInfo}>Rate: ₹{dailyWage.toFixed(2)}/day</Text>
 						)}
 					</View>
 				</View>
