@@ -311,12 +311,22 @@ router.post('/payments/salary', authorizeRole(['admin', 'supervisor']), async (r
 router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, res) => {
     try {
         const db = await openDb();
-        const { month, startDate: requestedStartDate, endDate: requestedEndDate, site_id } = req.body; // month: YYYY-MM, dates: YYYY-MM-DD
+        const {
+            month,
+            startDate: requestedStartDate,
+            endDate: requestedEndDate,
+            advanceStartDate: requestedAdvanceStartDate,
+            advanceEndDate: requestedAdvanceEndDate,
+            site_id
+        } = req.body; // month: YYYY-MM, dates: YYYY-MM-DD
 
         let startDate;
         let endDate;
+        let advanceStartDate;
+        let advanceEndDate;
         let reportReference;
         const isRangeReport = Boolean(requestedStartDate || requestedEndDate);
+        const hasAdvanceRange = Boolean(requestedAdvanceStartDate || requestedAdvanceEndDate);
         const isValidDateString = (value) => {
             if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
             const [year, monthNum, day] = value.split('-').map(Number);
@@ -353,7 +363,33 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             reportReference = month;
         }
 
-        console.log('Generating wage report for:', { month, startDate, endDate, site_id, isRangeReport });
+        if (hasAdvanceRange) {
+            if (!requestedAdvanceStartDate || !requestedAdvanceEndDate) {
+                return res.status(400).json({ error: 'advanceStartDate and advanceEndDate are required for an advance date range' });
+            }
+            if (!isValidDateString(requestedAdvanceStartDate) || !isValidDateString(requestedAdvanceEndDate)) {
+                return res.status(400).json({ error: 'Advance dates must be in YYYY-MM-DD format' });
+            }
+            if (requestedAdvanceStartDate > requestedAdvanceEndDate) {
+                return res.status(400).json({ error: 'advanceStartDate cannot be after advanceEndDate' });
+            }
+
+            advanceStartDate = requestedAdvanceStartDate;
+            advanceEndDate = requestedAdvanceEndDate;
+        } else {
+            advanceStartDate = startDate;
+            advanceEndDate = endDate;
+        }
+
+        console.log('Generating wage report for:', {
+            month,
+            startDate,
+            endDate,
+            advanceStartDate,
+            advanceEndDate,
+            site_id,
+            isRangeReport
+        });
 
         // 1. Get Labours (filter by site if needed)
         let labourQuery = `SELECT * FROM labours`;
@@ -401,7 +437,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             SELECT labour_id, date, amount
             FROM advances
             WHERE date <= ?
-        `, [endDate]);
+        `, [advanceEndDate]);
 
         const allPayments = await db.all(`
             SELECT labour_id, date, month_reference, amount
@@ -498,7 +534,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
             const advAmount = advByLabour[labour.id]
-                .filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate))
+                .filter(a => isPrevious ? a.date < advanceStartDate : (a.date >= advanceStartDate && a.date <= advanceEndDate))
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
             const paidAmount = payByLabour[labour.id]
@@ -565,6 +601,8 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 current_overtime_amount: currStats.otAmount,
                 current_food_allowance_amount: currStats.foodAmount,
                 current_advance_amount: currStats.advAmount,
+                advance_start_date: advanceStartDate,
+                advance_end_date: advanceEndDate,
                 current_full_days: currStats.fullDays,
                 current_half_days: currStats.halfDays,
                 current_food_allowance_days: currStats.foodAllowanceCount,

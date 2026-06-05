@@ -35,6 +35,10 @@ const formatReportDate = (value: string) => {
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const getRangeLabel = (range: { startDate: string; endDate: string }) => (
+    `${formatReportDate(range.startDate)} to ${formatReportDate(range.endDate)}`
+);
+
 export default function WageReportScreen() {
     const router = useRouter();
     const { isDark } = useTheme();
@@ -53,18 +57,24 @@ export default function WageReportScreen() {
     const initialRange = useMemo(() => getCurrentMonthRange(), []);
     const [draftStartDate, setDraftStartDate] = useState(initialRange.startDate);
     const [draftEndDate, setDraftEndDate] = useState(initialRange.endDate);
+    const [draftAdvanceStartDate, setDraftAdvanceStartDate] = useState(initialRange.startDate);
+    const [draftAdvanceEndDate, setDraftAdvanceEndDate] = useState(initialRange.endDate);
     const [reportRange, setReportRange] = useState(initialRange);
+    const [advanceRange, setAdvanceRange] = useState(initialRange);
 
     const reportPayload = useMemo(() => ({
         startDate: reportRange.startDate,
         endDate: reportRange.endDate,
-    }), [reportRange]);
+        advanceStartDate: advanceRange.startDate,
+        advanceEndDate: advanceRange.endDate,
+    }), [reportRange, advanceRange]);
     const reportReference = `${reportRange.startDate}_${reportRange.endDate}`;
-    const reportPeriodLabel = `${formatReportDate(reportRange.startDate)} to ${formatReportDate(reportRange.endDate)}`;
+    const reportPeriodLabel = getRangeLabel(reportRange);
+    const advancePeriodLabel = getRangeLabel(advanceRange);
 
     useEffect(() => {
         fetchReport();
-    }, [reportRange.startDate, reportRange.endDate]);
+    }, [reportRange.startDate, reportRange.endDate, advanceRange.startDate, advanceRange.endDate]);
 
     const fetchReport = async (isRefresh = false) => {
         try {
@@ -95,16 +105,27 @@ export default function WageReportScreen() {
 
     const applyDateRange = () => {
         if (!isValidDateInput(draftStartDate) || !isValidDateInput(draftEndDate)) {
-            Alert.alert("Invalid Date", "Please enter dates in YYYY-MM-DD format.");
+            Alert.alert("Invalid Wage Dates", "Please enter wage dates in YYYY-MM-DD format.");
+            return;
+        }
+
+        if (!isValidDateInput(draftAdvanceStartDate) || !isValidDateInput(draftAdvanceEndDate)) {
+            Alert.alert("Invalid Advance Dates", "Please enter advance dates in YYYY-MM-DD format.");
             return;
         }
 
         if (draftStartDate > draftEndDate) {
-            Alert.alert("Invalid Range", "From date cannot be after To date.");
+            Alert.alert("Invalid Wage Range", "Wage From date cannot be after Wage To date.");
+            return;
+        }
+
+        if (draftAdvanceStartDate > draftAdvanceEndDate) {
+            Alert.alert("Invalid Advance Range", "Advance From date cannot be after Advance To date.");
             return;
         }
 
         setReportRange({ startDate: draftStartDate, endDate: draftEndDate });
+        setAdvanceRange({ startDate: draftAdvanceStartDate, endDate: draftAdvanceEndDate });
     };
 
     const generateSummaryPDF = async () => {
@@ -163,7 +184,8 @@ export default function WageReportScreen() {
                 <body>
                     <div class="header">
                         <h1>Salary Report</h1>
-                        <h3>Period: ${reportPeriodLabel}</h3>
+                        <h3>Wage Period: ${reportPeriodLabel}</h3>
+                        <h3>Advance Period: ${advancePeriodLabel}</h3>
                         <p>Generated on: ${new Date().toLocaleDateString()}</p>
                     </div>
     
@@ -374,7 +396,8 @@ export default function WageReportScreen() {
                         <div class="bill-page">
                             <div class="header">
                                 <h1>Salary Bill</h1>
-                                <p>For ${reportPeriodLabel}</p>
+                                <p>Wage Period: ${reportPeriodLabel}</p>
+                                <p>Advance Period: ${advancePeriodLabel}</p>
                             </div>
     
                             <div class="info-section">
@@ -521,41 +544,80 @@ export default function WageReportScreen() {
             </View>
 
             <View style={local.controls}>
-                <View style={local.dateRangeHeader}>
-                    <View>
-                        <Text style={local.dateRangeTitle}>Report Period</Text>
-                        <Text style={local.dateHelperText}>{reportPeriodLabel}</Text>
+                <View style={local.datePeriodBlock}>
+                    <View style={local.dateRangeHeader}>
+                        <View>
+                            <Text style={local.dateRangeTitle}>Wage Period</Text>
+                            <Text style={local.dateHelperText}>{reportPeriodLabel}</Text>
+                        </View>
+                        <MaterialIcons name="date-range" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
                     </View>
-                    <MaterialIcons name="date-range" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                    <View style={local.dateInputGrid}>
+                        <View style={local.dateField}>
+                            <Text style={local.dateLabel}>From Date</Text>
+                            <TextInput
+                                style={local.dateInput}
+                                value={draftStartDate}
+                                onChangeText={setDraftStartDate}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor={isDark ? "#777" : "#999"}
+                                keyboardType="numbers-and-punctuation"
+                            />
+                        </View>
+                        <View style={local.dateField}>
+                            <Text style={local.dateLabel}>To Date</Text>
+                            <TextInput
+                                style={local.dateInput}
+                                value={draftEndDate}
+                                onChangeText={setDraftEndDate}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor={isDark ? "#777" : "#999"}
+                                keyboardType="numbers-and-punctuation"
+                            />
+                        </View>
+                    </View>
                 </View>
-                <View style={local.dateInputGrid}>
-                    <View style={local.dateField}>
-                        <Text style={local.dateLabel}>From Date</Text>
-                        <TextInput
-                            style={local.dateInput}
-                            value={draftStartDate}
-                            onChangeText={setDraftStartDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={isDark ? "#777" : "#999"}
-                            keyboardType="numbers-and-punctuation"
-                        />
+
+                <View style={local.periodDivider} />
+
+                <View style={local.datePeriodBlock}>
+                    <View style={local.dateRangeHeader}>
+                        <View>
+                            <Text style={local.dateRangeTitle}>Advance Period</Text>
+                            <Text style={local.dateHelperText}>{advancePeriodLabel}</Text>
+                        </View>
+                        <MaterialIcons name="payments" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
                     </View>
-                    <View style={local.dateField}>
-                        <Text style={local.dateLabel}>To Date</Text>
-                        <TextInput
-                            style={local.dateInput}
-                            value={draftEndDate}
-                            onChangeText={setDraftEndDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={isDark ? "#777" : "#999"}
-                            keyboardType="numbers-and-punctuation"
-                        />
+                    <View style={local.dateInputGrid}>
+                        <View style={local.dateField}>
+                            <Text style={local.dateLabel}>From Date</Text>
+                            <TextInput
+                                style={local.dateInput}
+                                value={draftAdvanceStartDate}
+                                onChangeText={setDraftAdvanceStartDate}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor={isDark ? "#777" : "#999"}
+                                keyboardType="numbers-and-punctuation"
+                            />
+                        </View>
+                        <View style={local.dateField}>
+                            <Text style={local.dateLabel}>To Date</Text>
+                            <TextInput
+                                style={local.dateInput}
+                                value={draftAdvanceEndDate}
+                                onChangeText={setDraftAdvanceEndDate}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor={isDark ? "#777" : "#999"}
+                                keyboardType="numbers-and-punctuation"
+                            />
+                        </View>
                     </View>
-                    <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
-                        <MaterialIcons name="check" size={18} color="#fff" />
-                        <Text style={local.applyRangeText}>Apply</Text>
-                    </TouchableOpacity>
                 </View>
+
+                <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
+                    <MaterialIcons name="check" size={18} color="#fff" />
+                    <Text style={local.applyRangeText}>Apply</Text>
+                </TouchableOpacity>
             </View>
 
             {loading ? (
@@ -619,7 +681,7 @@ export default function WageReportScreen() {
 
                     <Text style={local.note}>
                         * Wages are paid on the 10th of each month.
-                        * Report includes previous balance before the selected from date.
+                        * Report includes previous wage balance before the wage from date and previous advances before the advance from date.
                     </Text>
 
                     <Text style={[local.summaryTitle, { marginTop: 20 }]}>Labour Details</Text>
@@ -703,6 +765,14 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         alignItems: 'center',
         marginBottom: 14,
     },
+    datePeriodBlock: {
+        marginBottom: 14,
+    },
+    periodDivider: {
+        height: 1,
+        backgroundColor: isDark ? '#333' : '#eee',
+        marginBottom: 14,
+    },
     dateRangeTitle: {
         fontSize: 14,
         fontWeight: '700',
@@ -748,6 +818,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         backgroundColor: '#0a84ff',
         borderRadius: 8,
         paddingHorizontal: 16,
+        alignSelf: 'flex-start',
     },
     applyRangeText: {
         color: '#fff',
