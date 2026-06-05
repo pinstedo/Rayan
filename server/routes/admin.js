@@ -8,6 +8,25 @@ const { logHistory } = require('../utils/historyLogger');
 
 const router = express.Router();
 const SECRET_KEY = process.env.JWT_SECRET || 'secret_key';
+const TEMP_PASSWORD_EXPIRES_HOURS = 24;
+const TEMP_PASSWORD_EXPIRES_MS = TEMP_PASSWORD_EXPIRES_HOURS * 60 * 60 * 1000;
+
+const getTempPasswordExpiry = (generatedAt) => {
+    if (!generatedAt) return null;
+    const generatedTime = new Date(generatedAt).getTime();
+    if (Number.isNaN(generatedTime)) return null;
+    return new Date(generatedTime + TEMP_PASSWORD_EXPIRES_MS).toISOString();
+};
+
+const hasActiveTemporaryPassword = (user) => {
+    if (!user?.password_reset_required) return false;
+    if (!user.password_reset_generated_at) return true;
+
+    const generatedTime = new Date(user.password_reset_generated_at).getTime();
+    if (Number.isNaN(generatedTime)) return true;
+
+    return Date.now() - generatedTime < TEMP_PASSWORD_EXPIRES_MS;
+};
 
 // Lightweight, memory-based Rate Limiter to prevent brute force
 const ipMap = new Map();
@@ -104,11 +123,15 @@ router.post('/verify-password', authenticateToken, authorizeRole(['admin']), rat
 // Generates and hashes secure temporary password, returning it exactly ONCE. Logs audit trail.
 router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['admin']), rateLimiter(10, 60 * 1000), async (req, res) => {
     const { id } = req.params;
-    const { role } = req.body;
+    const { role, confirmReplace } = req.body;
     const verificationToken = req.headers['x-verification-token'] || req.body.verificationToken;
 
     if (!verificationToken) {
         return res.status(401).json({ error: 'Verification session required. Please verify admin password.' });
+    }
+
+    if (!['labour', 'supervisor'].includes(role)) {
+        return res.status(400).json({ error: 'Role must be labour or supervisor.' });
     }
 
     try {
@@ -126,29 +149,32 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['admi
         const db = await openDb();
         let targetUser = null;
         let table = 'users';
+        let tokenTable = 'refresh_tokens';
+        let tokenUserColumn = 'user_id';
 
-        // Lookup target user in users or labours table
         if (role === 'labour') {
             table = 'labours';
+            tokenTable = 'labour_refresh_tokens';
+            tokenUserColumn = 'labour_id';
             targetUser = await db.get(`SELECT * FROM labours WHERE id = ?`, [id]);
-        } else if (role === 'supervisor') {
-            table = 'users';
-            targetUser = await db.get(`SELECT * FROM users WHERE id = ? AND role = 'supervisor'`, [id]);
         } else {
-            // Auto-detect based on DB search
-            targetUser = await db.get(`SELECT * FROM users WHERE id = ?`, [id]);
-            if (targetUser) {
-                table = 'users';
-            } else {
-                targetUser = await db.get(`SELECT * FROM labours WHERE id = ?`, [id]);
-                if (targetUser) {
-                    table = 'labours';
-                }
-            }
+            table = 'users';
+            targetUser = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor')`, [id]);
         }
 
         if (!targetUser) {
             return res.status(404).json({ error: 'Target user not found.' });
+        }
+
+        const activeTemporaryPassword = hasActiveTemporaryPassword(targetUser);
+        if (activeTemporaryPassword && !confirmReplace) {
+            return res.status(409).json({
+                error: 'A temporary password is already active for this user. Confirm to generate a new one.',
+                code: 'TEMP_PASSWORD_ACTIVE',
+                generatedAt: targetUser.password_reset_generated_at,
+                expiresAt: getTempPasswordExpiry(targetUser.password_reset_generated_at),
+                expiresInHours: TEMP_PASSWORD_EXPIRES_HOURS
+            });
         }
 
         // Generate temporary password
@@ -164,6 +190,11 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['admi
             [hashedTempPassword, timestamp, id]
         );
 
+        await db.run(
+            `UPDATE ${tokenTable} SET revoked = true WHERE ${tokenUserColumn} = ?`,
+            [id]
+        );
+
         // Audit log (never logging actual password)
         const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         await logHistory({
@@ -176,6 +207,8 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['admi
                 target_user_id: parseInt(id),
                 timestamp,
                 ip_address: ip,
+                target_role: role,
+                replaced_active_temporary_password: activeTemporaryPassword,
                 action_type: 'PASSWORD_RESET'
             },
             created_by: req.user.id

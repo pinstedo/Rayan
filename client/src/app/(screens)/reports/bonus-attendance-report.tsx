@@ -209,44 +209,115 @@ export default function BonusAttendanceReportScreen() {
                 <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
                     <style>
-                        @page { size: landscape; }
-                        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        body { font-family: 'Helvetica', sans-serif; padding: 20px; }
-                        h1 { text-align: center; color: #333; }
-                        .header { margin-bottom: 20px; text-align: center; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-                        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; vertical-align: top; }
-                        th { background-color: #f2f2f2; }
+                        @page { size: landscape; margin: 16px; }
+                        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        body {
+                            margin: 0;
+                            font-family: 'Helvetica', sans-serif;
+                            background: ${isDark ? '#121212' : '#f5f5f5'};
+                            color: ${isDark ? '#fff' : '#111'};
+                        }
+                        .topbar {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            padding: 14px 18px;
+                            background: ${isDark ? '#1e1e1e' : '#fff'};
+                            border-bottom: 1px solid ${isDark ? '#333' : '#eee'};
+                        }
+                        .back { color: ${isDark ? '#4da6ff' : '#0a84ff'}; font-size: 13px; }
+                        h1 { margin: 0; font-size: 20px; text-align: center; }
+                        .screen { padding: 18px 22px 22px; }
+                        .controls {
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 12px;
+                            padding: 16px;
+                            background: ${isDark ? '#1e1e1e' : '#fff'};
+                            border: 1px solid ${isDark ? '#333' : '#eee'};
+                            border-radius: 10px;
+                            margin-bottom: 14px;
+                        }
+                        .date-label { font-size: 12px; color: ${isDark ? '#aaa' : '#666'}; margin-bottom: 6px; }
+                        .date-input {
+                            background: ${isDark ? '#333' : '#f0f0f0'};
+                            border-radius: 8px;
+                            padding: 10px;
+                            text-align: center;
+                            color: ${isDark ? '#fff' : '#000'};
+                            font-size: 14px;
+                            font-weight: 600;
+                        }
+                        .legend { display: flex; justify-content: center; gap: 15px; margin: 0 0 10px; font-size: 12px; }
+                        .legend-item { display: flex; align-items: center; gap: 6px; color: ${isDark ? '#ddd' : '#444'}; }
+                        .box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid ${isDark ? '#555' : '#ccc'}; }
+                        .table-wrapper {
+                            background: ${isDark ? '#1e1e1e' : '#fff'};
+                            border: 1px solid ${isDark ? '#333' : '#eee'};
+                            border-radius: 8px;
+                            overflow: hidden;
+                        }
+                        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                        th, td {
+                            border-right: 1px solid ${isDark ? '#444' : '#eee'};
+                            border-bottom: 1px solid ${isDark ? '#444' : '#eee'};
+                            padding: 8px;
+                            text-align: center;
+                            vertical-align: middle;
+                            color: ${isDark ? '#ddd' : '#333'};
+                        }
+                        th {
+                            background-color: ${isDark ? '#333' : '#e0e0e0'};
+                            color: ${isDark ? '#fff' : '#333'};
+                            font-weight: 800;
+                        }
                         .text-left { text-align: left; }
-                        .legend { display: flex; justify-content: center; gap: 15px; margin-top: 10px; font-size: 11px; }
-                        .legend-item { display: flex; align-items: center; gap: 5px; }
-                        .box { width: 12px; height: 12px; border: 1px solid #999; }
                         .event-cell { min-width: 58px; font-weight: bold; }
                         .attendance { font-size: 11px; min-height: 12px; }
                         .marker { margin-top: 2px; padding: 2px 3px; border-radius: 3px; font-size: 8px; line-height: 1.1; color: #111; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.15); }
                         .marker-bonus { color: #7a3d00; }
                         .marker-increment { color: #004c8c; }
+                        .generated { margin-top: 14px; text-align: center; font-size: 11px; color: ${isDark ? '#888' : '#777'}; }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
-                        <h2>Bonus & Increment Monthly Report</h2>
-                        <h4>Date Range: ${startDate} to ${endDate}</h4>
+                    <div class="topbar">
+                        <div class="back">Back</div>
+                        <h1>Bonus & Increment Report</h1>
+                        <div style="width: 32px;"></div>
+                    </div>
+
+                    <div class="screen">
+                        <div class="controls">
+                            <div>
+                                <div class="date-label">Start Month</div>
+                                <div class="date-input">${new Date(startDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div>
+                            </div>
+                            <div>
+                                <div class="date-label">End Month</div>
+                                <div class="date-input">${new Date(endDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div>
+                            </div>
+                        </div>
+
                         <div class="legend">
                             <div class="legend-item"><div class="box" style="background-color: #4da6ff;"></div> Increment</div>
                             <div class="legend-item"><div class="box" style="background-color: #ffb74d;"></div> Bonus</div>
                             <div class="legend-item"><div class="box" style="background-color: #66bb6a;"></div> Both</div>
                         </div>
+
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>${tableHeaders}</tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="generated">Generated on ${new Date().toLocaleDateString()}</div>
                     </div>
-    
-                    <table>
-                        <thead>
-                            <tr>${tableHeaders}</tr>
-                        </thead>
-                        <tbody>
-                            ${tableRows}
-                        </tbody>
-                    </table>
                 </body>
             </html>
             `;

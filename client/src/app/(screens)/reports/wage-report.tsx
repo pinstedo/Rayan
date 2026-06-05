@@ -2,12 +2,16 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Calendar } from '../../../components/Calendar';
+import { CustomModal } from '../../../components/CustomModal';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { SearchBar } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
 import { getDailyWage } from '../../../utils/wages';
+
+type DatePickerField = 'wageStart' | 'wageEnd' | 'advanceStart' | 'advanceEnd';
 
 const formatDateInput = (date: Date) => {
     const year = date.getFullYear();
@@ -33,6 +37,11 @@ const isValidDateInput = (value: string) => {
 const formatReportDate = (value: string) => {
     const parsed = new Date(`${value}T00:00:00`);
     return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const parseDateInput = (value: string) => {
+    const parsed = new Date(`${value}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
 const getRangeLabel = (range: { startDate: string; endDate: string }) => (
@@ -61,6 +70,7 @@ export default function WageReportScreen() {
     const [draftAdvanceEndDate, setDraftAdvanceEndDate] = useState(initialRange.endDate);
     const [reportRange, setReportRange] = useState(initialRange);
     const [advanceRange, setAdvanceRange] = useState(initialRange);
+    const [activeDatePicker, setActiveDatePicker] = useState<DatePickerField | null>(null);
 
     const reportPayload = useMemo(() => ({
         startDate: reportRange.startDate,
@@ -102,6 +112,63 @@ export default function WageReportScreen() {
     const onRefresh = () => {
         fetchReport(true);
     };
+
+    const getDraftDateValue = (field: DatePickerField) => {
+        switch (field) {
+            case 'wageStart':
+                return draftStartDate;
+            case 'wageEnd':
+                return draftEndDate;
+            case 'advanceStart':
+                return draftAdvanceStartDate;
+            case 'advanceEnd':
+                return draftAdvanceEndDate;
+            default:
+                return draftStartDate;
+        }
+    };
+
+    const setDraftDateValue = (field: DatePickerField, value: string) => {
+        switch (field) {
+            case 'wageStart':
+                setDraftStartDate(value);
+                break;
+            case 'wageEnd':
+                setDraftEndDate(value);
+                break;
+            case 'advanceStart':
+                setDraftAdvanceStartDate(value);
+                break;
+            case 'advanceEnd':
+                setDraftAdvanceEndDate(value);
+                break;
+        }
+    };
+
+    const getDatePickerTitle = () => {
+        switch (activeDatePicker) {
+            case 'wageStart':
+                return "Select Wage From Date";
+            case 'wageEnd':
+                return "Select Wage To Date";
+            case 'advanceStart':
+                return "Select Advance From Date";
+            case 'advanceEnd':
+                return "Select Advance To Date";
+            default:
+                return "Select Date";
+        }
+    };
+
+    const handleDraftDateSelect = (date: Date) => {
+        if (!activeDatePicker) return;
+        setDraftDateValue(activeDatePicker, formatDateInput(date));
+        setActiveDatePicker(null);
+    };
+
+    const activeDatePickerValue = activeDatePicker
+        ? parseDateInput(getDraftDateValue(activeDatePicker))
+        : parseDateInput(draftStartDate);
 
     const applyDateRange = () => {
         if (!isValidDateInput(draftStartDate) || !isValidDateInput(draftEndDate)) {
@@ -171,82 +238,136 @@ export default function WageReportScreen() {
                 <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
                     <style>
-                        body { font-family: 'Helvetica', sans-serif; padding: 20px; }
-                        h1 { text-align: center; color: #333; }
-                        .header { margin-bottom: 20px; text-align: center; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-                        th, td { border: 1px solid #ddd; padding: 6px; text-align: right; }
-                        th { background-color: #f2f2f2; text-align: center; }
-                        .text-left { text-align: left; }
-                        .total-row { font-weight: bold; background-color: #e6e6e6; }
+                        @page { size: A4; margin: 16px; }
+                        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        body {
+                            margin: 0;
+                            font-family: 'Helvetica', sans-serif;
+                            background: ${isDark ? '#121212' : '#f5f5f5'};
+                            color: ${isDark ? '#fff' : '#111'};
+                        }
+                        .screen { padding: 22px; }
+                        .topbar {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            padding: 14px 18px;
+                            background: ${isDark ? '#1e1e1e' : '#fff'};
+                            border-bottom: 1px solid ${isDark ? '#333' : '#eee'};
+                        }
+                        .back { color: ${isDark ? '#4da6ff' : '#0a84ff'}; font-size: 13px; }
+                        h1 { margin: 0; font-size: 20px; text-align: center; }
+                        h2 { margin: 22px 0 14px; font-size: 18px; }
+                        .panel {
+                            background: ${isDark ? '#1e1e1e' : '#fff'};
+                            border: 1px solid ${isDark ? '#333' : '#eee'};
+                            border-radius: 10px;
+                            padding: 16px;
+                            margin-bottom: 16px;
+                        }
+                        .period-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+                        .period-title { font-size: 13px; font-weight: 700; color: ${isDark ? '#fff' : '#333'}; margin-bottom: 4px; }
+                        .period-value { font-size: 12px; color: ${isDark ? '#aaa' : '#666'}; }
+                        .summary-title { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+                        .summary-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; }
+                        .summary-row:last-child { margin-bottom: 0; }
+                        .label { color: ${isDark ? '#bbb' : '#666'}; }
+                        .primary-value { color: ${isDark ? '#4da6ff' : '#0a84ff'}; font-size: 18px; font-weight: 800; }
+                        .value { color: ${isDark ? '#eee' : '#333'}; font-weight: 700; }
+                        .note {
+                            color: ${isDark ? '#888' : '#777'};
+                            font-size: 12px;
+                            font-style: italic;
+                            text-align: center;
+                            margin: 16px 0;
+                            line-height: 1.45;
+                        }
+                        .labour-card {
+                            background: ${isDark ? '#1e1e1e' : '#fff'};
+                            border: 1px solid ${isDark ? '#333' : '#eee'};
+                            border-left: 4px solid #0a84ff;
+                            border-radius: 10px;
+                            padding: 14px;
+                            margin-bottom: 10px;
+                            page-break-inside: avoid;
+                        }
+                        .labour-row {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 12px;
+                        }
+                        .labour-name { font-size: 16px; font-weight: 800; color: ${isDark ? '#fff' : '#333'}; }
+                        .balance { text-align: right; }
+                        .balance-label { font-size: 11px; color: ${isDark ? '#aaa' : '#666'}; margin-bottom: 2px; }
+                        .balance-value { font-size: 16px; font-weight: 800; color: ${isDark ? '#fff' : '#000'}; }
+                        .meta { margin-top: 10px; font-size: 13px; color: ${isDark ? '#bbb' : '#666'}; line-height: 1.55; }
+                        .paid { color: ${isDark ? '#81C784' : '#388E3C'}; font-weight: 800; }
+                        .closing { color: ${isDark ? '#E57373' : '#D32F2F'}; font-weight: 800; }
+                        .generated { margin-top: 18px; text-align: center; font-size: 11px; color: ${isDark ? '#888' : '#777'}; }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
-                        <h1>Salary Report</h1>
-                        <h3>Wage Period: ${reportPeriodLabel}</h3>
-                        <h3>Advance Period: ${advancePeriodLabel}</h3>
-                        <p>Generated on: ${new Date().toLocaleDateString()}</p>
+                    <div class="topbar">
+                        <div class="back">Back</div>
+                        <h1>Wage Reports</h1>
+                        <div style="width: 32px;"></div>
                     </div>
-    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="text-left">Name</th>
-                                <th>Rate/day</th>
-                                <th>Full Days</th>
-                                <th>Half Days</th>
-                                <th>Wage</th>
-                                <th>Overtime</th>
-                                <th>Food Allow.</th>
-                                <th>Advances</th>
-                                <th>Current Net</th>
-                                <th>Prev Bal</th>
-                                <th>Total Payable</th>
-                                <th>Paid</th>
-                                <th>Closing Bal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${pdfData.map((item: any) => {
-                const rateDisplay = item.wage_breakdown && item.wage_breakdown.length > 0
-                    ? item.wage_breakdown.map((wb: any) => formatCurrency(getDailyWage(wb))).join(', ')
-                    : formatCurrency(getDailyWage(item));
-                return `
-                                <tr>
-                                    <td class="text-left">${escapeHtml(item.name)}</td>
-                                    <td>${rateDisplay}</td>
-                                    <td>${item.current_full_days}</td>
-                                    <td>${item.current_half_days}</td>
-                                    <td>${formatCurrency(item.current_wage)}</td>
-                                    <td>${formatCurrency(item.current_overtime_amount)}</td>
-                                    <td>${formatCurrency(item.current_food_allowance_amount)}</td>
-                                    <td>${formatCurrency(item.current_advance_amount)}</td>
-                                    <td>${formatCurrency(item.current_net_payable)}</td>
-                                    <td>${formatCurrency(item.previous_balance)}</td>
-                                    <td><strong>${formatCurrency(item.total_payable)}</strong></td>
-                                    <td>${formatCurrency(item.salary_paid)}</td>
-                                    <td><strong>${formatCurrency(item.closing_balance)}</strong></td>
-                                </tr>
-                                `;
-            }).join('')}
-                            <tr class="total-row">
-                                <td class="text-left">TOTAL</td>
-                                <td>-</td>
-                                <td>-</td>
-                                <td>-</td>
-                                <td>${formatCurrency(totals.wage)}</td>
-                                <td>${formatCurrency(totals.ot)}</td>
-                                <td>${formatCurrency(totals.food)}</td>
-                                <td>${formatCurrency(totals.adv)}</td>
-                                <td>${formatCurrency(totals.net)}</td>
-                                <td>${formatCurrency(totals.prev)}</td>
-                                <td>${formatCurrency(totals.total)}</td>
-                                <td>-</td>
-                                <td>-</td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+                    <div class="screen">
+                        <div class="panel">
+                            <div class="period-grid">
+                                <div>
+                                    <div class="period-title">Wage Period</div>
+                                    <div class="period-value">${reportPeriodLabel}</div>
+                                </div>
+                                <div>
+                                    <div class="period-title">Advance Period</div>
+                                    <div class="period-value">${advancePeriodLabel}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="summary-title">Date Range Summary</div>
+                            <div class="summary-row">
+                                <span class="label">Total Payable:</span>
+                                <span class="primary-value">&#8377;${formatCurrency(totals.total)}</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="label">Selected Range Net:</span>
+                                <span class="value">&#8377;${formatCurrency(totals.net)}</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="label">Total Labours:</span>
+                                <span class="value">${pdfData.length}</span>
+                            </div>
+                        </div>
+
+                        <div class="note">
+                            * Wages are paid on the 10th of each month.<br />
+                            * Report includes previous wage balance before the wage from date and previous advances before the advance from date.
+                        </div>
+
+                        <h2>Labour Details</h2>
+                        ${pdfData.map((item: any) => `
+                            <div class="labour-card">
+                                <div class="labour-row">
+                                    <div class="labour-name">${escapeHtml(item.name)}</div>
+                                    <div class="balance">
+                                        <div class="balance-label">Payable</div>
+                                        <div class="balance-value">&#8377;${formatCurrency(item.total_payable)}</div>
+                                    </div>
+                                </div>
+                                <div class="meta">
+                                    Paid: <span class="paid">&#8377;${formatCurrency(item.salary_paid)}</span><br />
+                                    Closing Bal: <span class="closing">&#8377;${formatCurrency(item.closing_balance)}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+
+                        <div class="generated">Generated on ${new Date().toLocaleDateString()}</div>
+                    </div>
                 </body>
             </html>
             `;
@@ -555,25 +676,23 @@ export default function WageReportScreen() {
                     <View style={local.dateInputGrid}>
                         <View style={local.dateField}>
                             <Text style={local.dateLabel}>From Date</Text>
-                            <TextInput
+                            <TouchableOpacity
                                 style={local.dateInput}
-                                value={draftStartDate}
-                                onChangeText={setDraftStartDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={isDark ? "#777" : "#999"}
-                                keyboardType="numbers-and-punctuation"
-                            />
+                                onPress={() => setActiveDatePicker('wageStart')}
+                            >
+                                <Text style={local.dateInputText}>{formatReportDate(draftStartDate)}</Text>
+                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                            </TouchableOpacity>
                         </View>
                         <View style={local.dateField}>
                             <Text style={local.dateLabel}>To Date</Text>
-                            <TextInput
+                            <TouchableOpacity
                                 style={local.dateInput}
-                                value={draftEndDate}
-                                onChangeText={setDraftEndDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={isDark ? "#777" : "#999"}
-                                keyboardType="numbers-and-punctuation"
-                            />
+                                onPress={() => setActiveDatePicker('wageEnd')}
+                            >
+                                <Text style={local.dateInputText}>{formatReportDate(draftEndDate)}</Text>
+                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>
@@ -591,25 +710,23 @@ export default function WageReportScreen() {
                     <View style={local.dateInputGrid}>
                         <View style={local.dateField}>
                             <Text style={local.dateLabel}>From Date</Text>
-                            <TextInput
+                            <TouchableOpacity
                                 style={local.dateInput}
-                                value={draftAdvanceStartDate}
-                                onChangeText={setDraftAdvanceStartDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={isDark ? "#777" : "#999"}
-                                keyboardType="numbers-and-punctuation"
-                            />
+                                onPress={() => setActiveDatePicker('advanceStart')}
+                            >
+                                <Text style={local.dateInputText}>{formatReportDate(draftAdvanceStartDate)}</Text>
+                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                            </TouchableOpacity>
                         </View>
                         <View style={local.dateField}>
                             <Text style={local.dateLabel}>To Date</Text>
-                            <TextInput
+                            <TouchableOpacity
                                 style={local.dateInput}
-                                value={draftAdvanceEndDate}
-                                onChangeText={setDraftAdvanceEndDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={isDark ? "#777" : "#999"}
-                                keyboardType="numbers-and-punctuation"
-                            />
+                                onPress={() => setActiveDatePicker('advanceEnd')}
+                            >
+                                <Text style={local.dateInputText}>{formatReportDate(draftAdvanceEndDate)}</Text>
+                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>
@@ -727,6 +844,26 @@ export default function WageReportScreen() {
                 </ScrollView>
             )}
 
+            <CustomModal
+                visible={!!activeDatePicker}
+                onClose={() => setActiveDatePicker(null)}
+                title={getDatePickerTitle()}
+                type="date"
+                actions={[
+                    { text: "Cancel", onPress: () => setActiveDatePicker(null), style: "cancel" }
+                ]}
+            >
+                {activeDatePicker && (
+                    <Calendar
+                        selectedDate={activeDatePickerValue}
+                        onDateSelect={handleDraftDateSelect}
+                        markedDates={[]}
+                        onMonthChange={() => { }}
+                        allowFutureDates
+                    />
+                )}
+            </CustomModal>
+
             {selectedLabour && (
                 <SalaryPaymentModal
                     visible={modalVisible}
@@ -803,11 +940,19 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         borderWidth: 1,
         borderColor: isDark ? '#333' : '#ddd',
         backgroundColor: isDark ? '#2a2a2a' : '#fafafa',
-        color: isDark ? '#fff' : '#111',
         borderRadius: 8,
         paddingHorizontal: 12,
-        paddingVertical: 10,
+        minHeight: 43,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+    },
+    dateInputText: {
+        color: isDark ? '#fff' : '#111',
         fontSize: 14,
+        fontWeight: '600',
+        flexShrink: 1,
     },
     applyRangeBtn: {
         minHeight: 43,

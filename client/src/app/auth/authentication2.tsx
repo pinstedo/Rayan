@@ -102,8 +102,10 @@ export default function SignInScreen() {
 					<View style={styles.inputGroup}>
 						<View style={styles.passwordHeader}>
 							<Text style={styles.label}>Password</Text>
-							<TouchableOpacity>
-								<Text style={styles.forgotPassword}>Forgot?</Text>
+							<TouchableOpacity
+								onPress={() => Alert.alert("Forgot Password", "Please ask an admin to generate a temporary password for your account.")}
+							>
+								<Text style={styles.forgotPassword}>Ask admin</Text>
 							</TouchableOpacity>
 						</View>
 						<TextInput

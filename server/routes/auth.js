@@ -8,8 +8,15 @@ const { ROLES, ADMIN_ROLES, OWNER_ROLES, ADMIN_OR_OWNER_ROLES } = require('../ro
 
 const router = express.Router();
 const SECRET_KEY = process.env.JWT_SECRET || 'secret_key';
+const TEMP_PASSWORD_EXPIRES_MS = 24 * 60 * 60 * 1000;
 
 const crypto = require('crypto');
+
+const isTemporaryPasswordExpired = (user) => {
+    if (!user?.password_reset_required || !user.password_reset_generated_at) return false;
+    const generatedTime = new Date(user.password_reset_generated_at).getTime();
+    return !Number.isNaN(generatedTime) && Date.now() - generatedTime >= TEMP_PASSWORD_EXPIRES_MS;
+};
 
 // Generate tokens (for admin/supervisor users in the `users` table)
 const generateTokens = async (user, db, refreshExpiresInDays = 30) => {
@@ -96,6 +103,13 @@ router.post('/signin', async (req, res) => {
                 return res.status(400).json({ error: 'Invalid credentials' });
             }
 
+            if (isTemporaryPasswordExpired(user)) {
+                return res.status(403).json({
+                    error: 'Temporary password expired. Please ask admin to generate a new password.',
+                    password_reset_expired: true
+                });
+            }
+
             // Single Session Enforcement for Supervisors
             if (user.role === ROLES.SUPERVISOR || user.role === ROLES.SPECIAL_SUPERVISOR) {
                 await db.run(
@@ -123,6 +137,13 @@ router.post('/signin', async (req, res) => {
             const isMatch = await bcrypt.compare(password, labour.password_hash);
             if (!isMatch) {
                 return res.status(400).json({ error: 'Invalid credentials' });
+            }
+
+            if (isTemporaryPasswordExpired(labour)) {
+                return res.status(403).json({
+                    error: 'Temporary password expired. Please ask admin to generate a new password.',
+                    password_reset_expired: true
+                });
             }
 
             const accessToken = jwt.sign(
@@ -380,37 +401,11 @@ router.delete('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES),
     }
 });
 
-// Admin changes Supervisor Password
+// Direct supervisor password changes are disabled.
+// Use /api/admin/users/:id/reset-password so the admin verifies their password,
+// the target receives a temporary password, and the target must choose a new one.
 router.put('/supervisors/:id/change-password', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
-    const { id } = req.params;
-    const { newPassword } = req.body;
-
-    if (req.user.role !== ROLES.ADMIN) {
-        return res.status(403).json({ error: 'Only admins can change supervisor passwords' });
-    }
-
-    if (!newPassword || newPassword.length < 6) {
-        return res.status(400).json({ error: 'New password must be at least 6 characters long' });
-    }
-
-    try {
-        const db = await openDb();
-        const existing = await db.get(`SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor')`, [id]);
-
-        if (!existing) {
-            return res.status(404).json({ error: 'Supervisor not found' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await db.run(
-            `UPDATE users SET password_hash = ? WHERE id = ?`,
-            [hashedPassword, id]
-        );
-
-        res.json({ message: 'Supervisor password changed successfully' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    res.status(410).json({ error: 'Direct password changes are disabled. Generate a temporary password from the supervisor details screen.' });
 });
 
 // Restore a Supervisor
@@ -712,6 +707,10 @@ const changePasswordHandler = async (req, res) => {
 
         if (!user.password_hash) {
             return res.status(400).json({ error: 'Password not set for this account' });
+        }
+
+        if (isTemporaryPasswordExpired(user)) {
+            return res.status(403).json({ error: 'Temporary password expired. Please ask admin to generate a new password.' });
         }
 
         const isMatch = await bcrypt.compare(currentPassword, user.password_hash);

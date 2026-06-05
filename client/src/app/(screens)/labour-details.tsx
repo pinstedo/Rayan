@@ -354,6 +354,59 @@ export default function LabourDetailsScreen() {
             return;
         }
 
+        const showGeneratedPassword = (temporaryPassword: string) => {
+            setGeneratedTempPassword(temporaryPassword);
+            setAdminPassword("");
+            setAdminPasswordModalVisible(false);
+            setTempPasswordModalVisible(true);
+        };
+
+        const submitReset = async (verificationToken: string, confirmReplace = false) => {
+            const resetRes = await api.post(`/admin/users/${id}/reset-password`, {
+                verificationToken,
+                role: 'labour',
+                confirmReplace
+            });
+            const resetData = await resetRes.json();
+
+            if (resetRes.ok) {
+                showGeneratedPassword(resetData.temporaryPassword);
+                return;
+            }
+
+            if (resetRes.status === 409 && resetData.code === 'TEMP_PASSWORD_ACTIVE' && !confirmReplace) {
+                const expiryText = resetData.expiresAt
+                    ? ` It expires at ${new Date(resetData.expiresAt).toLocaleString()}.`
+                    : "";
+
+                Alert.alert(
+                    "Temporary Password Already Active",
+                    `A temporary password already exists for this labour.${expiryText} Generating a new one will invalidate the old temporary password.`,
+                    [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                            text: "Generate New",
+                            style: "destructive",
+                            onPress: async () => {
+                                setIsVerifyingAdmin(true);
+                                try {
+                                    await submitReset(verificationToken, true);
+                                } catch (error) {
+                                    console.error("Password reset error:", error);
+                                    Alert.alert("Error", "Unable to connect to server.");
+                                } finally {
+                                    setIsVerifyingAdmin(false);
+                                }
+                            }
+                        }
+                    ]
+                );
+                return;
+            }
+
+            Alert.alert("Reset Failed", resetData.error || "Failed to reset labour password.");
+        };
+
         setIsVerifyingAdmin(true);
         try {
             // Step 1: Verify admin password
@@ -369,20 +422,7 @@ export default function LabourDetailsScreen() {
             const { verificationToken } = verifyData;
 
             // Step 2: Reset labour password
-            const resetRes = await api.post(`/admin/users/${id}/reset-password`, {
-                verificationToken,
-                role: 'labour'
-            });
-            const resetData = await resetRes.json();
-
-            if (resetRes.ok) {
-                setGeneratedTempPassword(resetData.temporaryPassword);
-                setAdminPassword("");
-                setAdminPasswordModalVisible(false);
-                setTempPasswordModalVisible(true);
-            } else {
-                Alert.alert("Reset Failed", resetData.error || "Failed to reset labour password.");
-            }
+            await submitReset(verificationToken);
         } catch (error) {
             console.error("Password reset error:", error);
             Alert.alert("Error", "Unable to connect to server.");
@@ -751,21 +791,13 @@ export default function LabourDetailsScreen() {
                     )}
 
                     {userRole === 'admin' && (
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 15, marginBottom: 10, gap: 10 }}>
+                        <View style={{ marginTop: 15, marginBottom: 10 }}>
                             <TouchableOpacity
-                                style={[local.forgotButton, { flex: 1 }]}
+                                style={local.resetButton}
                                 onPress={() => setAdminPasswordModalVisible(true)}
                             >
                                 <Ionicons name="key-outline" size={18} color="#0a84ff" style={{ marginRight: 6 }} />
-                                <Text style={local.forgotButtonText}>Forgot Pass</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[local.resetButton, { flex: 1 }]}
-                                onPress={() => setAdminPasswordModalVisible(true)}
-                            >
-                                <Ionicons name="refresh-outline" size={18} color="#0a84ff" style={{ marginRight: 6 }} />
-                                <Text style={local.resetButtonText}>Reset Pass</Text>
+                                <Text style={local.resetButtonText}>Generate Temporary Password</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -1217,7 +1249,7 @@ export default function LabourDetailsScreen() {
                         textAlign: "center",
                         marginBottom: 15
                     }}>
-                        ⚠️ Save this password now. It cannot be viewed again.
+                        Share this temporary password now. It expires in 24 hours and cannot be viewed again.
                     </Text>
 
                     <View style={{

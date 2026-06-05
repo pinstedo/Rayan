@@ -8,6 +8,7 @@ interface CalendarProps {
     onDateSelect: (date: Date) => void;
     markedDates: string[]; // Array of YYYY-MM-DD strings
     onMonthChange: (month: number, year: number) => void;
+    allowFutureDates?: boolean;
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -16,10 +17,14 @@ const MONTHS = [
     "July", "August", "September", "October", "November", "December"
 ];
 
-export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect, markedDates, onMonthChange }) => {
+export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect, markedDates, onMonthChange, allowFutureDates = false }) => {
     const { isDark } = useTheme();
     const styles = getStyles(isDark);
     const [currentDate, setCurrentDate] = useState(new Date(selectedDate));
+
+    useEffect(() => {
+        setCurrentDate(new Date(selectedDate));
+    }, [selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()]);
 
     useEffect(() => {
         onMonthChange(currentDate.getMonth() + 1, currentDate.getFullYear());
@@ -86,6 +91,7 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect, 
             const todayReset = new Date(today.getFullYear(), today.getMonth(), today.getDate());
             const isPast = dayDate < todayReset;
             const isFuture = dayDate > todayReset;
+            const isFutureDisabled = isFuture && !allowFutureDates;
             const isUnmarkedPast = isPast && !isMarked;
 
             let dayStyle = styles.dayCell;
@@ -97,7 +103,7 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect, 
                 // But we also want to show status
             }
 
-            if (isFuture) {
+            if (isFutureDisabled) {
                 textStyle = { ...textStyle, color: isDark ? "#555" : "#ccc" };
             } else if (isMarked) {
                 bgStyle = { backgroundColor: isDark ? "#1b4323" : "#d4edda" }; // Light green
@@ -115,8 +121,8 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect, 
                         bgStyle,
                         isSelected && styles.selectedDay
                     ]}
-                    onPress={() => !isFuture && handleDayPress(day)}
-                    disabled={isFuture}
+                    onPress={() => !isFutureDisabled && handleDayPress(day)}
+                    disabled={isFutureDisabled}
                 >
                     <Text style={[
                         textStyle,
