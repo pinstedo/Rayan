@@ -37,7 +37,7 @@ export const PWASetup = () => {
     upsertMeta("theme-color", "#0a84ff");
     upsertMeta("mobile-web-app-capable", "yes");
     upsertMeta("apple-mobile-web-app-capable", "yes");
-    upsertMeta("apple-mobile-web-app-title", "Proto");
+    upsertMeta("apple-mobile-web-app-title", "Rayan");
     upsertMeta("apple-mobile-web-app-status-bar-style", "default");
 
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
