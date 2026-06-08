@@ -525,7 +525,7 @@ export default function Profile() {
               </View>
 
               <Text style={[styles.label, { marginBottom: 4 }]}>
-                This amount is added per labour per day when no food is provided at site level and no per-labour override is set.
+                This amount is added per labour per day when site food is not provided and no labour food-given entry is set.
               </Text>
 
               <View style={styles.inputGroup}>

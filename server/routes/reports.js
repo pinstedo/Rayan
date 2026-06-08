@@ -181,7 +181,9 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             const advanceResult = await db.get(advanceQuery, advanceParams);
             const advanceAmount = advanceResult.total_amount || 0;
 
-            // Food Allowance Calculation (site-level + per-labour)
+            // Food calculation:
+            // site-level allowance is added when food was not provided;
+            // per-labour food amount is money already given and is deducted.
             let detailedAttendanceQuery = `
                 SELECT date, site_id, status, food_allowance, allowance as food_allowance_amount
                 FROM attendance
@@ -203,12 +205,12 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
             const detailedAttendance = await db.all(detailedAttendanceQuery, detailedParams);
 
-            let perLabourFoodAmount = 0;  // Explicit per-labour food allowance
+            let perLabourFoodAmount = 0;  // Food amount already given to labour
             let siteLevelFoodCount = 0;   // Days food NOT provided by supervisor at site
 
             detailedAttendance.forEach(record => {
                 if (record.food_allowance) {
-                    // Per-labour food allowance explicitly set
+                    // Per-labour food amount explicitly given, so deduct it from payable salary.
                     perLabourFoodAmount += Number(record.food_allowance_amount) || 0;
                 } else {
                     // Fall back to site-level: if food not provided, add global rate
@@ -251,12 +253,11 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             });
 
             const siteLevelFoodAmount = siteLevelFoodCount * globalFoodRate;
-            const foodAllowanceAmount = perLabourFoodAmount + siteLevelFoodAmount;
 
             // Calculation
             const hourlyRate = getLabourHourlyRate(labour); // Legacy compatibility value
             const dailyWage = getLabourDailyWage(labour);
-            const netPayable = wage + overtimeAmount - advanceAmount + foodAllowanceAmount;
+            const netPayable = wage + overtimeAmount + siteLevelFoodAmount - perLabourFoodAmount - advanceAmount;
 
             reports.push({
                 id: labour.id,
@@ -269,7 +270,9 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 wage: wage,
                 overtime_amount: overtimeAmount,
                 advance_amount: advanceAmount,
-                food_allowance_amount: foodAllowanceAmount,
+                food_allowance_amount: siteLevelFoodAmount,
+                food_deduction_amount: perLabourFoodAmount,
+                food_given_amount: perLabourFoodAmount,
                 per_labour_food_amount: perLabourFoodAmount,
                 site_level_food_amount: siteLevelFoodAmount,
                 net_payable: netPayable
@@ -406,7 +409,13 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
         // 2. Pre-fetch Food Provided Status
         const allowMap = new Map();
-        const allStatus = await db.all(`SELECT site_id, date, food_provided FROM daily_site_attendance_status`);
+        let foodStatusQuery = `SELECT site_id, date, food_provided FROM daily_site_attendance_status WHERE date <= ?`;
+        const foodStatusParams = [endDate];
+        if (site_id) {
+            foodStatusQuery += ` AND site_id = ?`;
+            foodStatusParams.push(site_id);
+        }
+        const allStatus = await db.all(foodStatusQuery, foodStatusParams);
         allStatus.forEach(row => {
             if (row.food_provided == 1 || row.food_provided === 'true') {
                 allowMap.set(`${row.site_id}:${row.date}`, true);
@@ -419,36 +428,40 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
         // --- OPTIMIZED BULK FETCH ---
         const labourIds = labours.map(l => l.id);
+        const labourIdPlaceholders = labourIds.map(() => '?').join(',');
+        const withLabourIds = (...extraParams) => [...labourIds, ...extraParams];
 
         // 4. Pre-fetch all required data mapped by labour_id
         const allAttendance = await db.all(`
             SELECT labour_id, date, site_id, status, food_allowance, allowance
             FROM attendance
-            WHERE date <= ?
-        `, [endDate]);
+            WHERE labour_id IN (${labourIdPlaceholders}) AND date <= ?
+        `, withLabourIds(endDate));
 
         const allOvertime = await db.all(`
             SELECT labour_id, date, amount
             FROM overtime
-            WHERE date <= ?
-        `, [endDate]);
+            WHERE labour_id IN (${labourIdPlaceholders}) AND date <= ?
+        `, withLabourIds(endDate));
 
         const allAdvances = await db.all(`
             SELECT labour_id, date, amount
             FROM advances
-            WHERE date <= ?
-        `, [advanceEndDate]);
+            WHERE labour_id IN (${labourIdPlaceholders}) AND date <= ?
+        `, withLabourIds(advanceEndDate));
 
         const allPayments = await db.all(`
             SELECT labour_id, date, month_reference, amount
             FROM salary_payments
-        `);
+            WHERE labour_id IN (${labourIdPlaceholders})
+        `, labourIds);
 
         const allSalaryHistory = await db.all(`
             SELECT labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, date
             FROM salary_history
+            WHERE labour_id IN (${labourIdPlaceholders})
             ORDER BY date ASC
-        `);
+        `, labourIds);
 
         const attByLabour = {};
         const otByLabour = {};
@@ -474,7 +487,8 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         const calculateStats = (labour, isPrevious) => {
             let fullDays = 0;
             let halfDays = 0;
-            let foodAllowanceCount = 0;
+            let foodAllowanceAmount = 0;
+            let foodDeductionAmount = 0;
             let wage = 0;
 
             const attRecs = attByLabour[labour.id].filter(a => isPrevious ? a.date < startDate : (a.date >= startDate && a.date <= endDate));
@@ -521,13 +535,12 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
                 if (rec.status === 'full' || rec.status === 'half') {
                     if (rec.food_allowance) {
-                        foodAllowanceCount += Number(rec.allowance) || 0;
+                        foodDeductionAmount += Number(rec.allowance) || 0;
                     } else if (!allowMap.has(`${rec.site_id}:${rec.date}`)) {
-                        foodAllowanceCount += globalFoodRate;
+                        foodAllowanceAmount += globalFoodRate;
                     }
                 }
             });
-            const foodAmount = foodAllowanceCount;
 
             const otAmount = otByLabour[labour.id]
                 .filter(o => isPrevious ? o.date < startDate : (o.date >= startDate && o.date <= endDate))
@@ -573,13 +586,15 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 wage,
                 wageBreakdown,
                 otAmount,
-                foodAmount,
+                foodAmount: foodAllowanceAmount,
+                foodDeductionAmount,
                 advAmount,
                 paidAmount,
                 fullDays,
                 halfDays,
-                foodAllowanceCount,
-                net: isPrevious ? (wage + otAmount + foodAmount - advAmount - paidAmount) : (wage + otAmount + foodAmount - advAmount)
+                net: isPrevious
+                    ? (wage + otAmount + foodAllowanceAmount - foodDeductionAmount - advAmount - paidAmount)
+                    : (wage + otAmount + foodAllowanceAmount - foodDeductionAmount - advAmount)
             };
         };
 
@@ -600,12 +615,13 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 wage_breakdown: currStats.wageBreakdown,
                 current_overtime_amount: currStats.otAmount,
                 current_food_allowance_amount: currStats.foodAmount,
+                current_food_deduction_amount: currStats.foodDeductionAmount,
+                current_food_given_amount: currStats.foodDeductionAmount,
                 current_advance_amount: currStats.advAmount,
                 advance_start_date: advanceStartDate,
                 advance_end_date: advanceEndDate,
                 current_full_days: currStats.fullDays,
                 current_half_days: currStats.halfDays,
-                current_food_allowance_days: currStats.foodAllowanceCount,
                 current_net_payable: currStats.net,
                 salary_paid: currStats.paidAmount,
                 total_payable: previous_balance + currStats.net,

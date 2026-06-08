@@ -463,7 +463,7 @@ export default function AttendanceScreen() {
 					</View>
 				</View>
 
-				{/* Per-Labour Food Allowance */}
+				{/* Per-labour food amount already given, deducted from payable salary. */}
 				{!isGlobalView && (() => {
 					const fa = foodAllowanceData.get(item.id) ?? { enabled: false, amount: String(globalFoodRate) };
 					return (
@@ -471,7 +471,7 @@ export default function AttendanceScreen() {
 							<View style={local.foodAllowLeft}>
 								<MaterialIcons name="restaurant" size={16} color={fa.enabled ? (isDark ? '#81C784' : '#388E3C') : (isDark ? '#555' : '#bbb')} />
 								<Text style={[local.foodAllowLabel, fa.enabled && local.foodAllowLabelActive]}>
-									Food Allowance
+									Food Given
 								</Text>
 							</View>
 							<View style={local.foodAllowRight}>

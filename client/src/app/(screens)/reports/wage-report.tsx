@@ -48,6 +48,86 @@ const getRangeLabel = (range: { startDate: string; endDate: string }) => (
     `${formatReportDate(range.startDate)} to ${formatReportDate(range.endDate)}`
 );
 
+const toAmount = (value: unknown) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : 0;
+};
+
+const formatCurrencyValue = (value: unknown) => {
+    return toAmount(value).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+};
+
+const formatDeductionValue = (value: unknown) => {
+    const amount = toAmount(value);
+    return amount > 0 ? `-${formatCurrencyValue(amount)}` : formatCurrencyValue(amount);
+};
+
+const formatCountValue = (value: unknown) => {
+    const amount = toAmount(value);
+    if (Number.isInteger(amount)) return amount.toString();
+    return amount.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+};
+
+const getFoodDeductionAmount = (item: any) => {
+    return toAmount(item?.current_food_deduction_amount ?? item?.current_food_given_amount);
+};
+
+const escapeHtml = (unsafe: unknown) => {
+    return String(unsafe ?? '').replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+};
+
+const getDailyRateSummaryHtml = (item: any) => {
+    const wageBreakdown = Array.isArray(item?.wage_breakdown) ? item.wage_breakdown : [];
+    if (wageBreakdown.length === 0) {
+        return `<div>${formatCurrencyValue(getDailyWage(item))}</div>`;
+    }
+
+    return wageBreakdown.map((breakdown: any) => {
+        const attendance = `${formatCountValue(breakdown.fullDays)}F/${formatCountValue(breakdown.halfDays)}H`;
+        return `<div>${formatCurrencyValue(getDailyWage(breakdown))} <span class="muted">(${attendance})</span></div>`;
+    }).join('');
+};
+
+const printReportHtml = async (html: string) => {
+    if (Platform.OS === 'web') {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const frameDocument = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!frameDocument) {
+            document.body.removeChild(iframe);
+            throw new Error("Unable to prepare PDF report");
+        }
+
+        frameDocument.open();
+        frameDocument.write(html);
+        frameDocument.close();
+        iframe.contentWindow?.focus();
+
+        setTimeout(() => {
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+                if (iframe.parentNode) {
+                    document.body.removeChild(iframe);
+                }
+            }, 1000);
+        }, 250);
+        return;
+    }
+
+    await Print.printAsync({ html });
+};
+
 export default function WageReportScreen() {
     const router = useRouter();
     const { isDark } = useTheme();
@@ -200,14 +280,23 @@ export default function WageReportScreen() {
         setGeneratingPdf(true);
 
         try {
-            const res = await api.post(`/reports/wage-month`, reportPayload);
-            const pdfData = await res.json();
+            let pdfData = Array.isArray(reportData) ? [...reportData] : [];
 
-            if (!res.ok) {
-                throw new Error(pdfData.error || "Failed to fetch data for PDF");
+            if (pdfData.length === 0) {
+                const res = await api.post(`/reports/wage-month`, reportPayload);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || "Failed to fetch data for PDF");
+                }
+
+                pdfData = Array.isArray(data) ? [...data] : [];
+                if (Array.isArray(data)) {
+                    setReportData(data);
+                }
             }
 
-            if (!Array.isArray(pdfData) || pdfData.length === 0) {
+            if (pdfData.length === 0) {
                 Alert.alert("No Data", "No data to generate report");
                 return;
             }
@@ -215,181 +304,311 @@ export default function WageReportScreen() {
             pdfData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 
             const totals = pdfData.reduce((acc: any, curr: any) => ({
-                wage: acc.wage + (curr.current_wage || 0),
-                ot: acc.ot + (curr.current_overtime_amount || 0),
-                food: acc.food + (curr.current_food_allowance_amount || 0),
-                adv: acc.adv + (curr.current_advance_amount || 0),
-                prev: acc.prev + (curr.previous_balance || 0),
-                net: acc.net + (curr.current_net_payable || 0),
-                total: acc.total + (curr.total_payable || 0)
-            }), { wage: 0, ot: 0, food: 0, adv: 0, prev: 0, net: 0, total: 0 });
+                labours: acc.labours + 1,
+                fullDays: acc.fullDays + toAmount(curr.current_full_days),
+                halfDays: acc.halfDays + toAmount(curr.current_half_days),
+                wage: acc.wage + toAmount(curr.current_wage),
+                ot: acc.ot + toAmount(curr.current_overtime_amount),
+                food: acc.food + toAmount(curr.current_food_allowance_amount),
+                foodDeduction: acc.foodDeduction + getFoodDeductionAmount(curr),
+                adv: acc.adv + toAmount(curr.current_advance_amount),
+                prev: acc.prev + toAmount(curr.previous_balance),
+                net: acc.net + toAmount(curr.current_net_payable),
+                paid: acc.paid + toAmount(curr.salary_paid),
+                total: acc.total + toAmount(curr.total_payable),
+                closing: acc.closing + toAmount(curr.closing_balance)
+            }), { labours: 0, fullDays: 0, halfDays: 0, wage: 0, ot: 0, food: 0, foodDeduction: 0, adv: 0, prev: 0, net: 0, paid: 0, total: 0, closing: 0 });
 
-            // Ensure special chars in names don't break HTML
-            const escapeHtml = (unsafe: string) => {
-                return (unsafe || '').replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
-            };
+            const generatedAt = new Date().toLocaleString(undefined, {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
 
             const html = `
+            <!DOCTYPE html>
             <html>
                 <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+                    <meta charset="utf-8" />
                     <style>
-                        @page { size: A4; margin: 16px; }
+                        @page { size: A4 landscape; margin: 10mm; }
                         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         body {
                             margin: 0;
-                            font-family: 'Helvetica', sans-serif;
-                            background: ${isDark ? '#121212' : '#f5f5f5'};
-                            color: ${isDark ? '#fff' : '#111'};
+                            font-family: Arial, Helvetica, sans-serif;
+                            background: #ffffff;
+                            color: #17202a;
+                            font-size: 10px;
                         }
-                        .screen { padding: 22px; }
-                        .topbar {
+                        .report-page { width: 100%; }
+                        .report-header {
                             display: flex;
-                            align-items: center;
                             justify-content: space-between;
-                            padding: 14px 18px;
-                            background: ${isDark ? '#1e1e1e' : '#fff'};
-                            border-bottom: 1px solid ${isDark ? '#333' : '#eee'};
-                        }
-                        .back { color: ${isDark ? '#4da6ff' : '#0a84ff'}; font-size: 13px; }
-                        h1 { margin: 0; font-size: 20px; text-align: center; }
-                        h2 { margin: 22px 0 14px; font-size: 18px; }
-                        .panel {
-                            background: ${isDark ? '#1e1e1e' : '#fff'};
-                            border: 1px solid ${isDark ? '#333' : '#eee'};
-                            border-radius: 10px;
-                            padding: 16px;
-                            margin-bottom: 16px;
-                        }
-                        .period-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-                        .period-title { font-size: 13px; font-weight: 700; color: ${isDark ? '#fff' : '#333'}; margin-bottom: 4px; }
-                        .period-value { font-size: 12px; color: ${isDark ? '#aaa' : '#666'}; }
-                        .summary-title { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
-                        .summary-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; }
-                        .summary-row:last-child { margin-bottom: 0; }
-                        .label { color: ${isDark ? '#bbb' : '#666'}; }
-                        .primary-value { color: ${isDark ? '#4da6ff' : '#0a84ff'}; font-size: 18px; font-weight: 800; }
-                        .value { color: ${isDark ? '#eee' : '#333'}; font-weight: 700; }
-                        .note {
-                            color: ${isDark ? '#888' : '#777'};
-                            font-size: 12px;
-                            font-style: italic;
-                            text-align: center;
-                            margin: 16px 0;
-                            line-height: 1.45;
-                        }
-                        .labour-card {
-                            background: ${isDark ? '#1e1e1e' : '#fff'};
-                            border: 1px solid ${isDark ? '#333' : '#eee'};
-                            border-left: 4px solid #0a84ff;
-                            border-radius: 10px;
-                            padding: 14px;
+                            align-items: flex-start;
+                            border-bottom: 2px solid #243b53;
+                            padding-bottom: 8px;
                             margin-bottom: 10px;
-                            page-break-inside: avoid;
                         }
-                        .labour-row {
+                        .eyebrow {
+                            margin: 0 0 3px;
+                            color: #52606d;
+                            font-size: 10px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                        }
+                        h1 {
+                            margin: 0;
+                            color: #102a43;
+                            font-size: 22px;
+                            line-height: 1.1;
+                        }
+                        .periods {
+                            min-width: 260px;
+                            border: 1px solid #bcccdc;
+                            border-radius: 4px;
+                            overflow: hidden;
+                        }
+                        .period-row {
                             display: flex;
-                            align-items: center;
                             justify-content: space-between;
-                            gap: 12px;
+                            gap: 16px;
+                            padding: 5px 7px;
+                            border-bottom: 1px solid #d9e2ec;
                         }
-                        .labour-name { font-size: 16px; font-weight: 800; color: ${isDark ? '#fff' : '#333'}; }
-                        .balance { text-align: right; }
-                        .balance-label { font-size: 11px; color: ${isDark ? '#aaa' : '#666'}; margin-bottom: 2px; }
-                        .balance-value { font-size: 16px; font-weight: 800; color: ${isDark ? '#fff' : '#000'}; }
-                        .meta { margin-top: 10px; font-size: 13px; color: ${isDark ? '#bbb' : '#666'}; line-height: 1.55; }
-                        .paid { color: ${isDark ? '#81C784' : '#388E3C'}; font-weight: 800; }
-                        .closing { color: ${isDark ? '#E57373' : '#D32F2F'}; font-weight: 800; }
-                        .generated { margin-top: 18px; text-align: center; font-size: 11px; color: ${isDark ? '#888' : '#777'}; }
+                        .period-row:last-child { border-bottom: 0; }
+                        .period-label { color: #52606d; font-weight: 700; }
+                        .period-value { color: #102a43; font-weight: 700; text-align: right; }
+                        .summary-grid {
+                            display: grid;
+                            grid-template-columns: repeat(6, 1fr);
+                            gap: 6px;
+                            margin: 0 0 10px;
+                        }
+                        .metric {
+                            border: 1px solid #d9e2ec;
+                            border-left: 3px solid #0a84ff;
+                            border-radius: 4px;
+                            background: #f8fafc;
+                            padding: 6px;
+                        }
+                        .metric-label {
+                            color: #52606d;
+                            font-size: 8px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                        }
+                        .metric-value {
+                            margin-top: 3px;
+                            color: #102a43;
+                            font-size: 12px;
+                            font-weight: 800;
+                            line-height: 1.15;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            table-layout: fixed;
+                        }
+                        thead { display: table-header-group; }
+                        tfoot { display: table-row-group; }
+                        tr { page-break-inside: avoid; }
+                        th, td {
+                            border: 1px solid #bcccdc;
+                            padding: 4px 5px;
+                            vertical-align: top;
+                        }
+                        th {
+                            background: #243b53;
+                            color: #ffffff;
+                            font-size: 8px;
+                            font-weight: 800;
+                            text-transform: uppercase;
+                        }
+                        td {
+                            color: #17202a;
+                            font-size: 8.5px;
+                            line-height: 1.25;
+                        }
+                        tbody tr:nth-child(even) td { background: #f8fafc; }
+                        tfoot td {
+                            background: #e6f0ff;
+                            color: #102a43;
+                            font-weight: 800;
+                        }
+                        .name {
+                            color: #102a43;
+                            font-weight: 800;
+                            word-break: break-word;
+                        }
+                        .center { text-align: center; }
+                        .num {
+                            text-align: right;
+                            white-space: nowrap;
+                            font-variant-numeric: tabular-nums;
+                        }
+                        .muted { color: #627d98; font-weight: 600; }
+                        .deduct { color: #b42318; }
+                        .paid { color: #1f7a3f; }
+                        .total-col {
+                            background: #eef7ff !important;
+                            color: #0b4f8a;
+                            font-weight: 800;
+                        }
+                        .closing-col {
+                            background: #fff8e5 !important;
+                            color: #8a4b00;
+                            font-weight: 800;
+                        }
+                        .notes {
+                            margin-top: 8px;
+                            color: #52606d;
+                            font-size: 8.5px;
+                            line-height: 1.35;
+                        }
+                        .generated {
+                            margin-top: 6px;
+                            color: #627d98;
+                            font-size: 8px;
+                            text-align: right;
+                        }
                     </style>
                 </head>
                 <body>
-                    <div class="topbar">
-                        <div class="back">Back</div>
-                        <h1>Wage Reports</h1>
-                        <div style="width: 32px;"></div>
-                    </div>
-
-                    <div class="screen">
-                        <div class="panel">
-                            <div class="period-grid">
-                                <div>
-                                    <div class="period-title">Wage Period</div>
-                                    <div class="period-value">${reportPeriodLabel}</div>
+                    <div class="report-page">
+                        <div class="report-header">
+                            <div>
+                                <p class="eyebrow">Rayan Labour Management</p>
+                                <h1>Labour Wage Summary</h1>
+                            </div>
+                            <div class="periods">
+                                <div class="period-row">
+                                    <span class="period-label">Wage Period</span>
+                                    <span class="period-value">${escapeHtml(reportPeriodLabel)}</span>
                                 </div>
-                                <div>
-                                    <div class="period-title">Advance Period</div>
-                                    <div class="period-value">${advancePeriodLabel}</div>
+                                <div class="period-row">
+                                    <span class="period-label">Advance Period</span>
+                                    <span class="period-value">${escapeHtml(advancePeriodLabel)}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="panel">
-                            <div class="summary-title">Date Range Summary</div>
-                            <div class="summary-row">
-                                <span class="label">Total Payable:</span>
-                                <span class="primary-value">&#8377;${formatCurrency(totals.total)}</span>
+                        <div class="summary-grid">
+                            <div class="metric">
+                                <div class="metric-label">Labours</div>
+                                <div class="metric-value">${totals.labours}</div>
                             </div>
-                            <div class="summary-row">
-                                <span class="label">Selected Range Net:</span>
-                                <span class="value">&#8377;${formatCurrency(totals.net)}</span>
+                            <div class="metric">
+                                <div class="metric-label">Attendance</div>
+                                <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
-                            <div class="summary-row">
-                                <span class="label">Total Labours:</span>
-                                <span class="value">${pdfData.length}</span>
+                            <div class="metric">
+                                <div class="metric-label">Current Net</div>
+                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.net)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Total Payable</div>
+                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.total)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Salary Paid</div>
+                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.paid)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Closing Balance</div>
+                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.closing)}</div>
                             </div>
                         </div>
 
-                        <div class="note">
-                            * Wages are paid on the 10th of each month.<br />
-                            * Report includes previous wage balance before the wage from date and previous advances before the advance from date.
+                        <table>
+                            <colgroup>
+                                <col style="width: 3%;" />
+                                <col style="width: 14%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 4%;" />
+                                <col style="width: 4%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 5%;" />
+                                <col style="width: 6%;" />
+                                <col style="width: 6%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 8%;" />
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Labour</th>
+                                    <th>Rate / Day</th>
+                                    <th>Full</th>
+                                    <th>Half</th>
+                                    <th>Wage</th>
+                                    <th>OT</th>
+                                    <th>Food Allow</th>
+                                    <th>Food Given</th>
+                                    <th>Advance</th>
+                                    <th>Prev Bal</th>
+                                    <th>Current Net</th>
+                                    <th>Paid</th>
+                                    <th>Total Payable</th>
+                                    <th>Closing</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${pdfData.map((item: any, index: number) => `
+                                    <tr>
+                                        <td class="center">${index + 1}</td>
+                                        <td class="name">${escapeHtml(item.name)}</td>
+                                        <td class="num">${getDailyRateSummaryHtml(item)}</td>
+                                        <td class="center">${formatCountValue(item.current_full_days)}</td>
+                                        <td class="center">${formatCountValue(item.current_half_days)}</td>
+                                        <td class="num">${formatCurrencyValue(item.current_wage)}</td>
+                                        <td class="num">${formatCurrencyValue(item.current_overtime_amount)}</td>
+                                        <td class="num">${formatCurrencyValue(item.current_food_allowance_amount)}</td>
+                                        <td class="num deduct">${formatDeductionValue(getFoodDeductionAmount(item))}</td>
+                                        <td class="num deduct">${formatDeductionValue(item.current_advance_amount)}</td>
+                                        <td class="num">${formatCurrencyValue(item.previous_balance)}</td>
+                                        <td class="num">${formatCurrencyValue(item.current_net_payable)}</td>
+                                        <td class="num paid">${formatCurrencyValue(item.salary_paid)}</td>
+                                        <td class="num total-col">${formatCurrencyValue(item.total_payable)}</td>
+                                        <td class="num closing-col">${formatCurrencyValue(item.closing_balance)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3">Totals</td>
+                                    <td class="center">${formatCountValue(totals.fullDays)}</td>
+                                    <td class="center">${formatCountValue(totals.halfDays)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.wage)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.ot)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.food)}</td>
+                                    <td class="num deduct">${formatDeductionValue(totals.foodDeduction)}</td>
+                                    <td class="num deduct">${formatDeductionValue(totals.adv)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.prev)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.net)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.paid)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.total)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.closing)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        <div class="notes">
+                            Current Net = wage + overtime + food allowance - food given - advances for the selected periods.
+                            Previous Balance includes opening balance and unpaid wage activity before the wage period.
                         </div>
-
-                        <h2>Labour Details</h2>
-                        ${pdfData.map((item: any) => `
-                            <div class="labour-card">
-                                <div class="labour-row">
-                                    <div class="labour-name">${escapeHtml(item.name)}</div>
-                                    <div class="balance">
-                                        <div class="balance-label">Payable</div>
-                                        <div class="balance-value">&#8377;${formatCurrency(item.total_payable)}</div>
-                                    </div>
-                                </div>
-                                <div class="meta">
-                                    Paid: <span class="paid">&#8377;${formatCurrency(item.salary_paid)}</span><br />
-                                    Closing Bal: <span class="closing">&#8377;${formatCurrency(item.closing_balance)}</span>
-                                </div>
-                            </div>
-                        `).join('')}
-
-                        <div class="generated">Generated on ${new Date().toLocaleDateString()}</div>
+                        <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </div>
                 </body>
             </html>
             `;
 
-            if (Platform.OS === 'web') {
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                document.body.appendChild(iframe);
-
-                iframe.contentDocument?.write(html);
-                iframe.contentDocument?.close();
-                iframe.contentWindow?.focus();
-
-                setTimeout(() => {
-                    iframe.contentWindow?.print();
-                    setTimeout(() => {
-                        document.body.removeChild(iframe);
-                    }, 1000);
-                }, 250);
-            } else {
-                await Print.printAsync({ html });
-            }
+            await printReportHtml(html);
 
         } catch (error: any) {
             if (error.message?.includes("not complete") || error.message?.includes("cancel")) {
@@ -472,6 +691,7 @@ export default function WageReportScreen() {
                 const grossWage = item.current_wage || 0;
                 const otAmount = item.current_overtime_amount || 0;
                 const foodAmount = item.current_food_allowance_amount || 0;
+                const foodDeductionAmount = getFoodDeductionAmount(item);
                 const advances = item.current_advance_amount || 0;
                 const prevBal = item.previous_balance || 0;
                 const netPayable = item.total_payable || 0;
@@ -557,6 +777,11 @@ export default function WageReportScreen() {
                                         <td>Food Allowance</td>
                                         <td class="amount">${formatCurrency(foodAmount)}</td>
                                     </tr>` : ''}
+                                    ${foodDeductionAmount > 0 ? `
+                                    <tr style="background-color: #fff9f9;">
+                                        <td>Less: Food Given</td>
+                                        <td class="amount text-red">-${formatCurrency(foodDeductionAmount)}</td>
+                                    </tr>` : ''}
                                     
                                     <tr style="background-color: #fff9f9;">
                                         <td>Less: Advances</td>
@@ -609,24 +834,7 @@ export default function WageReportScreen() {
             </html>
             `;
 
-            if (Platform.OS === 'web') {
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                document.body.appendChild(iframe);
-
-                iframe.contentDocument?.write(html);
-                iframe.contentDocument?.close();
-                iframe.contentWindow?.focus();
-
-                setTimeout(() => {
-                    iframe.contentWindow?.print();
-                    setTimeout(() => {
-                        document.body.removeChild(iframe);
-                    }, 1000);
-                }, 250);
-            } else {
-                await Print.printAsync({ html });
-            }
+            await printReportHtml(html);
 
         } catch (error: any) {
             if (error.message?.includes("not complete") || error.message?.includes("cancel")) {
