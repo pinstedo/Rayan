@@ -100,8 +100,68 @@ const getDailyRateSummaryHtml = (item: any) => {
     }).join('');
 };
 
+const isMobileWebPrint = () => {
+    if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
+const makeStandaloneWebReport = (html: string) => {
+    const controls = `
+        <style>
+            .report-actions {
+                position: sticky;
+                top: 0;
+                z-index: 9999;
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                padding: 8px;
+                background: #ffffff;
+                border-bottom: 1px solid #d9e2ec;
+                font-family: Arial, Helvetica, sans-serif;
+            }
+            .report-actions button {
+                border: 0;
+                border-radius: 4px;
+                padding: 8px 10px;
+                color: #ffffff;
+                background: #0a84ff;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            .report-actions button.secondary {
+                color: #102a43;
+                background: #e6f0ff;
+            }
+            @media print {
+                .report-actions { display: none !important; }
+            }
+        </style>
+    `;
+    const actions = `
+        <div class="report-actions">
+            <button class="secondary" type="button" onclick="history.back()">Back</button>
+            <button type="button" onclick="window.print()">Print / Save PDF</button>
+        </div>
+    `;
+    const script = `<script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>`;
+
+    return html
+        .replace('</head>', `${controls}</head>`)
+        .replace('<body>', `<body>${actions}`)
+        .replace('</body>', `${script}</body>`);
+};
+
 const printReportHtml = async (html: string) => {
     if (Platform.OS === 'web') {
+        if (isMobileWebPrint()) {
+            const reportHtml = makeStandaloneWebReport(html);
+            const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
+            const reportUrl = URL.createObjectURL(blob);
+            window.location.assign(reportUrl);
+            return;
+        }
+
         const iframe = document.createElement('iframe');
         iframe.style.position = 'fixed';
         iframe.style.right = '0';
