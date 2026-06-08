@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -60,6 +61,13 @@ const formatCurrencyValue = (value: unknown) => {
 const formatDeductionValue = (value: unknown) => {
     const amount = toAmount(value);
     return amount > 0 ? `-${formatCurrencyValue(amount)}` : formatCurrencyValue(amount);
+};
+
+const formatCurrencyHtml = (value: unknown) => `&#8377;${formatCurrencyValue(value)}`;
+
+const formatDeductionCurrencyHtml = (value: unknown) => {
+    const amount = toAmount(value);
+    return amount > 0 ? `-&#8377;${formatCurrencyValue(amount)}` : `&#8377;${formatCurrencyValue(amount)}`;
 };
 
 const formatCountValue = (value: unknown) => {
@@ -125,7 +133,17 @@ const printReportHtml = async (html: string) => {
         return;
     }
 
-    await Print.printAsync({ html });
+    const { uri } = await Print.printToFileAsync({ html });
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) {
+        throw new Error("PDF generated, but sharing is not available on this device.");
+    }
+
+    await Sharing.shareAsync(uri, {
+        dialogTitle: "Share Wage Report PDF",
+        mimeType: "application/pdf",
+        UTI: "com.adobe.pdf",
+    });
 };
 
 export default function WageReportScreen() {
@@ -326,6 +344,275 @@ export default function WageReportScreen() {
                 hour: '2-digit',
                 minute: '2-digit'
             });
+
+            if (Platform.OS !== 'web') {
+                const html = `
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <meta name="viewport" content="width=device-width, initial-scale=1" />
+                        <style>
+                            @page { size: A4 portrait; margin: 12mm; }
+                            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            body {
+                                margin: 0;
+                                background: #ffffff;
+                                color: #17202a;
+                                font-family: Arial, Helvetica, sans-serif;
+                                font-size: 11px;
+                                line-height: 1.35;
+                            }
+                            .header {
+                                border-bottom: 2px solid #243b53;
+                                padding-bottom: 10px;
+                                margin-bottom: 10px;
+                            }
+                            .eyebrow {
+                                margin: 0 0 3px;
+                                color: #52606d;
+                                font-size: 10px;
+                                font-weight: 700;
+                                text-transform: uppercase;
+                            }
+                            h1 {
+                                margin: 0 0 8px;
+                                color: #102a43;
+                                font-size: 22px;
+                                line-height: 1.1;
+                            }
+                            .period-grid {
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 6px;
+                            }
+                            .period {
+                                border: 1px solid #bcccdc;
+                                border-radius: 4px;
+                                padding: 6px;
+                            }
+                            .period-label {
+                                color: #52606d;
+                                font-size: 9px;
+                                font-weight: 700;
+                                text-transform: uppercase;
+                            }
+                            .period-value {
+                                margin-top: 2px;
+                                color: #102a43;
+                                font-weight: 700;
+                            }
+                            .summary-grid {
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 6px;
+                                margin: 10px 0;
+                            }
+                            .metric {
+                                border: 1px solid #d9e2ec;
+                                border-left: 3px solid #0a84ff;
+                                border-radius: 4px;
+                                background: #f8fafc;
+                                padding: 7px;
+                            }
+                            .metric-label {
+                                color: #52606d;
+                                font-size: 9px;
+                                font-weight: 700;
+                                text-transform: uppercase;
+                            }
+                            .metric-value {
+                                margin-top: 3px;
+                                color: #102a43;
+                                font-size: 14px;
+                                font-weight: 800;
+                            }
+                            .section-title {
+                                margin: 12px 0 6px;
+                                color: #102a43;
+                                font-size: 14px;
+                                font-weight: 800;
+                            }
+                            .labour {
+                                border: 1px solid #bcccdc;
+                                border-left: 4px solid #0a84ff;
+                                border-radius: 5px;
+                                margin-bottom: 8px;
+                                page-break-inside: avoid;
+                                overflow: hidden;
+                            }
+                            .labour-head {
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                background: #f8fafc;
+                                padding: 7px;
+                                border-bottom: 1px solid #d9e2ec;
+                            }
+                            .labour-name {
+                                color: #102a43;
+                                font-size: 13px;
+                                font-weight: 800;
+                            }
+                            .payable {
+                                color: #0b4f8a;
+                                font-weight: 800;
+                                text-align: right;
+                                white-space: nowrap;
+                            }
+                            .detail-grid {
+                                display: grid;
+                                grid-template-columns: 1fr 1fr 1fr;
+                            }
+                            .detail {
+                                min-height: 34px;
+                                padding: 6px 7px;
+                                border-right: 1px solid #d9e2ec;
+                                border-bottom: 1px solid #d9e2ec;
+                            }
+                            .detail:nth-child(3n) { border-right: 0; }
+                            .detail-label {
+                                color: #627d98;
+                                font-size: 8.5px;
+                                font-weight: 700;
+                                text-transform: uppercase;
+                            }
+                            .detail-value {
+                                margin-top: 2px;
+                                color: #17202a;
+                                font-weight: 800;
+                            }
+                            .deduct { color: #b42318; }
+                            .paid { color: #1f7a3f; }
+                            .closing { color: #8a4b00; }
+                            .notes {
+                                margin-top: 10px;
+                                color: #52606d;
+                                font-size: 9px;
+                            }
+                            .generated {
+                                margin-top: 8px;
+                                color: #627d98;
+                                font-size: 8.5px;
+                                text-align: right;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <p class="eyebrow">Rayan Labour Management</p>
+                            <h1>Labour Wage Summary</h1>
+                            <div class="period-grid">
+                                <div class="period">
+                                    <div class="period-label">Wage Period</div>
+                                    <div class="period-value">${escapeHtml(reportPeriodLabel)}</div>
+                                </div>
+                                <div class="period">
+                                    <div class="period-label">Advance Period</div>
+                                    <div class="period-value">${escapeHtml(advancePeriodLabel)}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="summary-grid">
+                            <div class="metric">
+                                <div class="metric-label">Labours</div>
+                                <div class="metric-value">${totals.labours}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Attendance</div>
+                                <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Current Net</div>
+                                <div class="metric-value">${formatCurrencyHtml(totals.net)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Total Payable</div>
+                                <div class="metric-value">${formatCurrencyHtml(totals.total)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Salary Paid</div>
+                                <div class="metric-value">${formatCurrencyHtml(totals.paid)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Closing Balance</div>
+                                <div class="metric-value">${formatCurrencyHtml(totals.closing)}</div>
+                            </div>
+                        </div>
+
+                        <div class="section-title">Labour Details</div>
+                        ${pdfData.map((item: any, index: number) => `
+                            <div class="labour">
+                                <div class="labour-head">
+                                    <div class="labour-name">${index + 1}. ${escapeHtml(item.name)}</div>
+                                    <div class="payable">${formatCurrencyHtml(item.total_payable)}</div>
+                                </div>
+                                <div class="detail-grid">
+                                    <div class="detail">
+                                        <div class="detail-label">Rate / Day</div>
+                                        <div class="detail-value">${getDailyRateSummaryHtml(item)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Attendance</div>
+                                        <div class="detail-value">${formatCountValue(item.current_full_days)} F / ${formatCountValue(item.current_half_days)} H</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Wage</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.current_wage)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">OT</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.current_overtime_amount)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Food Allow</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.current_food_allowance_amount)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Food Given</div>
+                                        <div class="detail-value deduct">${formatDeductionCurrencyHtml(getFoodDeductionAmount(item))}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Advance</div>
+                                        <div class="detail-value deduct">${formatDeductionCurrencyHtml(item.current_advance_amount)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Previous Bal</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.previous_balance)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Current Net</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.current_net_payable)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Paid</div>
+                                        <div class="detail-value paid">${formatCurrencyHtml(item.salary_paid)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Closing</div>
+                                        <div class="detail-value closing">${formatCurrencyHtml(item.closing_balance)}</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Total Payable</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.total_payable)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+
+                        <div class="notes">
+                            Current Net = wage + overtime + food allowance - food given - advances.
+                            Previous Balance includes opening balance and unpaid wage activity before the wage period.
+                        </div>
+                        <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
+                    </body>
+                </html>
+                `;
+
+                await printReportHtml(html);
+                return;
+            }
 
             const html = `
             <!DOCTYPE html>
