@@ -12,7 +12,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api'; // Adjust path as needed
 import { getDailyWage } from '../../../utils/wages';
 
-type DatePickerField = 'wageStart' | 'wageEnd' | 'advanceStart' | 'advanceEnd';
+type DatePickerField = 'wageStart' | 'wageEnd';
 
 const formatDateInput = (date: Date) => {
     const year = date.getFullYear();
@@ -21,12 +21,17 @@ const formatDateInput = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-const getCurrentMonthRange = () => {
+const getSalaryMonthRange = () => {
     const now = new Date();
     return {
-        startDate: formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
-        endDate: formatDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+        startDate: formatDateInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+        endDate: formatDateInput(new Date(now.getFullYear(), now.getMonth(), 0)),
     };
+};
+
+const getSalaryCutoffDate = (salaryEndDate: string) => {
+    const parsed = parseDateInput(salaryEndDate);
+    return formatDateInput(new Date(parsed.getFullYear(), parsed.getMonth() + 1, 10));
 };
 
 const isValidDateInput = (value: string) => {
@@ -221,28 +226,25 @@ export default function WageReportScreen() {
     const [selectedLabour, setSelectedLabour] = useState<any>(null);
     const [searchText, setSearchText] = useState("");
 
-    const initialRange = useMemo(() => getCurrentMonthRange(), []);
+    const initialRange = useMemo(() => getSalaryMonthRange(), []);
     const [draftStartDate, setDraftStartDate] = useState(initialRange.startDate);
     const [draftEndDate, setDraftEndDate] = useState(initialRange.endDate);
-    const [draftAdvanceStartDate, setDraftAdvanceStartDate] = useState(initialRange.startDate);
-    const [draftAdvanceEndDate, setDraftAdvanceEndDate] = useState(initialRange.endDate);
     const [reportRange, setReportRange] = useState(initialRange);
-    const [advanceRange, setAdvanceRange] = useState(initialRange);
     const [activeDatePicker, setActiveDatePicker] = useState<DatePickerField | null>(null);
 
+    const salaryCutoffDate = useMemo(() => getSalaryCutoffDate(reportRange.endDate), [reportRange.endDate]);
     const reportPayload = useMemo(() => ({
         startDate: reportRange.startDate,
         endDate: reportRange.endDate,
-        advanceStartDate: advanceRange.startDate,
-        advanceEndDate: advanceRange.endDate,
-    }), [reportRange, advanceRange]);
+        advanceStartDate: reportRange.startDate,
+        advanceEndDate: salaryCutoffDate,
+    }), [reportRange, salaryCutoffDate]);
     const reportReference = `${reportRange.startDate}_${reportRange.endDate}`;
     const reportPeriodLabel = getRangeLabel(reportRange);
-    const advancePeriodLabel = getRangeLabel(advanceRange);
 
     useEffect(() => {
         fetchReport();
-    }, [reportRange.startDate, reportRange.endDate, advanceRange.startDate, advanceRange.endDate]);
+    }, [reportRange.startDate, reportRange.endDate]);
 
     const fetchReport = async (isRefresh = false) => {
         try {
@@ -277,10 +279,6 @@ export default function WageReportScreen() {
                 return draftStartDate;
             case 'wageEnd':
                 return draftEndDate;
-            case 'advanceStart':
-                return draftAdvanceStartDate;
-            case 'advanceEnd':
-                return draftAdvanceEndDate;
             default:
                 return draftStartDate;
         }
@@ -294,12 +292,6 @@ export default function WageReportScreen() {
             case 'wageEnd':
                 setDraftEndDate(value);
                 break;
-            case 'advanceStart':
-                setDraftAdvanceStartDate(value);
-                break;
-            case 'advanceEnd':
-                setDraftAdvanceEndDate(value);
-                break;
         }
     };
 
@@ -309,10 +301,6 @@ export default function WageReportScreen() {
                 return "Select Wage From Date";
             case 'wageEnd':
                 return "Select Wage To Date";
-            case 'advanceStart':
-                return "Select Advance From Date";
-            case 'advanceEnd':
-                return "Select Advance To Date";
             default:
                 return "Select Date";
         }
@@ -334,23 +322,12 @@ export default function WageReportScreen() {
             return;
         }
 
-        if (!isValidDateInput(draftAdvanceStartDate) || !isValidDateInput(draftAdvanceEndDate)) {
-            Alert.alert("Invalid Advance Dates", "Please enter advance dates in YYYY-MM-DD format.");
-            return;
-        }
-
         if (draftStartDate > draftEndDate) {
             Alert.alert("Invalid Wage Range", "Wage From date cannot be after Wage To date.");
             return;
         }
 
-        if (draftAdvanceStartDate > draftAdvanceEndDate) {
-            Alert.alert("Invalid Advance Range", "Advance From date cannot be after Advance To date.");
-            return;
-        }
-
         setReportRange({ startDate: draftStartDate, endDate: draftEndDate });
-        setAdvanceRange({ startDate: draftAdvanceStartDate, endDate: draftAdvanceEndDate });
     };
 
     const generateSummaryPDF = async () => {
@@ -390,12 +367,9 @@ export default function WageReportScreen() {
                 food: acc.food + toAmount(curr.current_food_allowance_amount),
                 foodDeduction: acc.foodDeduction + getFoodDeductionAmount(curr),
                 adv: acc.adv + toAmount(curr.current_advance_amount),
-                prev: acc.prev + toAmount(curr.previous_balance),
-                net: acc.net + toAmount(curr.current_net_payable),
                 paid: acc.paid + toAmount(curr.salary_paid),
-                total: acc.total + toAmount(curr.total_payable),
                 closing: acc.closing + toAmount(curr.closing_balance)
-            }), { labours: 0, fullDays: 0, halfDays: 0, wage: 0, ot: 0, food: 0, foodDeduction: 0, adv: 0, prev: 0, net: 0, paid: 0, total: 0, closing: 0 });
+            }), { labours: 0, fullDays: 0, halfDays: 0, wage: 0, ot: 0, food: 0, foodDeduction: 0, adv: 0, paid: 0, closing: 0 });
 
             const generatedAt = new Date().toLocaleString(undefined, {
                 day: '2-digit',
@@ -443,7 +417,7 @@ export default function WageReportScreen() {
                             }
                             .period-grid {
                                 display: grid;
-                                grid-template-columns: 1fr 1fr;
+                                grid-template-columns: 1fr;
                                 gap: 6px;
                             }
                             .period {
@@ -564,12 +538,12 @@ export default function WageReportScreen() {
                             <h1>Labour Wage Summary</h1>
                             <div class="period-grid">
                                 <div class="period">
-                                    <div class="period-label">Wage Period</div>
+                                    <div class="period-label">Salary Month</div>
                                     <div class="period-value">${escapeHtml(reportPeriodLabel)}</div>
                                 </div>
                                 <div class="period">
-                                    <div class="period-label">Advance Period</div>
-                                    <div class="period-value">${escapeHtml(advancePeriodLabel)}</div>
+                                    <div class="period-label">Payment / Advance Cutoff</div>
+                                    <div class="period-value">${escapeHtml(formatReportDate(salaryCutoffDate))}</div>
                                 </div>
                             </div>
                         </div>
@@ -584,15 +558,7 @@ export default function WageReportScreen() {
                                 <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
                             <div class="metric">
-                                <div class="metric-label">Current Net</div>
-                                <div class="metric-value">${formatCurrencyHtml(totals.net)}</div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">Total Payable</div>
-                                <div class="metric-value">${formatCurrencyHtml(totals.total)}</div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">Salary Paid</div>
+                                <div class="metric-label">Paid by Cutoff</div>
                                 <div class="metric-value">${formatCurrencyHtml(totals.paid)}</div>
                             </div>
                             <div class="metric">
@@ -606,7 +572,7 @@ export default function WageReportScreen() {
                             <div class="labour">
                                 <div class="labour-head">
                                     <div class="labour-name">${index + 1}. ${escapeHtml(item.name)}</div>
-                                    <div class="payable">${formatCurrencyHtml(item.total_payable)}</div>
+                                    <div class="payable">${formatCurrencyHtml(item.closing_balance)}</div>
                                 </div>
                                 <div class="detail-grid">
                                     <div class="detail">
@@ -638,32 +604,19 @@ export default function WageReportScreen() {
                                         <div class="detail-value deduct">${formatDeductionCurrencyHtml(item.current_advance_amount)}</div>
                                     </div>
                                     <div class="detail">
-                                        <div class="detail-label">Previous Bal</div>
-                                        <div class="detail-value">${formatCurrencyHtml(item.previous_balance)}</div>
-                                    </div>
-                                    <div class="detail">
-                                        <div class="detail-label">Current Net</div>
-                                        <div class="detail-value">${formatCurrencyHtml(item.current_net_payable)}</div>
-                                    </div>
-                                    <div class="detail">
-                                        <div class="detail-label">Paid</div>
+                                        <div class="detail-label">Paid by Cutoff</div>
                                         <div class="detail-value paid">${formatCurrencyHtml(item.salary_paid)}</div>
                                     </div>
                                     <div class="detail">
                                         <div class="detail-label">Closing</div>
                                         <div class="detail-value closing">${formatCurrencyHtml(item.closing_balance)}</div>
                                     </div>
-                                    <div class="detail">
-                                        <div class="detail-label">Total Payable</div>
-                                        <div class="detail-value">${formatCurrencyHtml(item.total_payable)}</div>
-                                    </div>
                                 </div>
                             </div>
                         `).join('')}
 
                         <div class="notes">
-                            Current Net = wage + overtime + food allowance - food given - advances.
-                            Previous Balance includes opening balance and unpaid wage activity before the wage period.
+                            Closing Balance = full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
                         </div>
                         <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </body>
@@ -729,7 +682,7 @@ export default function WageReportScreen() {
                         .period-value { color: #102a43; font-weight: 700; text-align: right; }
                         .summary-grid {
                             display: grid;
-                            grid-template-columns: repeat(6, 1fr);
+                            grid-template-columns: repeat(4, 1fr);
                             gap: 6px;
                             margin: 0 0 10px;
                         }
@@ -831,12 +784,12 @@ export default function WageReportScreen() {
                             </div>
                             <div class="periods">
                                 <div class="period-row">
-                                    <span class="period-label">Wage Period</span>
+                                    <span class="period-label">Salary Month</span>
                                     <span class="period-value">${escapeHtml(reportPeriodLabel)}</span>
                                 </div>
                                 <div class="period-row">
-                                    <span class="period-label">Advance Period</span>
-                                    <span class="period-value">${escapeHtml(advancePeriodLabel)}</span>
+                                    <span class="period-label">Payment / Advance Cutoff</span>
+                                    <span class="period-value">${escapeHtml(formatReportDate(salaryCutoffDate))}</span>
                                 </div>
                             </div>
                         </div>
@@ -851,15 +804,7 @@ export default function WageReportScreen() {
                                 <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
                             <div class="metric">
-                                <div class="metric-label">Current Net</div>
-                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.net)}</div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">Total Payable</div>
-                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.total)}</div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">Salary Paid</div>
+                                <div class="metric-label">Paid by Cutoff</div>
                                 <div class="metric-value">&#8377;${formatCurrencyValue(totals.paid)}</div>
                             </div>
                             <div class="metric">
@@ -871,20 +816,17 @@ export default function WageReportScreen() {
                         <table>
                             <colgroup>
                                 <col style="width: 3%;" />
-                                <col style="width: 14%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 4%;" />
-                                <col style="width: 4%;" />
-                                <col style="width: 7%;" />
+                                <col style="width: 17%;" />
+                                <col style="width: 8%;" />
                                 <col style="width: 5%;" />
+                                <col style="width: 5%;" />
+                                <col style="width: 8%;" />
                                 <col style="width: 6%;" />
-                                <col style="width: 6%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
                                 <col style="width: 8%;" />
                                 <col style="width: 8%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 16%;" />
                             </colgroup>
                             <thead>
                                 <tr>
@@ -898,10 +840,7 @@ export default function WageReportScreen() {
                                     <th>Food Allow</th>
                                     <th>Food Given</th>
                                     <th>Advance</th>
-                                    <th>Prev Bal</th>
-                                    <th>Current Net</th>
                                     <th>Paid</th>
-                                    <th>Total Payable</th>
                                     <th>Closing</th>
                                 </tr>
                             </thead>
@@ -918,10 +857,7 @@ export default function WageReportScreen() {
                                         <td class="num">${formatCurrencyValue(item.current_food_allowance_amount)}</td>
                                         <td class="num deduct">${formatDeductionValue(getFoodDeductionAmount(item))}</td>
                                         <td class="num deduct">${formatDeductionValue(item.current_advance_amount)}</td>
-                                        <td class="num">${formatCurrencyValue(item.previous_balance)}</td>
-                                        <td class="num">${formatCurrencyValue(item.current_net_payable)}</td>
                                         <td class="num paid">${formatCurrencyValue(item.salary_paid)}</td>
-                                        <td class="num total-col">${formatCurrencyValue(item.total_payable)}</td>
                                         <td class="num closing-col">${formatCurrencyValue(item.closing_balance)}</td>
                                     </tr>
                                 `).join('')}
@@ -936,18 +872,14 @@ export default function WageReportScreen() {
                                     <td class="num">${formatCurrencyValue(totals.food)}</td>
                                     <td class="num deduct">${formatDeductionValue(totals.foodDeduction)}</td>
                                     <td class="num deduct">${formatDeductionValue(totals.adv)}</td>
-                                    <td class="num">${formatCurrencyValue(totals.prev)}</td>
-                                    <td class="num">${formatCurrencyValue(totals.net)}</td>
                                     <td class="num">${formatCurrencyValue(totals.paid)}</td>
-                                    <td class="num">${formatCurrencyValue(totals.total)}</td>
                                     <td class="num">${formatCurrencyValue(totals.closing)}</td>
                                 </tr>
                             </tfoot>
                         </table>
 
                         <div class="notes">
-                            Current Net = wage + overtime + food allowance - food given - advances for the selected periods.
-                            Previous Balance includes opening balance and unpaid wage activity before the wage period.
+                            Closing Balance = full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
                         </div>
                         <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </div>
@@ -1040,9 +972,6 @@ export default function WageReportScreen() {
                 const foodAmount = item.current_food_allowance_amount || 0;
                 const foodDeductionAmount = getFoodDeductionAmount(item);
                 const advances = item.current_advance_amount || 0;
-                const prevBal = item.previous_balance || 0;
-                const netPayable = item.total_payable || 0;
-                const currentNet = item.current_net_payable || 0;
 
                 let rateHtml = '';
                 let attendanceHtml = '';
@@ -1084,8 +1013,8 @@ export default function WageReportScreen() {
                         <div class="bill-page">
                             <div class="header">
                                 <h1>Salary Bill</h1>
-                                <p>Wage Period: ${reportPeriodLabel}</p>
-                                <p>Advance Period: ${advancePeriodLabel}</p>
+                                <p>Salary Month: ${reportPeriodLabel}</p>
+                                <p>Payment / Advance Cutoff: ${formatReportDate(salaryCutoffDate)}</p>
                             </div>
     
                             <div class="info-section">
@@ -1131,32 +1060,19 @@ export default function WageReportScreen() {
                                     </tr>` : ''}
                                     
                                     <tr style="background-color: #fff9f9;">
-                                        <td>Less: Advances</td>
+                                        <td>Less: Advances till Cutoff</td>
                                         <td class="amount text-red">-${formatCurrency(advances)}</td>
                                     </tr>
-    
-                                    <tr style="background-color: #f0f8ff;">
-                                        <td><strong>Net Payable (Current Month)</strong></td>
-                                        <td class="amount"><strong>${formatCurrency(currentNet)}</strong></td>
-                                    </tr>
-                                    
-                                    <tr>
-                                        <td>Previous Balance</td>
-                                        <td class="amount">${formatCurrency(prevBal)}</td>
+
+                                    <tr style="background-color: #f5fff7;">
+                                        <td>Less: Salary Paid by Cutoff</td>
+                                        <td class="amount text-green">-${formatCurrency(item.salary_paid || 0)}</td>
                                     </tr>
                                 </tbody>
                             </table>
     
                             <div class="total-section">
                                 <div class="total-row">
-                                    <span class="total-label">Total Net Payable</span>
-                                    <span class="total-amount">₹${formatCurrency(netPayable)}</span>
-                                </div>
-                                <div class="total-row" style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px;">
-                                    <span class="info-label">Salary Paid this Month</span>
-                                    <span class="total-amount text-green">₹${formatCurrency(item.salary_paid || 0)}</span>
-                                </div>
-                                <div class="total-row" style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px;">
                                     <span class="total-label">Closing Balance</span>
                                     <span class="total-amount">₹${formatCurrency(item.closing_balance || 0)}</span>
                                 </div>
@@ -1223,8 +1139,9 @@ export default function WageReportScreen() {
                 <View style={local.datePeriodBlock}>
                     <View style={local.dateRangeHeader}>
                         <View>
-                            <Text style={local.dateRangeTitle}>Wage Period</Text>
+                            <Text style={local.dateRangeTitle}>Salary Month</Text>
                             <Text style={local.dateHelperText}>{reportPeriodLabel}</Text>
+                            <Text style={local.dateHelperText}>Payment/advance cutoff: {formatReportDate(salaryCutoffDate)}</Text>
                         </View>
                         <MaterialIcons name="date-range" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
                     </View>
@@ -1252,40 +1169,6 @@ export default function WageReportScreen() {
                     </View>
                 </View>
 
-                <View style={local.periodDivider} />
-
-                <View style={local.datePeriodBlock}>
-                    <View style={local.dateRangeHeader}>
-                        <View>
-                            <Text style={local.dateRangeTitle}>Advance Period</Text>
-                            <Text style={local.dateHelperText}>{advancePeriodLabel}</Text>
-                        </View>
-                        <MaterialIcons name="payments" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
-                    </View>
-                    <View style={local.dateInputGrid}>
-                        <View style={local.dateField}>
-                            <Text style={local.dateLabel}>From Date</Text>
-                            <TouchableOpacity
-                                style={local.dateInput}
-                                onPress={() => setActiveDatePicker('advanceStart')}
-                            >
-                                <Text style={local.dateInputText}>{formatReportDate(draftAdvanceStartDate)}</Text>
-                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
-                            </TouchableOpacity>
-                        </View>
-                        <View style={local.dateField}>
-                            <Text style={local.dateLabel}>To Date</Text>
-                            <TouchableOpacity
-                                style={local.dateInput}
-                                onPress={() => setActiveDatePicker('advanceEnd')}
-                            >
-                                <Text style={local.dateInputText}>{formatReportDate(draftAdvanceEndDate)}</Text>
-                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-
                 <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
                     <MaterialIcons name="check" size={18} color="#fff" />
                     <Text style={local.applyRangeText}>Apply</Text>
@@ -1302,17 +1185,17 @@ export default function WageReportScreen() {
                     }
                 >
                     <View style={local.summaryCard}>
-                        <Text style={local.summaryTitle}>Date Range Summary</Text>
+                        <Text style={local.summaryTitle}>Salary Period Summary</Text>
                         <View style={local.row}>
-                            <Text style={local.label}>Total Payable:</Text>
+                            <Text style={local.label}>Closing Balance:</Text>
                             <Text style={local.value}>
-                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.total_payable || 0), 0))}
+                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.closing_balance || 0), 0))}
                             </Text>
                         </View>
                         <View style={local.row}>
-                            <Text style={local.label}>Selected Range Net:</Text>
+                            <Text style={local.label}>Paid by Cutoff:</Text>
                             <Text style={local.vVal}>
-                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.current_net_payable || 0), 0))}
+                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.salary_paid || 0), 0))}
                             </Text>
                         </View>
                         <View style={local.row}>
@@ -1352,8 +1235,8 @@ export default function WageReportScreen() {
                     </TouchableOpacity>
 
                     <Text style={local.note}>
-                        * Wages are paid on the 10th of each month.
-                        * Report includes previous wage balance before the wage from date and previous advances before the advance from date.
+                        * Salary period covers the full selected month.
+                        * Salary payments and advances are counted through the 10th after that month.
                     </Text>
 
                     <Text style={[local.summaryTitle, { marginTop: 20 }]}>Labour Details</Text>
@@ -1375,14 +1258,13 @@ export default function WageReportScreen() {
                             <View style={local.labourRow}>
                                 <Text style={local.labourName}>{item.name}</Text>
                                 <View style={local.balanceBadge}>
-                                    <Text style={local.balanceLabel}>Payable</Text>
-                                    <Text style={local.balanceValue}>₹{formatCurrency(item.total_payable)}</Text>
+                                    <Text style={local.balanceLabel}>Closing Balance</Text>
+                                    <Text style={local.balanceValue}>₹{formatCurrency(item.closing_balance)}</Text>
                                 </View>
                             </View>
                             <View style={[local.labourRow, { marginTop: 10 }]}>
                                 <View>
-                                    <Text style={local.smallLabel}>Paid: <Text style={{ color: isDark ? '#81C784' : '#388E3C', fontWeight: 'bold' }}>₹{formatCurrency(item.salary_paid)}</Text></Text>
-                                    <Text style={local.smallLabel}>Closing Bal: <Text style={{ color: isDark ? '#E57373' : '#D32F2F', fontWeight: 'bold' }}>₹{formatCurrency(item.closing_balance)}</Text></Text>
+                                    <Text style={local.smallLabel}>Paid by Cutoff: <Text style={{ color: isDark ? '#81C784' : '#388E3C', fontWeight: 'bold' }}>₹{formatCurrency(item.salary_paid)}</Text></Text>
                                 </View>
                                 <TouchableOpacity
                                     style={local.payBtn}
@@ -1429,8 +1311,9 @@ export default function WageReportScreen() {
                     }}
                     labourId={selectedLabour.id}
                     labourName={selectedLabour.name}
-                    totalPayable={selectedLabour.total_payable}
+                    totalPayable={selectedLabour.closing_balance}
                     monthReference={reportReference}
+                    paymentDate={salaryCutoffDate}
                 />
             )}
         </View>

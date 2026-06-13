@@ -11,7 +11,8 @@ interface SalaryPaymentModalProps {
     labourId: number;
     labourName: string;
     totalPayable: number;
-    monthReference: string; // e.g., '2023-10'
+    monthReference: string;
+    paymentDate?: string;
 }
 
 export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
@@ -22,6 +23,7 @@ export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
     labourName,
     totalPayable,
     monthReference,
+    paymentDate,
 }) => {
     const { isDark } = useTheme();
     const styles = getStyles(isDark);
@@ -56,7 +58,7 @@ export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
             const body = {
                 labour_id: labourId,
                 amount: numAmount,
-                date: new Date().toISOString().split('T')[0],
+                date: paymentDate || new Date().toISOString().split('T')[0],
                 month_reference: monthReference,
                 payment_method: paymentMethod,
                 notes: notes,
@@ -93,7 +95,8 @@ export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
         >
             <View style={styles.formContainer}>
                 <Text style={styles.infoText}>Paying: <Text style={styles.bold}>{labourName}</Text></Text>
-                <Text style={styles.infoText}>Total Payable: <Text style={styles.bold}>₹{totalPayable}</Text></Text>
+                <Text style={styles.infoText}>Closing Balance: <Text style={styles.bold}>₹{totalPayable}</Text></Text>
+                {paymentDate && <Text style={styles.infoText}>Payment Date: <Text style={styles.bold}>{paymentDate}</Text></Text>}
 
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Amount Paid (₹)</Text>

@@ -430,6 +430,13 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         const labourIds = labours.map(l => l.id);
         const labourIdPlaceholders = labourIds.map(() => '?').join(',');
         const withLabourIds = (...extraParams) => [...labourIds, ...extraParams];
+        const monthKey = startDate.slice(0, 7);
+        const [monthYear, monthNumber] = monthKey.split('-');
+        const lastDayOfSalaryMonth = String(new Date(monthYear, monthNumber, 0).getDate()).padStart(2, '0');
+        const legacyMonthReference = startDate === `${monthKey}-01` && endDate === `${monthKey}-${lastDayOfSalaryMonth}`
+            ? monthKey
+            : null;
+        const paymentReferences = [reportReference, legacyMonthReference].filter(Boolean);
 
         // 4. Pre-fetch all required data mapped by labour_id
         const allAttendance = await db.all(`
@@ -552,21 +559,12 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
             const paidAmount = payByLabour[labour.id]
                 .filter(p => {
-                    if (isRangeReport) {
-                        if (isPrevious) {
-                            return p.month_reference !== reportReference && p.date < startDate;
-                        }
-
-                        return p.month_reference === reportReference || (p.date >= startDate && p.date <= endDate);
-                    } else {
-                        if (isPrevious) {
-                            // For previous months: all payments whose month_reference is before current month
-                            return p.month_reference && p.month_reference < month;
-                        }
-
-                        // For current month: payments whose month_reference matches exactly
-                        return p.month_reference === month;
+                    if (isPrevious) {
+                        return p.date < advanceStartDate && !paymentReferences.includes(p.month_reference);
                     }
+
+                    if (paymentReferences.includes(p.month_reference)) return true;
+                    return !p.month_reference && p.date >= advanceStartDate && p.date <= advanceEndDate;
                 })
                 .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
 
@@ -603,6 +601,8 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             const currStats = calculateStats(labour, false);
 
             const previous_balance = (Number(labour.opening_balance) || 0) + prevStats.net;
+            const periodPayable = currStats.net;
+            const closingBalance = periodPayable - currStats.paidAmount;
 
             return {
                 id: labour.id,
@@ -622,10 +622,10 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 advance_end_date: advanceEndDate,
                 current_full_days: currStats.fullDays,
                 current_half_days: currStats.halfDays,
-                current_net_payable: currStats.net,
+                current_net_payable: periodPayable,
                 salary_paid: currStats.paidAmount,
-                total_payable: previous_balance + currStats.net,
-                closing_balance: (previous_balance + currStats.net) - currStats.paidAmount
+                total_payable: periodPayable,
+                closing_balance: closingBalance
             };
         });
 
