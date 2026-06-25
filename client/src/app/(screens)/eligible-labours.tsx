@@ -2,14 +2,14 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
     FlatList,
-    RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from '../../components/RefreshFeedback';
 import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../services/api';
 
@@ -159,41 +159,41 @@ export default function EligibleLaboursScreen() {
             </View>
 
             {loading ? (
-                <View style={local.center}>
-                    <ActivityIndicator size="large" color="#0a84ff" />
-                    <Text style={local.centerText}>Loading eligible labours…</Text>
-                </View>
+                <LoadingScreen label="Loading eligible labours..." />
             ) : error ? (
-                <View style={local.center}>
-                    <MaterialCommunityIcons name="alert-circle-outline" size={40} color="#e53935" />
-                    <Text style={[local.centerText, { color: '#e53935' }]}>{error}</Text>
-                    <TouchableOpacity style={local.retryBtn} onPress={() => fetchEligible()}>
-                        <Text style={local.retryText}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : labours.length === 0 ? (
-                <View style={local.center}>
-                    <MaterialCommunityIcons name="calendar-check-outline" size={56} color={isDark ? '#333' : '#ddd'} />
-                    <Text style={local.centerText}>No labours have reached 285 worked days yet.</Text>
-                    <Text style={[local.centerText, { fontSize: 13, marginTop: 4 }]}>
-                        Worked days accumulate automatically as attendance is marked.
-                    </Text>
-                </View>
+                <ScrollView
+                    contentContainerStyle={local.centerScroll}
+                    refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={() => fetchEligible(true)} />}
+                >
+                    <TopRefreshLoader visible={refreshing} />
+                    <View style={local.center}>
+                        <MaterialCommunityIcons name="alert-circle-outline" size={40} color="#e53935" />
+                        <Text style={[local.centerText, { color: '#e53935' }]}>{error}</Text>
+                        <TouchableOpacity style={local.retryBtn} onPress={() => fetchEligible()}>
+                            <Text style={local.retryText}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
             ) : (
-                <FlatList
-                    data={labours}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={renderItem}
-                    contentContainerStyle={local.listContent}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={() => fetchEligible(true)}
-                            colors={['#0a84ff']}
-                            tintColor={isDark ? '#64b5f6' : '#0a84ff'}
-                        />
-                    }
-                />
+                <>
+                    <TopRefreshLoader visible={refreshing} />
+                    <FlatList
+                        data={labours}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={renderItem}
+                        contentContainerStyle={[local.listContent, labours.length === 0 && local.listEmpty]}
+                        ListEmptyComponent={
+                            <View style={local.center}>
+                                <MaterialCommunityIcons name="calendar-check-outline" size={56} color={isDark ? '#333' : '#ddd'} />
+                                <Text style={local.centerText}>No labours have reached 285 worked days yet.</Text>
+                                <Text style={[local.centerText, { fontSize: 13, marginTop: 4 }]}>
+                                    Worked days accumulate automatically as attendance is marked.
+                                </Text>
+                            </View>
+                        }
+                        refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={() => fetchEligible(true)} />}
+                    />
+                </>
             )}
         </View>
     );
@@ -243,6 +243,12 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         padding: 16,
         paddingBottom: 100,
         gap: 12,
+    },
+    listEmpty: {
+        flexGrow: 1,
+    },
+    centerScroll: {
+        flexGrow: 1,
     },
     center: {
         flex: 1,

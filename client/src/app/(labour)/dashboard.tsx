@@ -9,7 +9,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    RefreshControl,
     ScrollView,
     Switch,
     Text,
@@ -17,6 +16,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { API_URL } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import { getDailyWage } from "../../utils/wages";
@@ -182,11 +182,7 @@ const LabourDashboard = () => {
     };
 
     if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: isDark ? "#121212" : "#f5f5f5" }}>
-                <ActivityIndicator size="large" color="#007bff" />
-            </View>
-        );
+        return <LoadingScreen label="Loading dashboard..." />;
     }
 
     if (error) {
@@ -278,10 +274,11 @@ const LabourDashboard = () => {
 
             <ScrollView
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                    <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
                 contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
             >
+                <TopRefreshLoader visible={refreshing} />
                 {/* Attendance Summary Card (Current Month) */}
                 <View style={[styles.card, {
                     padding: 20,

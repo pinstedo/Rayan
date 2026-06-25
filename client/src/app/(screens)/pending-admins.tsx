@@ -3,15 +3,14 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
-    RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 
@@ -152,23 +151,27 @@ export default function PendingAdminsScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color="#0a84ff" style={local.loader} />
-            ) : admins.length === 0 ? (
-                <View style={local.emptyState}>
-                    <MaterialIcons name="check-circle-outline" size={64} color={isDark ? "#555" : "#ccc"} />
-                    <Text style={local.emptyText}>You're all caught up!</Text>
-                    <Text style={local.emptySubtext}>No new admin requests are pending approval.</Text>
-                </View>
+                <LoadingScreen label="Loading approvals..." />
             ) : (
-                <FlatList
-                    data={admins}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={renderAdmin}
-                    contentContainerStyle={local.list}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-                    }
-                />
+                <>
+                    <TopRefreshLoader visible={refreshing} />
+                    <FlatList
+                        data={admins}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={renderAdmin}
+                        contentContainerStyle={[local.list, admins.length === 0 && local.listEmpty]}
+                        ListEmptyComponent={
+                            <View style={local.emptyState}>
+                                <MaterialIcons name="check-circle-outline" size={64} color={isDark ? "#555" : "#ccc"} />
+                                <Text style={local.emptyText}>You&apos;re all caught up!</Text>
+                                <Text style={local.emptySubtext}>No new admin requests are pending approval.</Text>
+                            </View>
+                        }
+                        refreshControl={
+                            <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                        }
+                    />
+                </>
             )}
         </View>
     );
@@ -204,6 +207,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     },
     list: {
         padding: 16,
+    },
+    listEmpty: {
+        flexGrow: 1,
     },
     card: {
         flexDirection: "row",

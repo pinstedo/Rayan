@@ -2,7 +2,8 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { getDailyWage, getHourlyRate } from "../../utils/wages";
@@ -288,18 +289,20 @@ export default function OvertimeScreen() {
 				</View>
 			</View>
 
-			<FlatList
-				data={labours}
-				renderItem={renderItem}
-				keyExtractor={(item) => item.id.toString()}
-				contentContainerStyle={local.listContent}
-				ListEmptyComponent={
-					!loading ? <Text style={local.emptyText}>No labours found.</Text> : null
-				}
-				refreshControl={
-					<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-				}
-			/>
+			<TopRefreshLoader visible={refreshing} />
+
+			{loading ? (
+				<LoadingScreen label="Loading overtime..." />
+			) : (
+				<FlatList
+					data={labours}
+					renderItem={renderItem}
+					keyExtractor={(item) => item.id.toString()}
+					contentContainerStyle={[local.listContent, labours.length === 0 && local.listEmpty]}
+					ListEmptyComponent={<Text style={local.emptyText}>No labours found.</Text>}
+					refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+				/>
+			)}
 
 			<View style={local.footer}>
 				<Pressable
@@ -371,6 +374,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	listContent: {
 		padding: 16,
 		paddingBottom: 40,
+	},
+	listEmpty: {
+		flexGrow: 1,
 	},
 	card: {
 		backgroundColor: isDark ? "#1e1e1e" : "#fff",

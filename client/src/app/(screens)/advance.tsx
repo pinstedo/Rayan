@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -17,6 +16,7 @@ import {
     View
 } from "react-native";
 import { Calendar } from "../../components/Calendar";
+import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
@@ -178,7 +178,10 @@ export default function Advance() {
     };
 
     return (
-        <ScrollView style={local.container}>
+        <ScrollView
+            style={local.container}
+            refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
             <View style={local.headerRow}>
                 <TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
@@ -186,6 +189,7 @@ export default function Advance() {
                 <Text style={local.header}>Manage Advances</Text>
                 <View style={{ width: 50 }} />
             </View>
+            <TopRefreshLoader visible={refreshing} />
 
             <View style={local.controlsRow}>
                 <SearchBar
@@ -222,9 +226,6 @@ export default function Advance() {
                 contentContainerStyle={local.listContent}
                 ListEmptyComponent={
                     <Text style={local.emptyText}>No results found.</Text>
-                }
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
                 }
             />
 

@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTheme } from '../../../context/ThemeContext';
 import { useListManager } from '../../../hooks/useListManager';
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from '../../../components/RefreshFeedback';
 import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from '../../../components/list';
 
 interface HistoryLog {
@@ -40,6 +41,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { isDark } = useTheme();
   const styles = getStyles(isDark);
+  const [refreshing, setRefreshing] = useState(false);
 
   const listManager = useListManager<HistoryLog>({
     backendMode: true,
@@ -51,11 +53,18 @@ export default function HistoryScreen() {
   });
 
   const handleRefresh = useCallback(() => {
+    setRefreshing(true);
     // A trick to trigger a fetch by swapping and restoring a non-consequential config if needed, 
     // or we can rely on our listManager to expose a refetch but we haven't implemented refetch natively.
     // Changing limit and setting it back is a dirty trick, but since backendMode fetches on any config change:
     listManager.setConfig(prev => ({ ...prev }));
   }, [listManager]);
+
+  useEffect(() => {
+    if (!listManager.loading) {
+      setRefreshing(false);
+    }
+  }, [listManager.loading]);
 
   // Icon picking utility
   const getIconForAction = (type: string, action: string) => {
@@ -147,25 +156,26 @@ export default function HistoryScreen() {
         </View>
       </View>
 
-      {listManager.loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-        </View>
-      ) : listManager.data.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <MaterialIcons name="history" size={64} color={isDark ? "#334155" : "#E2E8F0"} />
-          <Text style={styles.emptyTitle}>No history found</Text>
-          <Text style={styles.emptyDesc}>Try adjusting your filters or search.</Text>
-        </View>
+      {listManager.loading && !refreshing ? (
+        <LoadingScreen label="Loading history..." />
       ) : (
-        <FlatList
-          data={listManager.data}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContainer}
-          onRefresh={handleRefresh}
-          refreshing={listManager.loading}
-        />
+        <>
+          <TopRefreshLoader visible={refreshing} />
+          <FlatList
+            data={listManager.data}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+            contentContainerStyle={[styles.listContainer, listManager.data.length === 0 && styles.listEmpty]}
+            ListEmptyComponent={
+              <View style={styles.centerContainer}>
+                <MaterialIcons name="history" size={64} color={isDark ? "#334155" : "#E2E8F0"} />
+                <Text style={styles.emptyTitle}>No history found</Text>
+                <Text style={styles.emptyDesc}>Try adjusting your filters or search.</Text>
+              </View>
+            }
+            refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          />
+        </>
       )}
     </View>
   );
@@ -217,6 +227,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   listContainer: {
     padding: 16,
     paddingBottom: 40,
+  },
+  listEmpty: {
+    flexGrow: 1,
   },
   card: {
     flexDirection: "row",

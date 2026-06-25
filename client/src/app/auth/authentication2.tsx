@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -22,6 +23,7 @@ export default function SignInScreen() {
 	const styles = getStyles(isDark);
 	const [phone, setPhone] = useState("");
 	const [password, setPassword] = useState("");
+	const [showPassword, setShowPassword] = useState(false);
 	const [loading, setLoading] = useState(false);
 
 	const handleSignIn = async () => {
@@ -108,14 +110,28 @@ export default function SignInScreen() {
 								<Text style={styles.forgotPassword}>Ask admin</Text>
 							</TouchableOpacity>
 						</View>
-						<TextInput
-							style={styles.input}
-							placeholder="Enter your password"
-							placeholderTextColor={isDark ? "#888" : "#A0AEC0"}
-							secureTextEntry
-							value={password}
-							onChangeText={setPassword}
-						/>
+						<View style={styles.passwordInputContainer}>
+							<TextInput
+								style={styles.passwordInput}
+								placeholder="Enter your password"
+								placeholderTextColor={isDark ? "#888" : "#A0AEC0"}
+								secureTextEntry={!showPassword}
+								value={password}
+								onChangeText={setPassword}
+							/>
+							<TouchableOpacity
+								style={styles.passwordToggle}
+								onPress={() => setShowPassword((current) => !current)}
+								accessibilityRole="button"
+								accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+							>
+								<MaterialIcons
+									name={showPassword ? "visibility-off" : "visibility"}
+									size={22}
+									color={isDark ? "#aaa" : "#718096"}
+								/>
+							</TouchableOpacity>
+						</View>
 					</View>
 
 					<TouchableOpacity
@@ -132,7 +148,7 @@ export default function SignInScreen() {
 				</View>
 
 				<View style={styles.footerContainer}>
-					<Text style={styles.footerText}>Don't have an account? </Text>
+					<Text style={styles.footerText}>{"Don't have an account? "}</Text>
 					<TouchableOpacity onPress={() => router.push("/auth/authentication" as any)}>
 						<Text style={styles.createAccountLink}>Create new account</Text>
 					</TouchableOpacity>
@@ -203,6 +219,29 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		paddingHorizontal: 16,
 		fontSize: 16,
 		color: isDark ? "#fff" : "#1A202C",
+	},
+	passwordInputContainer: {
+		height: 56,
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: isDark ? "#1e1e1e" : "#F7FAFC",
+		borderWidth: 1,
+		borderColor: isDark ? "#333" : "#E2E8F0",
+		borderRadius: 12,
+	},
+	passwordInput: {
+		flex: 1,
+		height: "100%",
+		paddingLeft: 16,
+		paddingRight: 8,
+		fontSize: 16,
+		color: isDark ? "#fff" : "#1A202C",
+	},
+	passwordToggle: {
+		width: 52,
+		height: "100%",
+		alignItems: "center",
+		justifyContent: "center",
 	},
 	primaryButton: {
 		height: 56,

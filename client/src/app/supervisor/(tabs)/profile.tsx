@@ -2,8 +2,9 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Image } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppRefreshControl, TopRefreshLoader } from "../../../components/RefreshFeedback";
 import { API_URL } from "../../../constants";
 import { useTheme } from "../../../context/ThemeContext";
 
@@ -137,8 +138,9 @@ export default function SupervisorProfile() {
 
             <ScrollView
                 contentContainerStyle={localStyles.body}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
+                refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
+                <TopRefreshLoader visible={refreshing} />
                 {/* Profile Header Block */}
                 <View style={localStyles.profileHeader}>
                     <View style={localStyles.avatar}>

@@ -94,7 +94,7 @@ export default function GlobalSearch() {
                         </View>
                     ) : results.length === 0 ? (
                         <View style={styles.centerItem}>
-                            <Text style={styles.emptyText}>No results found for "{query}"</Text>
+                            <Text style={styles.emptyText}>{`No results found for "${query}"`}</Text>
                         </View>
                     ) : (
                         <FlatList

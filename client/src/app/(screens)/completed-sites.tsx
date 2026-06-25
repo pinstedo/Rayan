@@ -3,15 +3,14 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
-    RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { useListManager } from "../../hooks/useListManager";
@@ -172,21 +171,24 @@ export default function CompletedSitesScreen() {
                 </View>
             </View>
 
+            <TopRefreshLoader visible={refreshing} />
+
             {loading && !refreshing ? (
-                <ActivityIndicator size="large" color="#0a84ff" style={local.loader} />
-            ) : listManager.data.length === 0 ? (
-                <View style={local.emptyState}>
-                    <MaterialIcons name="domain-verification" size={64} color={isDark ? "#555" : "#ccc"} />
-                    <Text style={local.emptyText}>No completed sites</Text>
-                </View>
+                <LoadingScreen label="Loading completed sites..." />
             ) : (
                 <FlatList
                     data={listManager.data}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderSite}
-                    contentContainerStyle={local.list}
+                    contentContainerStyle={[local.list, listManager.data.length === 0 && local.listEmpty]}
+                    ListEmptyComponent={
+                        <View style={local.emptyState}>
+                            <MaterialIcons name="domain-verification" size={64} color={isDark ? "#555" : "#ccc"} />
+                            <Text style={local.emptyText}>No completed sites</Text>
+                        </View>
+                    }
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                        <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                     }
                 />
             )}
@@ -235,6 +237,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         marginBottom: 8,
     },
     list: { padding: 16 },
+    listEmpty: { flexGrow: 1 },
     card: {
         backgroundColor: isDark ? "#1e1e1e" : "#fff",
         borderRadius: 12,

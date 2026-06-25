@@ -2,7 +2,8 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 
@@ -98,12 +99,17 @@ export default function OwnerDashboard() {
     { label: "Total Labours", value: summary?.totalLabours ?? 0, icon: "groups", color: "#7c3aed" },
   ];
 
+  if (loading && !refreshing) {
+    return <LoadingScreen label="Loading dashboard..." />;
+  }
+
   return (
     <ScrollView
       style={local.container}
       contentContainerStyle={local.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchDashboard(true)} />}
+      refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={() => fetchDashboard(true)} />}
     >
+      <TopRefreshLoader visible={refreshing} />
       <View style={local.header}>
         <View>
           <Text style={local.kicker}>Owner Dashboard</Text>
@@ -132,9 +138,7 @@ export default function OwnerDashboard() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 48 }} />
-      ) : (
+      {!loading && (
         <>
           <View style={local.cards}>
             {cards.map((card) => (

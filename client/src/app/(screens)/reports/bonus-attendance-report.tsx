@@ -2,8 +2,9 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CustomModal } from '../../../components/CustomModal';
+import { AppRefreshControl, TopRefreshLoader } from '../../../components/RefreshFeedback';
 import { useTheme } from '../../../context/ThemeContext';
 import { api } from '../../../services/api';
 
@@ -415,7 +416,8 @@ export default function BonusAttendanceReportScreen() {
 
                     <View style={local.tableWrapper}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ flexDirection: 'column' }}>
-                            <ScrollView showsVerticalScrollIndicator={true} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />}>
+                            <ScrollView showsVerticalScrollIndicator={true} refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+                                <TopRefreshLoader visible={refreshing} />
                                 <View style={local.tableHeaderRow}>
                                     <View style={[local.tableHeaderCell, local.nameColumn]}><Text style={local.tableHeaderText}>NAME</Text></View>
                                     {monthsList.map(m => (

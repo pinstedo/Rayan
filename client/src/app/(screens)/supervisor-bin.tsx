@@ -3,18 +3,17 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
-    RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from "react-native";
+import { CustomModal, ModalType } from "../../components/CustomModal";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
-import { CustomModal, ModalType } from "../../components/CustomModal";
 
 interface DeletedSupervisor {
     id: number;
@@ -201,23 +200,27 @@ export default function SupervisorBinScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color="#0a84ff" style={local.loader} />
-            ) : supervisors.length === 0 ? (
-                <View style={local.emptyState}>
-                    <MaterialIcons name="delete-outline" size={64} color={isDark ? "#555" : "#ccc"} />
-                    <Text style={local.emptyText}>Bin is empty</Text>
-                    <Text style={local.emptySubtext}>Deleted supervisors will appear here for 7 days before permanent deletion.</Text>
-                </View>
+                <LoadingScreen label="Loading supervisor bin..." />
             ) : (
-                <FlatList
-                    data={supervisors}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={renderSupervisor}
-                    contentContainerStyle={local.list}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-                    }
-                />
+                <>
+                    <TopRefreshLoader visible={refreshing} />
+                    <FlatList
+                        data={supervisors}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={renderSupervisor}
+                        contentContainerStyle={[local.list, supervisors.length === 0 && local.listEmpty]}
+                        ListEmptyComponent={
+                            <View style={local.emptyState}>
+                                <MaterialIcons name="delete-outline" size={64} color={isDark ? "#555" : "#ccc"} />
+                                <Text style={local.emptyText}>Bin is empty</Text>
+                                <Text style={local.emptySubtext}>Deleted supervisors will appear here for 7 days before permanent deletion.</Text>
+                            </View>
+                        }
+                        refreshControl={
+                            <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                        }
+                    />
+                </>
             )}
 
             <CustomModal
@@ -262,6 +265,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     },
     list: {
         padding: 16,
+    },
+    listEmpty: {
+        flexGrow: 1,
     },
     card: {
         flexDirection: "row",

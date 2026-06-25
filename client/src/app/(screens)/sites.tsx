@@ -5,13 +5,13 @@ import React, { useCallback, useState } from "react";
 import {
     Alert,
     FlatList,
-    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
@@ -57,6 +57,7 @@ export default function SitesScreen() {
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [allSites, setAllSites] = useState<Site[]>([]);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     // Initial config: sort by name asc, don't show completed if we want to mimic old behavior, 
@@ -74,6 +75,8 @@ export default function SitesScreen() {
         try {
             if (isRefresh) {
                 setRefreshing(true);
+            } else {
+                setLoading(true);
             }
             const response = await api.get("/sites");
             const data = await response.json();
@@ -87,6 +90,7 @@ export default function SitesScreen() {
             console.error("Fetch sites error:", error);
             Alert.alert("Error", "Unable to connect to server");
         } finally {
+            setLoading(false);
             setRefreshing(false);
         }
     };
@@ -191,8 +195,16 @@ export default function SitesScreen() {
         inactive: visibleAllSites.filter(s => s.status === "inactive").length,
     };
 
+    if (loading && !refreshing) {
+        return <LoadingScreen label="Loading sites..." />;
+    }
+
     return (
-        <ScrollView style={local.container}>
+        <ScrollView
+            style={local.container}
+            refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+            <TopRefreshLoader visible={refreshing} />
             <View style={local.header}>
                 <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
@@ -273,9 +285,6 @@ export default function SitesScreen() {
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderSite}
                     contentContainerStyle={local.list}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-                    }
                 />
             )}
         </ScrollView>

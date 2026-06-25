@@ -3,15 +3,14 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
-    RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { api } from "../../services/api";
 import { sortByName } from "../../utils/sort";
 
@@ -105,28 +104,32 @@ export default function SupervisorsScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color="#0a84ff" style={styles.loader} />
-            ) : supervisors.length === 0 ? (
-                <View style={styles.emptyState}>
-                    <MaterialIcons name="supervisor-account" size={64} color="#ccc" />
-                    <Text style={styles.emptyText}>No supervisors added yet</Text>
-                    <TouchableOpacity
-                        onPress={() => router.push("/(screens)/add-supervisor")}
-                        style={styles.addFirstButton}
-                    >
-                        <Text style={styles.addFirstText}>Add First Supervisor</Text>
-                    </TouchableOpacity>
-                </View>
+                <LoadingScreen label="Loading supervisors..." />
             ) : (
-                <FlatList
-                    data={supervisors}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={renderSupervisor}
-                    contentContainerStyle={styles.list}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
-                    }
-                />
+                <>
+                    <TopRefreshLoader visible={refreshing} />
+                    <FlatList
+                        data={supervisors}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={renderSupervisor}
+                        contentContainerStyle={[styles.list, supervisors.length === 0 && styles.listEmpty]}
+                        ListEmptyComponent={
+                            <View style={styles.emptyState}>
+                                <MaterialIcons name="supervisor-account" size={64} color="#ccc" />
+                                <Text style={styles.emptyText}>No supervisors added yet</Text>
+                                <TouchableOpacity
+                                    onPress={() => router.push("/(screens)/add-supervisor")}
+                                    style={styles.addFirstButton}
+                                >
+                                    <Text style={styles.addFirstText}>Add First Supervisor</Text>
+                                </TouchableOpacity>
+                            </View>
+                        }
+                        refreshControl={
+                            <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                        }
+                    />
+                </>
             )}
         </View>
     );
@@ -170,6 +173,9 @@ const styles = StyleSheet.create({
     },
     list: {
         padding: 16,
+    },
+    listEmpty: {
+        flexGrow: 1,
     },
     card: {
         flexDirection: "row",

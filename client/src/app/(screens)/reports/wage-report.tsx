@@ -3,9 +3,10 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar } from '../../../components/Calendar';
 import { CustomModal } from '../../../components/CustomModal';
+import { AppRefreshControl, TopRefreshLoader } from '../../../components/RefreshFeedback';
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { SearchBar } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
@@ -362,6 +363,7 @@ export default function WageReportScreen() {
                 labours: acc.labours + 1,
                 fullDays: acc.fullDays + toAmount(curr.current_full_days),
                 halfDays: acc.halfDays + toAmount(curr.current_half_days),
+                previousBalance: acc.previousBalance + toAmount(curr.previous_balance),
                 wage: acc.wage + toAmount(curr.current_wage),
                 ot: acc.ot + toAmount(curr.current_overtime_amount),
                 food: acc.food + toAmount(curr.current_food_allowance_amount),
@@ -369,7 +371,7 @@ export default function WageReportScreen() {
                 adv: acc.adv + toAmount(curr.current_advance_amount),
                 paid: acc.paid + toAmount(curr.salary_paid),
                 closing: acc.closing + toAmount(curr.closing_balance)
-            }), { labours: 0, fullDays: 0, halfDays: 0, wage: 0, ot: 0, food: 0, foodDeduction: 0, adv: 0, paid: 0, closing: 0 });
+            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, food: 0, foodDeduction: 0, adv: 0, paid: 0, closing: 0 });
 
             const generatedAt = new Date().toLocaleString(undefined, {
                 day: '2-digit',
@@ -558,6 +560,10 @@ export default function WageReportScreen() {
                                 <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
                             <div class="metric">
+                                <div class="metric-label">Previous Balance</div>
+                                <div class="metric-value">${formatCurrencyHtml(totals.previousBalance)}</div>
+                            </div>
+                            <div class="metric">
                                 <div class="metric-label">Paid by Cutoff</div>
                                 <div class="metric-value">${formatCurrencyHtml(totals.paid)}</div>
                             </div>
@@ -582,6 +588,10 @@ export default function WageReportScreen() {
                                     <div class="detail">
                                         <div class="detail-label">Attendance</div>
                                         <div class="detail-value">${formatCountValue(item.current_full_days)} F / ${formatCountValue(item.current_half_days)} H</div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="detail-label">Previous Balance</div>
+                                        <div class="detail-value">${formatCurrencyHtml(item.previous_balance)}</div>
                                     </div>
                                     <div class="detail">
                                         <div class="detail-label">Wage</div>
@@ -616,7 +626,7 @@ export default function WageReportScreen() {
                         `).join('')}
 
                         <div class="notes">
-                            Closing Balance = full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
+                            Closing Balance = previous balance + full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
                         </div>
                         <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </body>
@@ -682,7 +692,7 @@ export default function WageReportScreen() {
                         .period-value { color: #102a43; font-weight: 700; text-align: right; }
                         .summary-grid {
                             display: grid;
-                            grid-template-columns: repeat(4, 1fr);
+                            grid-template-columns: repeat(5, 1fr);
                             gap: 6px;
                             margin: 0 0 10px;
                         }
@@ -804,6 +814,10 @@ export default function WageReportScreen() {
                                 <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
                             <div class="metric">
+                                <div class="metric-label">Previous Balance</div>
+                                <div class="metric-value">&#8377;${formatCurrencyValue(totals.previousBalance)}</div>
+                            </div>
+                            <div class="metric">
                                 <div class="metric-label">Paid by Cutoff</div>
                                 <div class="metric-value">&#8377;${formatCurrencyValue(totals.paid)}</div>
                             </div>
@@ -816,17 +830,18 @@ export default function WageReportScreen() {
                         <table>
                             <colgroup>
                                 <col style="width: 3%;" />
-                                <col style="width: 17%;" />
+                                <col style="width: 15%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 4%;" />
+                                <col style="width: 4%;" />
+                                <col style="width: 7%;" />
                                 <col style="width: 8%;" />
                                 <col style="width: 5%;" />
-                                <col style="width: 5%;" />
-                                <col style="width: 8%;" />
-                                <col style="width: 6%;" />
                                 <col style="width: 8%;" />
                                 <col style="width: 8%;" />
                                 <col style="width: 8%;" />
                                 <col style="width: 8%;" />
-                                <col style="width: 16%;" />
+                                <col style="width: 15%;" />
                             </colgroup>
                             <thead>
                                 <tr>
@@ -835,6 +850,7 @@ export default function WageReportScreen() {
                                     <th>Rate / Day</th>
                                     <th>Full</th>
                                     <th>Half</th>
+                                    <th>Prev Bal</th>
                                     <th>Wage</th>
                                     <th>OT</th>
                                     <th>Food Allow</th>
@@ -852,6 +868,7 @@ export default function WageReportScreen() {
                                         <td class="num">${getDailyRateSummaryHtml(item)}</td>
                                         <td class="center">${formatCountValue(item.current_full_days)}</td>
                                         <td class="center">${formatCountValue(item.current_half_days)}</td>
+                                        <td class="num">${formatCurrencyValue(item.previous_balance)}</td>
                                         <td class="num">${formatCurrencyValue(item.current_wage)}</td>
                                         <td class="num">${formatCurrencyValue(item.current_overtime_amount)}</td>
                                         <td class="num">${formatCurrencyValue(item.current_food_allowance_amount)}</td>
@@ -867,6 +884,7 @@ export default function WageReportScreen() {
                                     <td colspan="3">Totals</td>
                                     <td class="center">${formatCountValue(totals.fullDays)}</td>
                                     <td class="center">${formatCountValue(totals.halfDays)}</td>
+                                    <td class="num">${formatCurrencyValue(totals.previousBalance)}</td>
                                     <td class="num">${formatCurrencyValue(totals.wage)}</td>
                                     <td class="num">${formatCurrencyValue(totals.ot)}</td>
                                     <td class="num">${formatCurrencyValue(totals.food)}</td>
@@ -879,7 +897,7 @@ export default function WageReportScreen() {
                         </table>
 
                         <div class="notes">
-                            Closing Balance = full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
+                            Closing Balance = previous balance + full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
                         </div>
                         <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </div>
@@ -972,6 +990,7 @@ export default function WageReportScreen() {
                 const foodAmount = item.current_food_allowance_amount || 0;
                 const foodDeductionAmount = getFoodDeductionAmount(item);
                 const advances = item.current_advance_amount || 0;
+                const previousBalance = toAmount(item.previous_balance);
 
                 let rateHtml = '';
                 let attendanceHtml = '';
@@ -1042,6 +1061,11 @@ export default function WageReportScreen() {
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    ${previousBalance !== 0 ? `
+                                    <tr>
+                                        <td>Previous Balance</td>
+                                        <td class="amount">${formatCurrency(previousBalance)}</td>
+                                    </tr>` : ''}
                                     ${basicWageRowsHtml}
                                     ${otAmount > 0 ? `
                                     <tr>
@@ -1181,11 +1205,18 @@ export default function WageReportScreen() {
                 <ScrollView
                     contentContainerStyle={local.content}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                        <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                     }
                 >
+                    <TopRefreshLoader visible={refreshing} />
                     <View style={local.summaryCard}>
                         <Text style={local.summaryTitle}>Salary Period Summary</Text>
+                        <View style={local.row}>
+                            <Text style={local.label}>Previous Balance:</Text>
+                            <Text style={local.value}>
+                                ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.previous_balance || 0), 0))}
+                            </Text>
+                        </View>
                         <View style={local.row}>
                             <Text style={local.label}>Closing Balance:</Text>
                             <Text style={local.value}>

@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
 	Image,
 	Platform,
-	RefreshControl,
 	ScrollView,
 	StyleSheet,
 	Text,
@@ -13,6 +12,7 @@ import {
 	View
 } from "react-native";
 import GlobalSearch from "../../components/GlobalSearch";
+import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 
@@ -245,10 +245,11 @@ export default function HomeScreen() {
 			<ScrollView
 				contentContainerStyle={local.container}
 				refreshControl={
-					<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+					<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
 				}
 				showsVerticalScrollIndicator={false}
 			>
+				<TopRefreshLoader visible={refreshing} />
 				<View style={local.header}>
 					<View style={local.headerTop}>
 						<View>

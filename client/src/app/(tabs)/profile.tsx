@@ -9,7 +9,6 @@ import {
   Image,
   Modal,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -17,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { API_URL } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -263,8 +263,9 @@ export default function Profile() {
 
       <ScrollView
         contentContainerStyle={styles.body}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />}
+        refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <TopRefreshLoader visible={refreshing} />
         {/* Profile Header Block */}
         <View style={styles.profileHeader}>
           <View style={styles.avatar}>

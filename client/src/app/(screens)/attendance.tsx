@@ -2,9 +2,10 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Calendar } from "../../components/Calendar";
 import { CustomModal, ModalType } from "../../components/CustomModal";
+import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
@@ -617,7 +618,10 @@ export default function AttendanceScreen() {
 	);
 
 	return (
-		<ScrollView style={local.container}>
+		<ScrollView
+			style={local.container}
+			refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+		>
 			<View style={local.headerRow}>
 				<TouchableOpacity onPress={() => router.back()} style={local.backButton}>
 					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
@@ -625,6 +629,7 @@ export default function AttendanceScreen() {
 				<Text style={local.headerTitle}>{isGlobalView ? "All Attendance" : "Mark Attendance"}</Text>
 				<View style={{ width: 24 }} />
 			</View>
+			<TopRefreshLoader visible={refreshing} />
 
 			<FlatList
 				data={listManager.data}
@@ -636,9 +641,6 @@ export default function AttendanceScreen() {
 					!loading ? (
 						<Text style={local.emptyText}>No results found.</Text>
 					) : null
-				}
-				refreshControl={
-					<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
 				}
 			/>
 

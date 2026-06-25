@@ -12,6 +12,7 @@ import {
 	View
 } from "react-native";
 import { CustomModal, ModalType } from "../../components/CustomModal";
+import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
 import { useListManager } from "../../hooks/useListManager";
@@ -59,7 +60,8 @@ export default function Labours() {
 	const router = useRouter();
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
-	const { newLabour, supervisorId, status, siteName, view } = useLocalSearchParams();
+	const routeParams = useLocalSearchParams();
+	const { newLabour, supervisorId, status, siteName, view } = routeParams;
 	const siteNameFilter = siteName as string | undefined;
 
 	// 'assigned' comes from dashboard. Default Manage Labours to 'active' if no params passed.
@@ -113,19 +115,21 @@ export default function Labours() {
 		}, [supervisorId])
 	);
 
-	const checkRoleAndFetch = async () => {
+	const checkRoleAndFetch = async (isRefresh = false) => {
 		try {
 			const userDataStr = await AsyncStorage.getItem("userData");
 			if (userDataStr) {
 				const userData = JSON.parse(userDataStr);
 				setIsAdmin(userData.role === "admin");
-				fetchLabours(userData.role === "supervisor" ? userData.id : supervisorId);
+				await fetchLabours(userData.role === "supervisor" ? userData.id : supervisorId, isRefresh);
 				if (userData.role === "admin") {
-					fetchSites();
+					await fetchSites();
 				}
 			}
 		} catch (error) {
 			console.error("Error loading user role:", error);
+		} finally {
+			if (isRefresh) setRefreshing(false);
 		}
 	};
 
@@ -156,7 +160,7 @@ export default function Labours() {
 	};
 
 	const onRefresh = () => {
-		checkRoleAndFetch(); // This will eventually call fetchLabours
+		checkRoleAndFetch(true);
 	};
 
 	const fetchSites = async () => {
@@ -304,7 +308,11 @@ export default function Labours() {
 		: (shouldShowFlat ? listManager.data : groupedLabours);
 
 	return (
-		<ScrollView style={local.container}>
+		<ScrollView
+			style={local.container}
+			refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+		>
+			<TopRefreshLoader visible={refreshing} />
 			<View style={local.headerRow}>
 				<TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
 					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
@@ -367,13 +375,6 @@ export default function Labours() {
 			<FlatList
 				data={displayData}
 				keyExtractor={(item: any) => (siteNameFilter || shouldShowFlat) ? item.id.toString() : item.siteName}
-				refreshControl={
-					<React.Fragment>
-						{/* Re-import RefreshControl if not already imported or use from react-native */}
-					</React.Fragment>
-				}
-				onRefresh={onRefresh}
-				refreshing={refreshing}
 				renderItem={({ item }) => {
 					if (siteNameFilter || shouldShowFlat) {
 						return (
@@ -393,7 +394,7 @@ export default function Labours() {
 					return (
 						<TouchableOpacity
 							style={local.groupCard}
-							onPress={() => router.push({ pathname: '/(screens)/labours', params: { ...useLocalSearchParams(), siteName: item.siteName } } as any)}
+							onPress={() => router.push({ pathname: '/(screens)/labours', params: { ...routeParams, siteName: item.siteName } } as any)}
 						>
 							<View style={local.groupIconWrap}>
 								<MaterialIcons name="location-city" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />

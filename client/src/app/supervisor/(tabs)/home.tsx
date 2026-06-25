@@ -3,8 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { JSX, useCallback, useRef, useState } from "react";
-import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import GlobalSearch from "../../../components/GlobalSearch";
+import { AppRefreshControl, TopRefreshLoader } from "../../../components/RefreshFeedback";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
 import { sortByName } from "../../../utils/sort";
@@ -139,9 +140,10 @@ export default function SupervisorHome(): JSX.Element {
             <ScrollView
                 contentContainerStyle={styles.contentStyle}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+                    <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
             >
+                <TopRefreshLoader visible={refreshing} />
                 <View style={styles.headerSection}>
                     <Text style={styles.greetingText}>Welcome back,</Text>
                     <Text style={styles.headerTitle}>{firstName}</Text>

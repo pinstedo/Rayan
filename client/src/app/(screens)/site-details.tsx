@@ -4,18 +4,17 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
     Platform,
-    RefreshControl,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from "react-native";
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { sortByName } from "../../utils/sort";
@@ -428,11 +427,7 @@ export default function SiteDetailsScreen() {
     };
 
     if (loading) {
-        return (
-            <View style={local.loaderContainer}>
-                <ActivityIndicator size="large" color="#0a84ff" />
-            </View>
-        );
+        return <LoadingScreen label="Loading site details..." />;
     }
 
     if (!site) {
@@ -463,6 +458,7 @@ export default function SiteDetailsScreen() {
                 data={[{ key: "content" }]}
                 renderItem={() => (
                     <View style={local.content}>
+                        <TopRefreshLoader visible={refreshing} />
                         {/* Site Info Section */}
                         <View style={local.section}>
                             <Text style={local.sectionTitle}>Site Information</Text>
@@ -699,7 +695,7 @@ export default function SiteDetailsScreen() {
                         </View>
                 )}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a84ff']} />
+                    <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
             />
 
