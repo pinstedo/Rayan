@@ -790,35 +790,4 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// Clear Database (Admin Only)
-router.delete('/clear-database', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Only admins can clear the database' });
-    }
-
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        await client.query('DELETE FROM attendance');
-        await client.query('DELETE FROM daily_site_attendance_status');
-        await client.query('DELETE FROM advances');
-        await client.query('DELETE FROM overtime');
-        await client.query('DELETE FROM site_supervisors');
-        await client.query('DELETE FROM sites');
-        await client.query('DELETE FROM labour_refresh_tokens');
-        await client.query('DELETE FROM labours');
-        await client.query(`DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE role != 'admin')`);
-        await client.query(`DELETE FROM users WHERE role != 'admin'`);
-        await client.query('COMMIT');
-
-        res.json({ message: 'Database cleared successfully' });
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('Clear database error:', err);
-        res.status(500).json({ error: 'Failed to clear database' });
-    } finally {
-        client.release();
-    }
-});
-
 module.exports = router;

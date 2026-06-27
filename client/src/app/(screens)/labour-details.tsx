@@ -17,6 +17,7 @@ import {
     Clipboard,
 } from "react-native";
 import { CustomModal } from "../../components/CustomModal";
+import { Calendar } from "../../components/Calendar";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { getDailyWage } from "../../utils/wages";
@@ -39,6 +40,8 @@ interface Labour {
     notes?: string;
     // Financial tracking fields
     worked_days_count?: number;
+    total_working_days?: number;
+    continuous_working_days?: number;
     increment_cycle_count?: number;
     total_bonus_earned?: number;
 }
@@ -77,6 +80,7 @@ interface FinancialHistoryRecord {
     type: 'bonus' | 'increment';
     amount: number;
     worked_days_at_time: number;
+    date?: string;
     created_at: string;
 }
 
@@ -138,11 +142,16 @@ export default function LabourDetailsScreen() {
     const [bonusAmount, setBonusAmount] = useState("");
     const [bonusNotes, setBonusNotes] = useState("");
     const [savingBonus, setSavingBonus] = useState(false);
+    const [bonusDate, setBonusDate] = useState<Date>(new Date());
+    const [showBonusDatePicker, setShowBonusDatePicker] = useState(false);
 
     // Increment modal
     const [showIncrementModal, setShowIncrementModal] = useState(false);
     const [incrementAmount, setIncrementAmount] = useState("");
     const [savingIncrement, setSavingIncrement] = useState(false);
+    const [incrementDate, setIncrementDate] = useState<Date>(new Date());
+    const [showIncrementDatePicker, setShowIncrementDatePicker] = useState(false);
+    const [incrementNotes, setIncrementNotes] = useState("");
 
     // ─── Data Fetching ─────────────────────────────────────────────────────────
 
@@ -297,15 +306,21 @@ export default function LabourDetailsScreen() {
             setSavingBonus(true);
             const response = await api.post(`/labours/${id}/bonus`, {
                 amount: Number(bonusAmount),
-                date: new Date().toISOString(),
+                date: bonusDate.toISOString().split('T')[0],
                 notes: bonusNotes,
             });
             const data = await response.json();
             if (response.ok) {
+                data.rate = getDailyWage(data);
+                setLabour(data as Labour);
+                setFormData(data as Labour);
+                fetchFinancialHistory();
                 Alert.alert("Success", "Bonus recorded successfully");
                 setShowBonusModal(false);
                 setBonusAmount("");
                 setBonusNotes("");
+                setBonusDate(new Date());
+                setShowBonusDatePicker(false);
             } else {
                 Alert.alert("Error", data.error || "Failed to record bonus");
             }
@@ -325,15 +340,20 @@ export default function LabourDetailsScreen() {
             setSavingIncrement(true);
             const response = await api.post(`/labours/${id}/increment`, {
                 increment_amount: Number(incrementAmount),
+                date: incrementDate.toISOString().split('T')[0],
+                notes: incrementNotes,
             });
             const data = await response.json();
             if (response.ok) {
                 data.rate = getDailyWage(data);
                 setLabour(data as Labour);
                 setFormData(data as Labour);
+                fetchFinancialHistory();
                 setShowIncrementModal(false);
                 setIncrementAmount("");
-                fetchFinancialHistory();
+                setIncrementNotes("");
+                setIncrementDate(new Date());
+                setShowIncrementDatePicker(false);
                 Alert.alert(
                     "Increment Applied",
                     `Salary incremented by ₹${incrementAmount}.\nWorked days reset to 0.\nNew daily rate: ₹${data.rate || 0}`
@@ -670,13 +690,25 @@ export default function LabourDetailsScreen() {
                 <View style={local.financialStatsCard}>
                     <View style={local.financialStatItem}>
                         <MaterialCommunityIcons name="calendar-check" size={20} color={isDark ? '#64b5f6' : '#0a84ff'} />
-                        <Text style={local.financialStatValue}>{Number(labour.worked_days_count || 0).toFixed(1)}</Text>
-                        <Text style={local.financialStatLabel}>Worked Days</Text>
-                        {Number(labour.worked_days_count || 0) >= 275 && (
+                        <Text style={local.financialStatValue}>
+                            {Number(labour.continuous_working_days !== undefined && labour.continuous_working_days !== null ? labour.continuous_working_days : labour.worked_days_count || 0).toFixed(1)}
+                        </Text>
+                        <Text style={local.financialStatLabel}>Continuous Days</Text>
+                        {Number(labour.continuous_working_days !== undefined && labour.continuous_working_days !== null ? labour.continuous_working_days : labour.worked_days_count || 0) >= 285 && (
                             <View style={local.eligibleBadge}>
-                                <Text style={local.eligibleBadgeText}>ELIGIBLE</Text>
+                                <Text style={local.eligibleBadgeText}>
+                                    {Number(labour.continuous_working_days !== undefined && labour.continuous_working_days !== null ? labour.continuous_working_days : labour.worked_days_count || 0) >= 300 ? 'INC ELIGIBLE' : 'BONUS ELIGIBLE'}
+                                </Text>
                             </View>
                         )}
+                    </View>
+                    <View style={local.financialStatDivider} />
+                    <View style={local.financialStatItem}>
+                        <MaterialCommunityIcons name="calendar-multiselect" size={20} color={isDark ? '#00bfa5' : '#009688'} />
+                        <Text style={[local.financialStatValue, { color: isDark ? '#00bfa5' : '#009688' }]}>
+                            {Number(labour.total_working_days !== undefined && labour.total_working_days !== null ? labour.total_working_days : labour.worked_days_count || 0).toFixed(1)}
+                        </Text>
+                        <Text style={local.financialStatLabel}>Total Days</Text>
                     </View>
                     <View style={local.financialStatDivider} />
                     <View style={local.financialStatItem}>
@@ -696,19 +728,30 @@ export default function LabourDetailsScreen() {
                     </View>
                 </View>
 
-                {/* Progress bar: 0 to 275 days */}
+                {/* Progress bar: 0 to 285 days */}
                 {(() => {
-                    const worked = Number(labour.worked_days_count || 0);
-                    const progress = Math.min(1, worked / 275);
+                    const continuous = Number(labour.continuous_working_days !== undefined && labour.continuous_working_days !== null ? labour.continuous_working_days : labour.worked_days_count || 0);
+                    const isBonusEligible = continuous >= 285;
+                    const isIncEligible = continuous >= 300;
+                    
+                    const progress = Math.min(1, continuous / 285);
                     const pct = Math.round(progress * 100);
+                    
+                    let label = `Progress to Bonus Eligibility (285 days)`;
+                    if (isIncEligible) {
+                        label = `✓ Eligible for Increment (300 days)`;
+                    } else if (isBonusEligible) {
+                        label = `✓ Eligible for Bonus (285 days)`;
+                    }
+                    
                     return (
                         <View style={local.progressContainer}>
                             <View style={local.progressHeader}>
-                                <Text style={local.progressLabel}>Progress to Bonus Eligibility (275 days)</Text>
+                                <Text style={local.progressLabel}>{label}</Text>
                                 <Text style={local.progressPct}>{pct}%</Text>
                             </View>
                             <View style={local.progressTrack}>
-                                <View style={[local.progressFill, { width: `${pct}%` as any, backgroundColor: pct >= 100 ? '#4CAF50' : isDark ? '#4da6ff' : '#0a84ff' }]} />
+                                <View style={[local.progressFill, { width: `${pct}%` as any, backgroundColor: isIncEligible ? '#81c784' : isBonusEligible ? '#4CAF50' : isDark ? '#4da6ff' : '#0a84ff' }]} />
                             </View>
                         </View>
                     );
@@ -1079,7 +1122,7 @@ export default function LabourDetailsScreen() {
                                                     </Text>
                                                 </View>
                                                 <View style={local.recordLeft}>
-                                                    <Text style={local.recordDate}>{formatDate(rec.created_at)}</Text>
+                                                    <Text style={local.recordDate}>{formatDate(rec.date || rec.created_at)}</Text>
                                                     <Text style={local.recordSub}>{rec.worked_days_at_time} worked days</Text>
                                                 </View>
                                                 {userRole !== 'supervisor' && (
@@ -1122,6 +1165,27 @@ export default function LabourDetailsScreen() {
                         />
                     </View>
                     <View style={local.inputGroup}>
+                        <Text style={local.label}>Date</Text>
+                        <TouchableOpacity style={[local.input, { justifyContent: 'center' }]} onPress={() => setShowBonusDatePicker(!showBonusDatePicker)}>
+                            <Text style={{ color: isDark ? "#fff" : "#333", fontSize: 16, paddingVertical: 4 }}>
+                                {formatDate(bonusDate.toISOString())}
+                            </Text>
+                        </TouchableOpacity>
+                        {showBonusDatePicker && (
+                            <View style={{ marginTop: 10 }}>
+                                <Calendar
+                                    selectedDate={bonusDate}
+                                    onDateSelect={(d) => {
+                                        setBonusDate(d);
+                                        setShowBonusDatePicker(false);
+                                    }}
+                                    markedDates={[]}
+                                    onMonthChange={() => { }}
+                                />
+                            </View>
+                        )}
+                    </View>
+                    <View style={local.inputGroup}>
                         <Text style={local.label}>Notes</Text>
                         <TextInput
                             style={[local.input, { height: 80, textAlignVertical: 'top' }]}
@@ -1153,7 +1217,7 @@ export default function LabourDetailsScreen() {
                     </View>
                     <View style={local.incrementInfoRow}>
                         <MaterialCommunityIcons name="calendar-check" size={18} color={isDark ? '#64b5f6' : '#0a84ff'} />
-                        <Text style={local.incrementInfoText}>Worked days (will reset to 0): {Number(labour?.worked_days_count || 0).toFixed(1)}</Text>
+                        <Text style={local.incrementInfoText}>Continuous days (will reset to 0): {Number(labour?.continuous_working_days !== undefined && labour?.continuous_working_days !== null ? labour?.continuous_working_days : labour?.worked_days_count || 0).toFixed(1)}</Text>
                     </View>
                     <View style={local.inputGroup}>
                         <Text style={local.label}>Increment Amount (₹)</Text>
@@ -1163,6 +1227,39 @@ export default function LabourDetailsScreen() {
                             placeholder="Enter increment amount"
                             value={incrementAmount}
                             onChangeText={setIncrementAmount}
+                            placeholderTextColor={isDark ? "#888" : "#999"}
+                        />
+                    </View>
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Date</Text>
+                        <TouchableOpacity style={[local.input, { justifyContent: 'center' }]} onPress={() => setShowIncrementDatePicker(!showIncrementDatePicker)}>
+                            <Text style={{ color: isDark ? "#fff" : "#333", fontSize: 16, paddingVertical: 4 }}>
+                                {formatDate(incrementDate.toISOString())}
+                            </Text>
+                        </TouchableOpacity>
+                        {showIncrementDatePicker && (
+                            <View style={{ marginTop: 10 }}>
+                                <Calendar
+                                    selectedDate={incrementDate}
+                                    onDateSelect={(d) => {
+                                        setIncrementDate(d);
+                                        setShowIncrementDatePicker(false);
+                                    }}
+                                    markedDates={[]}
+                                    onMonthChange={() => { }}
+                                />
+                            </View>
+                        )}
+                    </View>
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Notes</Text>
+                        <TextInput
+                            style={[local.input, { height: 80, textAlignVertical: 'top' }]}
+                            placeholder="Optional notes"
+                            value={incrementNotes}
+                            onChangeText={setIncrementNotes}
+                            multiline
+                            numberOfLines={3}
                             placeholderTextColor={isDark ? "#888" : "#999"}
                         />
                     </View>

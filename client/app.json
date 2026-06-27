@@ -31,11 +31,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/logo11.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
           "dark": {
+            "image": "./assets/images/logo11.png",
             "backgroundColor": "#000000"
           }
         }
@@ -52,6 +53,15 @@
         "projectId": "09aececb-708d-4349-a274-f74ed341ccfd"
       }
     },
-    "owner": "pinstedo"
+    "owner": "pinstedo",
+    "splash": {
+      "image": "./assets/images/logo11.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "image": "./assets/images/logo11.png",
+        "backgroundColor": "#000000"
+      }
+    }
   }
 }

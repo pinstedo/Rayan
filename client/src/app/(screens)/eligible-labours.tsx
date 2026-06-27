@@ -120,7 +120,7 @@ export default function EligibleLaboursScreen() {
                 <View style={local.progressContainer}>
                     <View style={local.progressHeader}>
                         <Text style={local.progressLabel}>
-                            {isFullyEligible ? '✓ Bonus Eligible' : `${Number(item.worked_days_count).toFixed(1)} / 275 days`}
+                            {isFullyEligible ? '✓ Bonus Eligible' : `${Number(item.worked_days_count).toFixed(1)} / 285 days`}
                         </Text>
                         <Text style={[local.progressPct, isFullyEligible && { color: '#4CAF50' }]}>{pct}%</Text>
                     </View>

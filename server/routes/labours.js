@@ -380,26 +380,30 @@ router.put('/me', async (req, res) => {
     }
 });
 
-// Get labours eligible for bonus (worked_days_count >= 275)
+// Get labours eligible for bonus (continuous_working_days >= 285)
 // NOTE: Must be defined BEFORE /:id route to avoid param matching
 router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const labours = await db.all(
             `SELECT id, name, phone, site, site_id, rate, status,
-                    worked_days_count, increment_cycle_count, total_bonus_earned
+                    worked_days_count, continuous_working_days, total_working_days, increment_cycle_count, total_bonus_earned
              FROM labours
-             WHERE worked_days_count >= 275
-             ORDER BY worked_days_count DESC`
+             WHERE COALESCE(continuous_working_days, worked_days_count, 0) >= 285
+             ORDER BY COALESCE(continuous_working_days, worked_days_count, 0) DESC`
         );
         // Add calculated bonus to each labour
         const result = labours.map(l => {
             const normal = withWageCompatibility(l);
+            const continuous = Number(l.continuous_working_days !== null && l.continuous_working_days !== undefined ? l.continuous_working_days : l.worked_days_count || 0);
             return {
                 ...normal,
                 rate: normal.daily_wage || 0,
-                bonus_due: Math.round((Number(l.worked_days_count) / 22) * 100) / 100,
-                progress_percent: Math.min(100, Math.round((Number(l.worked_days_count) / 275) * 100))
+                worked_days_count: continuous,
+                continuous_working_days: continuous,
+                total_working_days: Number(l.total_working_days !== null && l.total_working_days !== undefined ? l.total_working_days : l.worked_days_count || 0),
+                bonus_due: Math.round((continuous / 22) * 100) / 100,
+                progress_percent: Math.min(100, Math.round((continuous / 285) * 100))
             };
         });
         res.json(result);
@@ -549,7 +553,7 @@ router.put('/:id/status', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
         // CRITICAL: Reset worked_days_count immediately when marked on leave
         if (status === 'leave') {
             await db.run(
-                'UPDATE labours SET worked_days_count = 0 WHERE id = ?',
+                'UPDATE labours SET worked_days_count = 0, continuous_working_days = 0 WHERE id = ?',
                 [req.params.id]
             );
         }
@@ -571,33 +575,74 @@ router.put('/:id/status', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     }
 });
 
-// Add Bonus (manual legacy endpoint kept for backward compat)
+// Add Bonus
 router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { amount, date, notes } = req.body;
     const labour_id = req.params.id;
 
-    if (!amount || amount <= 0) {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         return res.status(400).json({ error: 'Valid amount is required' });
     }
     const bonusDate = date || new Date().toISOString().split('T')[0];
 
+    const db = await openTransactionDb();
     try {
-        const db = await openDb();
+        await db.run('BEGIN');
+        
+        const labour = await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]);
+        if (!labour) {
+            await db.run('ROLLBACK');
+            return res.status(404).json({ error: 'Labour not found' });
+        }
+
+        const continuousDaysAtTime = Number(labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0);
+
+        // 1. Insert into legacy bonus_payments
         const result = await db.run(
             `INSERT INTO bonus_payments (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-            [labour_id, amount, bonusDate, notes, req.user ? req.user.id : null]
+            [labour_id, Number(amount), bonusDate, notes || null, req.user ? req.user.id : null]
         );
 
-        const newBonus = await db.get('SELECT * FROM bonus_payments WHERE id = ?', [result.lastID]);
-        res.status(201).json(newBonus);
+        // 2. Insert into labour_financial_history
+        await db.run(
+            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date) VALUES (?, 'bonus', ?, ?, ?)`,
+            [labour_id, Number(amount), continuousDaysAtTime, bonusDate]
+        );
+
+        // 3. Reset continuous_working_days to 0, preserve total_working_days, and update total_bonus_earned
+        await db.run(
+            `UPDATE labours 
+             SET worked_days_count = 0, 
+                 continuous_working_days = 0, 
+                 total_bonus_earned = total_bonus_earned + ?
+             WHERE id = ?`,
+            [Number(amount), labour_id]
+        );
+
+        await db.run('COMMIT');
+
+        await logHistory({
+            type: 'labour',
+            action: 'bonus_applied',
+            reference_id: labour_id,
+            name: labour.name,
+            metadata: { amount: Number(amount), date: bonusDate, continuous_days_reset: continuousDaysAtTime },
+            created_by: req.user ? req.user.id : null
+        });
+
+        const updatedLabour = withWageCompatibility(await db.get('SELECT * FROM labours WHERE id = ?', [labour_id]));
+        res.status(201).json(updatedLabour);
     } catch (err) {
+        await db.run('ROLLBACK');
         res.status(500).json({ error: err.message });
+    } finally {
+        if (db.release) db.release();
     }
 });
 
 // Apply manual increment to labour salary
 router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
-    const { increment_amount } = req.body;
+    const { increment_amount, date, notes } = req.body;
     const labour_id = req.params.id;
 
     if (!increment_amount || isNaN(Number(increment_amount)) || Number(increment_amount) <= 0) {
@@ -605,6 +650,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
     }
 
     const incrementAmt = Number(increment_amount);
+    const incrementDate = date || new Date().toISOString().split('T')[0];
     const db = await openTransactionDb();
 
     try {
@@ -620,13 +666,13 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
         const currentDailyRate = getLabourDailyWage(labour);
         const newDailyRate = currentDailyRate + incrementAmt;
         const newHourlyRate = hourlyFromDailyWage(newDailyRate);
-        const workedDaysAtTime = Number(labour.worked_days_count) || 0;
-        const today = new Date().toISOString().split('T')[0];
+        const continuousDaysAtTime = Number(labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0);
 
-        // Update salary, reset worked_days_count, increment cycle count.
+        // Update salary, reset worked_days_count & continuous_working_days, increment cycle count.
+        // total_working_days is preserved.
         await db.run(
             `UPDATE labours 
-             SET rate = ?, daily_wage = ?, worked_days_count = 0, increment_cycle_count = increment_cycle_count + 1
+             SET rate = ?, daily_wage = ?, worked_days_count = 0, continuous_working_days = 0, increment_cycle_count = increment_cycle_count + 1
              WHERE id = ?`,
             [newHourlyRate, newDailyRate, labour_id]
         );
@@ -642,15 +688,15 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
                 newDailyRate,
                 hourlyFromDailyWage(currentDailyRate),
                 newHourlyRate,
-                today,
+                incrementDate,
                 req.user ? req.user.id : null
             ]
         );
 
-        // Record in new financial history table
+        // Record in consolidated financial history table
         await db.run(
-            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time) VALUES (?, 'increment', ?, ?)`,
-            [labour_id, incrementAmt, workedDaysAtTime]
+            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date) VALUES (?, 'increment', ?, ?, ?)`,
+            [labour_id, incrementAmt, continuousDaysAtTime, incrementDate]
         );
 
         await db.run('COMMIT');
@@ -660,7 +706,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
             action: 'increment_applied',
             reference_id: labour_id,
             name: labour.name,
-            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, worked_days_reset: workedDaysAtTime },
+            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, continuous_days_reset: continuousDaysAtTime, date: incrementDate, notes },
             created_by: req.user ? req.user.id : null
         });
 

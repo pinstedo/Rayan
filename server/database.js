@@ -276,6 +276,7 @@ async function initDb() {
       type TEXT CHECK(type IN ('bonus', 'increment')) NOT NULL,
       amount NUMERIC NOT NULL,
       worked_days_at_time NUMERIC DEFAULT 0,
+      date TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -310,6 +311,8 @@ async function initDb() {
 
   // Labour financial tracking columns
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS worked_days_count NUMERIC DEFAULT 0`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS total_working_days NUMERIC DEFAULT 0`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS continuous_working_days NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS increment_cycle_count INTEGER DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS total_bonus_earned NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS daily_wage REAL`);
@@ -319,6 +322,15 @@ async function initDb() {
   await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS new_daily_wage REAL`);
   await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS previous_hourly_rate_backup REAL`);
   await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS new_hourly_rate_backup REAL`);
+  await alterSafe(`ALTER TABLE labour_financial_history ADD COLUMN IF NOT EXISTS date TEXT`);
+
+  // Backfill worked days count to new columns for existing data
+  await db.run(
+    `UPDATE labours
+     SET total_working_days = CASE WHEN COALESCE(total_working_days, 0) = 0 THEN COALESCE(worked_days_count, 0) ELSE total_working_days END,
+         continuous_working_days = CASE WHEN COALESCE(continuous_working_days, 0) = 0 THEN COALESCE(worked_days_count, 0) ELSE continuous_working_days END
+     WHERE COALESCE(total_working_days, 0) = 0 OR COALESCE(continuous_working_days, 0) = 0`
+  );
 
   const wageMigration = await db.get(`SELECT value FROM app_settings WHERE key = 'wage_storage_migrated_to_daily'`);
   if (!wageMigration || wageMigration.value !== 'true') {

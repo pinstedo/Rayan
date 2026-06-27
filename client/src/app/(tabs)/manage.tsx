@@ -10,7 +10,7 @@ const options = [
   { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
   { key: "sites", icon: "location-city", title: "Sites", desc: "Manage job sites" },
   { key: "labours", icon: "group", title: "Labours", desc: "View and manage labours" },
-  { key: "eligible-labours", icon: "star", title: "Eligible Bonus", desc: "Labours eligible for bonus (275+ days)" },
+  { key: "eligible-labours", icon: "star", title: "Eligible Bonus", desc: "Labours eligible for bonus (285+ days)" },
   { key: "supervisors", icon: "supervisor-account", title: "Supervisors", desc: "View supervisors added by admin" },
 ];
 

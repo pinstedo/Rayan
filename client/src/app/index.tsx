@@ -5,9 +5,11 @@ import { ActivityIndicator, Image, StatusBar, View } from "react-native";
 import { API_URL } from "../constants";
 import { getHomeRouteForRole } from "../utils/roles";
 import { styles } from "./style/stylesheet";
+import { useTheme } from "../context/ThemeContext";
 
 export default function SplashScreen() {
 	const router = useRouter();
+	const { colors } = useTheme();
 
 	useEffect(() => {
 		const checkLogin = async () => {
@@ -81,7 +83,7 @@ export default function SplashScreen() {
 	}, [router]);
 
 	return (
-		<View style={[styles.container, { padding: 0 }]}>
+		<View style={[styles.container, { padding: 0, backgroundColor: colors.background }]}>
 			<StatusBar hidden />
 			<Image
 				style={[styles.image, { width: 250, height: 250 }]}

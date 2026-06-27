@@ -298,10 +298,14 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             const diff = newDelta - oldDelta;
 
             if (diff !== 0) {
-                // Update worked_days_count, ensuring it never goes below 0
+                // Update worked_days_count, total_working_days, and continuous_working_days, ensuring they never go below 0
                 await db.run(
-                    `UPDATE labours SET worked_days_count = GREATEST(0, worked_days_count + ?) WHERE id = ?`,
-                    [diff, labour_id]
+                    `UPDATE labours SET 
+                        worked_days_count = GREATEST(0, COALESCE(worked_days_count, 0) + ?),
+                        total_working_days = GREATEST(0, COALESCE(total_working_days, 0) + ?),
+                        continuous_working_days = GREATEST(0, COALESCE(continuous_working_days, 0) + ?)
+                     WHERE id = ?`,
+                    [diff, diff, diff, labour_id]
                 );
                 labourIdsToCheck.push(labour_id);
             }
@@ -327,9 +331,10 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         await db.exec('COMMIT');
 
         // After commit, check bonus eligibility for affected labours
-        for (const lid of labourIdsToCheck) {
-            await checkAndRecordBonus(db, lid);
-        }
+        // Disable automatic bonus generation as we now rely on manual admin triggers via UI.
+        // for (const lid of labourIdsToCheck) {
+        //     await checkAndRecordBonus(db, lid);
+        // }
 
         await logHistory({
             type: 'attendance',
