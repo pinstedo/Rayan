@@ -614,7 +614,7 @@ router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res
             `UPDATE labours 
              SET worked_days_count = 0, 
                  continuous_working_days = 0, 
-                 total_bonus_earned = total_bonus_earned + ?
+                 total_bonus_earned = COALESCE(total_bonus_earned, 0) + ?
              WHERE id = ?`,
             [Number(amount), labour_id]
         );
@@ -672,7 +672,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
         // total_working_days is preserved.
         await db.run(
             `UPDATE labours 
-             SET rate = ?, daily_wage = ?, worked_days_count = 0, continuous_working_days = 0, increment_cycle_count = increment_cycle_count + 1
+             SET rate = ?, daily_wage = ?, worked_days_count = 0, continuous_working_days = 0, increment_cycle_count = COALESCE(increment_cycle_count, 0) + 1
              WHERE id = ?`,
             [newHourlyRate, newDailyRate, labour_id]
         );

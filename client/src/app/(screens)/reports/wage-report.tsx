@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar } from '../../../components/Calendar';
@@ -14,6 +14,40 @@ import { api } from '../../../services/api'; // Adjust path as needed
 import { getDailyWage } from '../../../utils/wages';
 
 type DatePickerField = 'wageStart' | 'wageEnd';
+
+const SORT_OPTIONS = [
+    { label: "All Labours", value: "all" },
+    { label: "Active", value: "active" },
+    { label: "Inactive", value: "inactive" },
+    { label: "On Leave", value: "leave" },
+    { label: "Payment Recorded", value: "paid" },
+    { label: "Payment Not Recorded", value: "unpaid" },
+] as const;
+
+type SortFilterType = typeof SORT_OPTIONS[number]['value'];
+
+const getSelectedFiltersLabel = (filters: SortFilterType[]) => {
+    if (filters.length === 0) return "All Labours";
+    return filters.map(f => SORT_OPTIONS.find(opt => opt.value === f)?.label || "").filter(Boolean).join(", ");
+};
+
+const matchLabourFilters = (item: any, selectedFilters: SortFilterType[]) => {
+    if (selectedFilters.length === 0) return true;
+    for (const filter of selectedFilters) {
+        if (filter === 'active') {
+            if (item.status !== 'active') return false;
+        } else if (filter === 'inactive') {
+            if (item.status === 'active' || item.status === 'leave') return false;
+        } else if (filter === 'leave') {
+            if (item.status !== 'leave') return false;
+        } else if (filter === 'paid') {
+            if (toAmount(item.salary_paid) <= 0) return false;
+        } else if (filter === 'unpaid') {
+            if (toAmount(item.salary_paid) > 0) return false;
+        }
+    }
+    return true;
+};
 
 const formatDateInput = (date: Date) => {
     const year = date.getFullYear();
@@ -226,6 +260,35 @@ export default function WageReportScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLabour, setSelectedLabour] = useState<any>(null);
     const [searchText, setSearchText] = useState("");
+    const [selectedFilters, setSelectedFilters] = useState<SortFilterType[]>([]);
+    const [showSortPicker, setShowSortPicker] = useState(false);
+
+    const handleToggleFilter = (filter: SortFilterType) => {
+        if (filter === 'all') {
+            setSelectedFilters([]);
+            return;
+        }
+        let next = [...selectedFilters];
+        const index = next.indexOf(filter);
+        if (index > -1) {
+            next.splice(index, 1);
+        } else {
+            next.push(filter);
+            // Handle mutual exclusions
+            if (filter === 'active') {
+                next = next.filter(f => f !== 'inactive' && f !== 'leave');
+            } else if (filter === 'inactive') {
+                next = next.filter(f => f !== 'active' && f !== 'leave');
+            } else if (filter === 'leave') {
+                next = next.filter(f => f !== 'active' && f !== 'inactive');
+            } else if (filter === 'paid') {
+                next = next.filter(f => f !== 'unpaid');
+            } else if (filter === 'unpaid') {
+                next = next.filter(f => f !== 'paid');
+            }
+        }
+        setSelectedFilters(next);
+    };
 
     const initialRange = useMemo(() => getSalaryMonthRange(), []);
     const [draftStartDate, setDraftStartDate] = useState(initialRange.startDate);
@@ -336,9 +399,9 @@ export default function WageReportScreen() {
         setGeneratingPdf(true);
 
         try {
-            let pdfData = Array.isArray(reportData) ? [...reportData] : [];
+            let baseData = Array.isArray(reportData) ? [...reportData] : [];
 
-            if (pdfData.length === 0) {
+            if (baseData.length === 0) {
                 const res = await api.post(`/reports/wage-month`, reportPayload);
                 const data = await res.json();
 
@@ -346,10 +409,17 @@ export default function WageReportScreen() {
                     throw new Error(data.error || "Failed to fetch data for PDF");
                 }
 
-                pdfData = Array.isArray(data) ? [...data] : [];
+                baseData = Array.isArray(data) ? [...data] : [];
                 if (Array.isArray(data)) {
                     setReportData(data);
                 }
+            }
+
+            let pdfData = baseData.filter(item => matchLabourFilters(item, selectedFilters));
+            if (searchText) {
+                pdfData = pdfData.filter(item =>
+                    (item.name || '').toLowerCase().includes(searchText.toLowerCase())
+                );
             }
 
             if (pdfData.length === 0) {
@@ -926,11 +996,22 @@ export default function WageReportScreen() {
         try {
             let pdfData: any = Array.isArray(specificData) ? specificData : null;
             if (!pdfData) {
-                const res = await api.post(`/reports/wage-month`, reportPayload);
-                pdfData = await res.json();
+                let baseData = Array.isArray(reportData) && reportData.length > 0 ? [...reportData] : null;
+                if (!baseData) {
+                    const res = await api.post(`/reports/wage-month`, reportPayload);
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.error || "Failed to fetch data for PDF");
+                    }
+                    baseData = Array.isArray(data) ? [...data] : [];
+                    setReportData(baseData);
+                }
 
-                if (!res.ok) {
-                    throw new Error(pdfData.error || "Failed to fetch data for PDF");
+                pdfData = baseData.filter((item: any) => matchLabourFilters(item, selectedFilters));
+                if (searchText) {
+                    pdfData = pdfData.filter((item: any) =>
+                        (item.name || '').toLowerCase().includes(searchText.toLowerCase())
+                    );
                 }
             }
 
@@ -1141,13 +1222,14 @@ export default function WageReportScreen() {
 
     const filteredAndSortedData = useMemo(() => {
         let filtered = Array.isArray(reportData) ? reportData : [];
+        filtered = filtered.filter(item => matchLabourFilters(item, selectedFilters));
         if (searchText) {
             filtered = filtered.filter(item =>
                 (item.name || '').toLowerCase().includes(searchText.toLowerCase())
             );
         }
         return [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    }, [reportData, searchText]);
+    }, [reportData, searchText, selectedFilters]);
 
     return (
         <View style={local.container}>
@@ -1193,10 +1275,20 @@ export default function WageReportScreen() {
                     </View>
                 </View>
 
-                <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
-                    <MaterialIcons name="check" size={18} color="#fff" />
-                    <Text style={local.applyRangeText}>Apply</Text>
-                </TouchableOpacity>
+                <View style={local.actionsRow}>
+                    <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
+                        <MaterialIcons name="check" size={18} color="#fff" />
+                        <Text style={local.applyRangeText}>Apply</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={local.sortSelectBtn} onPress={() => setShowSortPicker(true)}>
+                        <MaterialIcons name="sort" size={18} color={isDark ? "#4da6ff" : "#0a84ff"} style={{ marginRight: 2 }} />
+                        <Text style={local.sortSelectText} numberOfLines={1} ellipsizeMode="tail">
+                            {getSelectedFiltersLabel(selectedFilters)}
+                        </Text>
+                        <MaterialIcons name="arrow-drop-down" size={20} color={isDark ? "#aaa" : "#666"} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {loading ? (
@@ -1280,6 +1372,8 @@ export default function WageReportScreen() {
                         />
                     </View>
 
+
+
                     {filteredAndSortedData.map((item, index) => (
                         <TouchableOpacity
                             key={item.id.toString() + index}
@@ -1330,6 +1424,43 @@ export default function WageReportScreen() {
                         allowFutureDates
                     />
                 )}
+            </CustomModal>
+
+            <CustomModal
+                visible={showSortPicker}
+                onClose={() => setShowSortPicker(false)}
+                title="Sort / Filter Labours"
+                actions={[
+                    { text: "Done", onPress: () => setShowSortPicker(false), style: "default" }
+                ]}
+            >
+                <View style={{ width: '100%' }}>
+                    {SORT_OPTIONS.map((opt) => {
+                        const isSelected = opt.value === 'all'
+                            ? selectedFilters.length === 0
+                            : selectedFilters.includes(opt.value);
+                        return (
+                            <TouchableOpacity
+                                key={opt.value}
+                                style={[
+                                    local.sortOption,
+                                    isSelected && local.sortOptionSelected
+                                ]}
+                                onPress={() => handleToggleFilter(opt.value)}
+                            >
+                                <Text style={[
+                                    local.sortOptionText,
+                                    isSelected && local.sortOptionTextSelected
+                                ]}>
+                                    {opt.label}
+                                </Text>
+                                {isSelected && (
+                                    <MaterialIcons name="check" size={20} color="#0a84ff" />
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
             </CustomModal>
 
             {selectedLabour && (
@@ -1507,5 +1638,50 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
         fontSize: 14,
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    sortSelectBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderWidth: 1,
+        borderColor: isDark ? '#333' : '#ddd',
+        backgroundColor: isDark ? '#2a2a2a' : '#fafafa',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        minHeight: 43,
+        flex: 1,
+        gap: 6,
+    },
+    sortSelectText: {
+        color: isDark ? '#fff' : '#111',
+        fontSize: 14,
+        fontWeight: '600',
+        flex: 1,
+    },
+    sortOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: isDark ? '#2a2a2a' : '#eee',
+        width: '100%',
+    },
+    sortOptionSelected: {
+        backgroundColor: isDark ? '#1a2b3c' : '#e6f0ff',
+    },
+    sortOptionText: {
+        fontSize: 15,
+        color: isDark ? '#ddd' : '#333',
+    },
+    sortOptionTextSelected: {
+        fontWeight: 'bold',
+        color: isDark ? '#64b5f6' : '#0a84ff',
     }
 });

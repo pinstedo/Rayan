@@ -46,7 +46,7 @@ async function checkAndRecordBonus(db, labourId) {
 
         // Accumulate total_bonus_earned
         await db.run(
-            `UPDATE labours SET total_bonus_earned = total_bonus_earned + ? WHERE id = ?`,
+            `UPDATE labours SET total_bonus_earned = COALESCE(total_bonus_earned, 0) + ? WHERE id = ?`,
             [bonus, labourId]
         );
     } catch (err) {

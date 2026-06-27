@@ -262,6 +262,7 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             reports.push({
                 id: labour.id,
                 name: labour.name,
+                status: labour.status,
                 rate: hourlyRate,
                 daily_wage: dailyWage,
                 full_days: fullDays,
@@ -633,6 +634,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 rate: getLabourHourlyRate(labour),
                 daily_wage: getLabourDailyWage(labour),
                 site_id: labour.site_id,
+                status: labour.status,
                 previous_balance: previous_balance,
                 current_wage: currStats.wage,
                 wage_breakdown: currStats.wageBreakdown,
