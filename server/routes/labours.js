@@ -206,16 +206,34 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
         return res.status(400).json({ error: 'from_date, site_id, and an array of labour_ids are required' });
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from_date)) {
+        return res.status(400).json({ error: 'from_date must be in YYYY-MM-DD format' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (from_date > todayStr) {
+        return res.status(400).json({ error: 'from_date cannot be in the future' });
+    }
+
     try {
         const db = await openTransactionDb();
 
         try {
             await db.run('BEGIN');
 
-            // Identify prevDate for closing histories
-            const d = new Date(from_date);
-            d.setDate(d.getDate() - 1);
+            // Retrieve site name to update denormalized site column
+            const site = await db.get('SELECT name FROM sites WHERE id = ?', [site_id]);
+            if (!site) {
+                return res.status(404).json({ error: 'Site not found' });
+            }
+
+            // Identify prevDate for closing histories (using UTC date calculation to avoid timezone shifts)
+            const d = new Date(from_date + 'T00:00:00Z');
+            d.setUTCDate(d.getUTCDate() - 1);
             const prevDate = d.toISOString().split('T')[0];
+
+            // Coerce all comparison IDs to numbers for safety
+            const selectedIdsSet = new Set(labour_ids.map(Number));
 
             // Find all histories overlapping this exact date for this site
             const existingHistories = await db.all(
@@ -223,7 +241,7 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
                 [site_id, from_date, from_date]
             );
 
-            const laboursToRemove = existingHistories.filter(h => !labour_ids.includes(h.labour_id));
+            const laboursToRemove = existingHistories.filter(h => !selectedIdsSet.has(Number(h.labour_id)));
 
             // End or delete the overlapping history records for unselected labours
             for (const h of laboursToRemove) {
@@ -232,38 +250,71 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
                 } else {
                     await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, h.id]);
                 }
+
+                // If this removed assignment was their currently active assignment, update labours table
+                if (h.to_date === null) {
+                    const labour = await db.get('SELECT site_id FROM labours WHERE id = ?', [h.labour_id]);
+                    if (labour && Number(labour.site_id) === Number(site_id)) {
+                        await db.run("UPDATE labours SET site_id = NULL, site = NULL, status = 'unassigned' WHERE id = ?", [h.labour_id]);
+                    }
+                }
             }
 
-            for (const id of labour_ids) {
-                const alreadyExists = existingHistories.find(h => h.labour_id === id);
+            for (const id of selectedIdsSet) {
+                // 1. Find the next assignment starting strictly after from_date
+                const nextHist = await db.get(
+                    'SELECT * FROM labour_site_history WHERE labour_id = ? AND from_date > ? ORDER BY from_date ASC LIMIT 1',
+                    [id, from_date]
+                );
 
-                if (alreadyExists) {
-                    // Make sure they are actively assigned currently (if the history was open)
-                    await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
-                    if (alreadyExists.to_date !== null) {
-                        await db.run('UPDATE labour_site_history SET to_date = NULL WHERE id = ?', [alreadyExists.id]);
+                let newToDate = null;
+                if (nextHist) {
+                    const nextD = new Date(nextHist.from_date + 'T00:00:00Z');
+                    nextD.setUTCDate(nextD.getUTCDate() - 1);
+                    newToDate = nextD.toISOString().split('T')[0];
+                }
+
+                // 2. Find all overlapping assignments on ANY site
+                const overlappingHistories = await db.all(
+                    'SELECT * FROM labour_site_history WHERE labour_id = ? AND from_date <= ? AND (to_date IS NULL OR to_date >= ?)',
+                    [id, from_date, from_date]
+                );
+
+                let targetRecordToUpdate = null;
+                for (const h of overlappingHistories) {
+                    if (Number(h.site_id) === Number(site_id)) {
+                        // This is the target site. We will reuse/extend this record instead of inserting a new one.
+                        targetRecordToUpdate = h;
+                    } else {
+                        // Overlapping assignment at another site. We must close or delete it.
+                        if (h.from_date === from_date) {
+                            await db.run('DELETE FROM labour_site_history WHERE id = ?', [h.id]);
+                        } else {
+                            await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, h.id]);
+                        }
                     }
-                    continue;
                 }
 
-                // They aren't assigned to this site on this date.
-                // Close open history at *other* sites to maintain single-site constraints
-                const openHist = await db.get('SELECT * FROM labour_site_history WHERE labour_id = ? AND to_date IS NULL', [id]);
-                if (openHist) {
-                    // Close the old assignment the day before to avoid overlapping
-                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, openHist.id]);
+                if (targetRecordToUpdate) {
+                    // Extend the existing record at target site
+                    await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [newToDate, targetRecordToUpdate.id]);
+                } else {
+                    // Insert a new record
+                    await db.run(
+                        'INSERT INTO labour_site_history (labour_id, site_id, from_date, to_date) VALUES (?, ?, ?, ?)',
+                        [id, site_id, from_date, newToDate]
+                    );
                 }
 
-                // Update labours table
-                await db.run('UPDATE labours SET site_id = ?, status = ? WHERE id = ?', [site_id, 'active', id]);
-
-                // Insert new history
-                await db.run('INSERT INTO labour_site_history (labour_id, site_id, from_date) VALUES (?, ?, ?)', [id, site_id, from_date]);
+                // 3. Update labours table if the assignment to this site is active (newToDate is null)
+                if (newToDate === null) {
+                    await db.run('UPDATE labours SET site_id = ?, site = ?, status = ? WHERE id = ?', [site_id, site.name, 'active', id]);
+                }
             }
 
             // Log history
             await db.run('INSERT INTO history_logs (type, action, metadata, created_by) VALUES (?, ?, ?, ?)',
-                ['labour', 'bulk_backdated_assignment', JSON.stringify({ count: labour_ids.length, site_id, from_date }), req.user ? req.user.id : null]);
+                ['labour', 'bulk_backdated_assignment', JSON.stringify({ count: selectedIdsSet.size, site_id, from_date }), req.user ? req.user.id : null]);
 
             await db.run('COMMIT');
             res.json({ message: 'Labours successfully backdate assigned' });
@@ -286,15 +337,26 @@ router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => 
         return res.status(400).json({ error: 'from_date, site_id, and an array of labour_ids are required' });
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from_date)) {
+        return res.status(400).json({ error: 'from_date must be in YYYY-MM-DD format' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (from_date > todayStr) {
+        return res.status(400).json({ error: 'from_date cannot be in the future' });
+    }
+
     try {
         const db = await openTransactionDb();
 
         try {
             await db.run('BEGIN');
 
-            const d = new Date(from_date);
-            d.setDate(d.getDate() - 1);
+            const d = new Date(from_date + 'T00:00:00Z');
+            d.setUTCDate(d.getUTCDate() - 1);
             const prevDate = d.toISOString().split('T')[0];
+
+            const selectedIdsSet = new Set(labour_ids.map(Number));
 
             // Find overlapping histories for these labours
             const existingHistories = await db.all(
@@ -302,7 +364,7 @@ router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => 
                 [site_id, from_date, from_date]
             );
 
-            const laboursToRemove = existingHistories.filter(h => labour_ids.includes(h.labour_id));
+            const laboursToRemove = existingHistories.filter(h => selectedIdsSet.has(Number(h.labour_id)));
 
             for (const h of laboursToRemove) {
                 if (h.from_date === from_date) {
@@ -314,14 +376,14 @@ router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => 
                 // If this removed assigning was their currently active assignment, set them to unassigned
                 if (h.to_date === null) {
                     const labour = await db.get('SELECT site_id FROM labours WHERE id = ?', [h.labour_id]);
-                    if (labour && labour.site_id === site_id) {
-                        await db.run("UPDATE labours SET site_id = NULL, status = 'unassigned' WHERE id = ?", [h.labour_id]);
+                    if (labour && Number(labour.site_id) === Number(site_id)) {
+                        await db.run("UPDATE labours SET site_id = NULL, site = NULL, status = 'unassigned' WHERE id = ?", [h.labour_id]);
                     }
                 }
             }
 
             await db.run('INSERT INTO history_logs (type, action, metadata, created_by) VALUES (?, ?, ?, ?)',
-                ['labour', 'bulk_backdated_unassignment', JSON.stringify({ count: labour_ids.length, site_id, from_date }), req.user ? req.user.id : null]);
+                ['labour', 'bulk_backdated_unassignment', JSON.stringify({ count: selectedIdsSet.size, site_id, from_date }), req.user ? req.user.id : null]);
 
             await db.run('COMMIT');
             res.json({ message: 'Labours successfully backdate unassigned' });
