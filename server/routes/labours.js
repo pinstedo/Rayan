@@ -269,6 +269,38 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
                 }
             }
 
+            // Find all labours who are NOT selected and NOT already handled by laboursToRemove
+            const handledIds = new Set([
+                ...Array.from(selectedIdsSet),
+                ...laboursToRemove.map(h => Number(h.labour_id))
+            ]);
+
+            const otherLabours = await db.all('SELECT id FROM labours');
+            for (const row of otherLabours) {
+                const id = Number(row.id);
+                if (handledIds.has(id)) continue;
+
+                // This labourer was not selected, and has no history on this site overlapping from_date.
+                // But they might have attendance/overtime on this site on/after from_date.
+                // We should clean it up.
+                const nextHist = await db.get(
+                    'SELECT * FROM labour_site_history WHERE labour_id = ? AND from_date > ? ORDER BY from_date ASC LIMIT 1',
+                    [id, from_date]
+                );
+
+                if (nextHist) {
+                    const nextD = new Date(nextHist.from_date + 'T00:00:00Z');
+                    nextD.setUTCDate(nextD.getUTCDate() - 1);
+                    const newToDate = nextD.toISOString().split('T')[0];
+
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [id, site_id, from_date, newToDate]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [id, site_id, from_date, newToDate]);
+                } else {
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ?', [id, site_id, from_date]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ?', [id, site_id, from_date]);
+                }
+            }
+
             for (const id of selectedIdsSet) {
                 // 1. Find the next assignment starting strictly after from_date
                 const nextHist = await db.get(
@@ -418,6 +450,30 @@ router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => 
                     if (labour && Number(labour.site_id) === Number(site_id)) {
                         await db.run("UPDATE labours SET site_id = NULL, site = NULL, status = 'unassigned' WHERE id = ?", [h.labour_id]);
                     }
+                }
+            }
+
+            const unassignedHistoryIds = new Set(laboursToRemove.map(h => Number(h.labour_id)));
+            for (const id of selectedIdsSet) {
+                if (unassignedHistoryIds.has(id)) continue;
+
+                // No history record on this site, but they are being unassigned.
+                // Delete their attendance/overtime on this site on/after from_date
+                const nextHist = await db.get(
+                    'SELECT * FROM labour_site_history WHERE labour_id = ? AND from_date > ? ORDER BY from_date ASC LIMIT 1',
+                    [id, from_date]
+                );
+
+                if (nextHist) {
+                    const nextD = new Date(nextHist.from_date + 'T00:00:00Z');
+                    nextD.setUTCDate(nextD.getUTCDate() - 1);
+                    const newToDate = nextD.toISOString().split('T')[0];
+
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [id, site_id, from_date, newToDate]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [id, site_id, from_date, newToDate]);
+                } else {
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ?', [id, site_id, from_date]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ?', [id, site_id, from_date]);
                 }
             }
 
