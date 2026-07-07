@@ -251,6 +251,15 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
                     await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, h.id]);
                 }
 
+                // Delete attendance/overtime on this site from from_date onwards (since assignment is removed/shortened)
+                if (h.to_date) {
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [h.labour_id, site_id, from_date, h.to_date]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [h.labour_id, site_id, from_date, h.to_date]);
+                } else {
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ?', [h.labour_id, site_id, from_date]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ?', [h.labour_id, site_id, from_date]);
+                }
+
                 // If this removed assignment was their currently active assignment, update labours table
                 if (h.to_date === null) {
                     const labour = await db.get('SELECT site_id FROM labours WHERE id = ?', [h.labour_id]);
@@ -303,6 +312,27 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
                     await db.run(
                         'INSERT INTO labour_site_history (labour_id, site_id, from_date, to_date) VALUES (?, ?, ?, ?)',
                         [id, site_id, from_date, newToDate]
+                    );
+                }
+
+                // Update attendance & overtime records in the new assignment date range to point to the new site
+                if (newToDate) {
+                    await db.run(
+                        'UPDATE attendance SET site_id = ? WHERE labour_id = ? AND date >= ? AND date <= ?',
+                        [site_id, id, from_date, newToDate]
+                    );
+                    await db.run(
+                        'UPDATE overtime SET site_id = ? WHERE labour_id = ? AND date >= ? AND date <= ?',
+                        [site_id, id, from_date, newToDate]
+                    );
+                } else {
+                    await db.run(
+                        'UPDATE attendance SET site_id = ? WHERE labour_id = ? AND date >= ?',
+                        [site_id, id, from_date]
+                    );
+                    await db.run(
+                        'UPDATE overtime SET site_id = ? WHERE labour_id = ? AND date >= ?',
+                        [site_id, id, from_date]
                     );
                 }
 
@@ -371,6 +401,15 @@ router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => 
                     await db.run('DELETE FROM labour_site_history WHERE id = ?', [h.id]);
                 } else {
                     await db.run('UPDATE labour_site_history SET to_date = ? WHERE id = ?', [prevDate, h.id]);
+                }
+
+                // Delete attendance/overtime on this site from from_date onwards (since assignment is removed/shortened)
+                if (h.to_date) {
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [h.labour_id, site_id, from_date, h.to_date]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ? AND date <= ?', [h.labour_id, site_id, from_date, h.to_date]);
+                } else {
+                    await db.run('DELETE FROM attendance WHERE labour_id = ? AND site_id = ? AND date >= ?', [h.labour_id, site_id, from_date]);
+                    await db.run('DELETE FROM overtime WHERE labour_id = ? AND site_id = ? AND date >= ?', [h.labour_id, site_id, from_date]);
                 }
 
                 // If this removed assigning was their currently active assignment, set them to unassigned
