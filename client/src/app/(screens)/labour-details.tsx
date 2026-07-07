@@ -72,6 +72,7 @@ interface AdvanceRecord {
     amount: number;
     notes?: string;
     created_at: string;
+    creator_name?: string;
 }
 
 interface FinancialHistoryRecord {
@@ -1057,7 +1058,14 @@ export default function LabourDetailsScreen() {
                                     {filteredAdvances.map((rec) => (
                                         <View key={rec.id} style={local.recordRow}>
                                             <View style={local.recordLeft}>
-                                                <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
+                                                    {rec.creator_name ? (
+                                                        <Text style={[local.recordSub, { marginLeft: 6, marginTop: 0, color: isDark ? '#90caf9' : '#1565c0', fontWeight: '500' }]}>
+                                                            • Given by {rec.creator_name}
+                                                        </Text>
+                                                     ) : null}
+                                                </View>
                                                 {rec.notes ? (
                                                     <Text style={local.recordSub} numberOfLines={1}>{rec.notes}</Text>
                                                 ) : null}

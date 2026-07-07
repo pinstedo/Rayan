@@ -810,9 +810,10 @@ router.post('/:id/advance', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, r
 
     try {
         const db = await openDb();
+        const creatorId = created_by || (req.user ? req.user.id : null);
         const result = await db.run(
             `INSERT INTO advances (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-            [labour_id, amount, date, notes, created_by]
+            [labour_id, amount, date, notes, creatorId]
         );
 
         const newAdvance = await db.get('SELECT * FROM advances WHERE id = ?', [result.lastID]);
@@ -844,7 +845,11 @@ router.get('/:id/advances', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, r
     try {
         const db = await openDb();
         const advances = await db.all(
-            'SELECT * FROM advances WHERE labour_id = ? ORDER BY date DESC, created_at DESC',
+            `SELECT a.*, u.name as creator_name
+             FROM advances a
+             LEFT JOIN users u ON a.created_by = u.id
+             WHERE a.labour_id = ?
+             ORDER BY a.date DESC, a.created_at DESC`,
             [req.params.id]
         );
         res.json(advances);

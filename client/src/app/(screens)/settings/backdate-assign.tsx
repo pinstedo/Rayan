@@ -74,6 +74,33 @@ export default function BackdateAssign() {
         fetchData();
     }, []);
 
+    useEffect(() => {
+        if (selectedSite && date) {
+            fetchAssignedLabours();
+        } else {
+            setSelectedLabourIds(new Set());
+        }
+    }, [selectedSite, date]);
+
+    const fetchAssignedLabours = async () => {
+        if (!selectedSite) return;
+        try {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            const res = await api.get(`/labours/by-site-date?siteId=${selectedSite.id}&date=${dateStr}`);
+            if (res.ok) {
+                const data = await res.json();
+                const ids = data.map((l: any) => l.id);
+                setSelectedLabourIds(new Set(ids));
+            }
+        } catch (error) {
+            console.error("Fetch Assigned Labours Error:", error);
+        }
+    };
+
     const fetchData = async () => {
         setLoading(true);
         try {
