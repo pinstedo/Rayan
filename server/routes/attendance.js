@@ -259,9 +259,14 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         const stmt = await db.prepare(
             `INSERT INTO attendance (labour_id, site_id, supervisor_id, date, status, food_allowance, allowance, labour_status, site_id_snapshot) 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(labour_id, date) DO UPDATE SET status = excluded.status,
-               food_allowance = excluded.food_allowance, allowance = excluded.allowance,
-               labour_status = excluded.labour_status, site_id_snapshot = excluded.site_id_snapshot`
+             ON CONFLICT(labour_id, date) DO UPDATE SET 
+               site_id = excluded.site_id,
+               supervisor_id = excluded.supervisor_id,
+               status = excluded.status,
+               food_allowance = excluded.food_allowance, 
+               allowance = excluded.allowance,
+               labour_status = excluded.labour_status, 
+               site_id_snapshot = excluded.site_id_snapshot`
         );
 
         let supervisor_id_to_lock = null;

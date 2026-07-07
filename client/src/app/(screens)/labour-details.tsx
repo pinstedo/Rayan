@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Clipboard,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -14,10 +15,9 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    Clipboard,
 } from "react-native";
-import { CustomModal } from "../../components/CustomModal";
 import { Calendar } from "../../components/Calendar";
+import { CustomModal } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { getDailyWage } from "../../utils/wages";
@@ -1061,7 +1061,7 @@ export default function LabourDetailsScreen() {
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                                                     <Text style={local.recordDate}>{formatDate(rec.date)}</Text>
                                                     {rec.creator_name ? (
-                                                        <Text style={[local.recordSub, { marginLeft: 6, marginTop: 0, color: isDark ? '#90caf9' : '#1565c0', fontWeight: '500' }]}>
+                                                        <Text style={[local.recordSub, { marginLeft: 6, marginTop: 0, color: isDark ? '#90caf9' : '#1565c0', fontWeight: '500', fontSize: 14 }]}>
                                                             • Given by {rec.creator_name}
                                                         </Text>
                                                      ) : null}
