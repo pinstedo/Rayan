@@ -69,6 +69,37 @@ const getSalaryCutoffDate = (salaryEndDate: string) => {
     return formatDateInput(new Date(parsed.getFullYear(), parsed.getMonth() + 1, 10));
 };
 
+const getAdvanceStartDate = (salaryStartDate: string) => {
+    const parsed = parseDateInput(salaryStartDate);
+    return formatDateInput(new Date(parsed.getFullYear(), parsed.getMonth(), 10));
+};
+
+const getMonthOptions = () => {
+    const options = [];
+    const now = new Date();
+    // Generate last 12 months
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const monthNum = d.getMonth() + 1; // 1-12
+        const monthStr = String(monthNum).padStart(2, '0');
+        const key = `${year}-${monthStr}`; // "YYYY-MM"
+        const label = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }); // e.g. "Jun 2026"
+        const monthName = d.toLocaleDateString(undefined, { month: 'short' }); // e.g. "Jun"
+        options.push({ key, label, monthName, year });
+    }
+    // Reverse so it's in chronological order (oldest to newest)
+    return options.reverse();
+};
+
+const getRangeForMonthKey = (monthKey: string) => {
+    const [year, monthNum] = monthKey.split('-').map(Number);
+    const startDate = `${monthKey}-01`;
+    const lastDay = new Date(year, monthNum, 0).getDate();
+    const endDate = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
+    return { startDate, endDate };
+};
+
 const isValidDateInput = (value: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const parsed = new Date(`${value}T00:00:00`);
@@ -296,11 +327,30 @@ export default function WageReportScreen() {
     const [reportRange, setReportRange] = useState(initialRange);
     const [activeDatePicker, setActiveDatePicker] = useState<DatePickerField | null>(null);
 
+    // Month Selector additions
+    const monthOptions = useMemo(() => getMonthOptions(), []);
+    const defaultMonthKey = useMemo(() => {
+        const now = new Date();
+        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    }, []);
+    const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonthKey);
+    const [isCustomRange, setIsCustomRange] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (!isCustomRange) {
+            const range = getRangeForMonthKey(selectedMonth);
+            setReportRange(range);
+            setDraftStartDate(range.startDate);
+            setDraftEndDate(range.endDate);
+        }
+    }, [selectedMonth, isCustomRange]);
+
     const salaryCutoffDate = useMemo(() => getSalaryCutoffDate(reportRange.endDate), [reportRange.endDate]);
     const reportPayload = useMemo(() => ({
         startDate: reportRange.startDate,
         endDate: reportRange.endDate,
-        advanceStartDate: reportRange.startDate,
+        advanceStartDate: getAdvanceStartDate(reportRange.startDate),
         advanceEndDate: salaryCutoffDate,
     }), [reportRange, salaryCutoffDate]);
     const reportReference = `${reportRange.startDate}_${reportRange.endDate}`;
@@ -1242,44 +1292,109 @@ export default function WageReportScreen() {
             </View>
 
             <View style={local.controls}>
-                <View style={local.datePeriodBlock}>
-                    <View style={local.dateRangeHeader}>
-                        <View>
-                            <Text style={local.dateRangeTitle}>Salary Month</Text>
-                            <Text style={local.dateHelperText}>{reportPeriodLabel}</Text>
-                            <Text style={local.dateHelperText}>Payment/advance cutoff: {formatReportDate(salaryCutoffDate)}</Text>
-                        </View>
-                        <MaterialIcons name="date-range" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
-                    </View>
-                    <View style={local.dateInputGrid}>
-                        <View style={local.dateField}>
-                            <Text style={local.dateLabel}>From Date</Text>
-                            <TouchableOpacity
-                                style={local.dateInput}
-                                onPress={() => setActiveDatePicker('wageStart')}
+                {!isCustomRange ? (
+                    <View style={local.monthSelectorContainer}>
+                        <View style={local.monthSelectorHeader}>
+                            <Text style={local.monthSelectorLabel}>Salary Month</Text>
+                            <TouchableOpacity 
+                                style={local.customRangeToggleBtn}
+                                onPress={() => setIsCustomRange(true)}
                             >
-                                <Text style={local.dateInputText}>{formatReportDate(draftStartDate)}</Text>
-                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                                <MaterialIcons name="settings" size={16} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                                <Text style={local.customRangeToggleText}>Custom Range</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={local.dateField}>
-                            <Text style={local.dateLabel}>To Date</Text>
-                            <TouchableOpacity
-                                style={local.dateInput}
-                                onPress={() => setActiveDatePicker('wageEnd')}
-                            >
-                                <Text style={local.dateInputText}>{formatReportDate(draftEndDate)}</Text>
-                                <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
-                            </TouchableOpacity>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={local.monthScrollView}
+                            contentContainerStyle={local.monthScrollViewContent}
+                        >
+                            {monthOptions.map((opt) => {
+                                const isSelected = selectedMonth === opt.key;
+                                return (
+                                    <TouchableOpacity
+                                        key={opt.key}
+                                        style={[
+                                            local.monthChip,
+                                            isSelected && local.monthChipSelected
+                                        ]}
+                                        onPress={() => setSelectedMonth(opt.key)}
+                                    >
+                                        <Text style={[
+                                            local.monthChipText,
+                                            isSelected && local.monthChipTextSelected
+                                        ]}>
+                                            {opt.monthName}
+                                        </Text>
+                                        <Text style={[
+                                            local.monthChipYearText,
+                                            isSelected && local.monthChipYearTextSelected
+                                        ]}>
+                                            {opt.year}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                        
+                        <View style={{ marginTop: 12 }}>
+                            <Text style={local.dateHelperText}>Salary Range: {reportPeriodLabel}</Text>
+                            <Text style={local.dateHelperText}>
+                                Advance Range: {formatReportDate(getAdvanceStartDate(reportRange.startDate))} to {formatReportDate(salaryCutoffDate)}
+                            </Text>
                         </View>
                     </View>
-                </View>
+                ) : (
+                    <View style={local.datePeriodBlock}>
+                        <View style={local.dateRangeHeader}>
+                            <View>
+                                <Text style={local.dateRangeTitle}>Custom Salary Range</Text>
+                                <Text style={local.dateHelperText}>Salary Range: {reportPeriodLabel}</Text>
+                                <Text style={local.dateHelperText}>
+                                    Advance Range: {formatReportDate(getAdvanceStartDate(reportRange.startDate))} to {formatReportDate(salaryCutoffDate)}
+                                </Text>
+                            </View>
+                            <TouchableOpacity 
+                                style={[local.customRangeToggleBtn, local.customRangeToggleBtnSelected]}
+                                onPress={() => setIsCustomRange(false)}
+                            >
+                                <MaterialIcons name="calendar-today" size={16} color={isDark ? "#4da6ff" : "#0a84ff"} />
+                                <Text style={local.customRangeToggleText}>Quick Months</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={local.dateInputGrid}>
+                            <View style={local.dateField}>
+                                <Text style={local.dateLabel}>From Date</Text>
+                                <TouchableOpacity
+                                    style={local.dateInput}
+                                    onPress={() => setActiveDatePicker('wageStart')}
+                                >
+                                    <Text style={local.dateInputText}>{formatReportDate(draftStartDate)}</Text>
+                                    <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                                </TouchableOpacity>
+                            </View>
+                            <View style={local.dateField}>
+                                <Text style={local.dateLabel}>To Date</Text>
+                                <TouchableOpacity
+                                    style={local.dateInput}
+                                    onPress={() => setActiveDatePicker('wageEnd')}
+                                >
+                                    <Text style={local.dateInputText}>{formatReportDate(draftEndDate)}</Text>
+                                    <MaterialIcons name="calendar-today" size={18} color={isDark ? "#aaa" : "#666"} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
                 <View style={local.actionsRow}>
-                    <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
-                        <MaterialIcons name="check" size={18} color="#fff" />
-                        <Text style={local.applyRangeText}>Apply</Text>
-                    </TouchableOpacity>
+                    {isCustomRange && (
+                        <TouchableOpacity style={local.applyRangeBtn} onPress={applyDateRange}>
+                            <MaterialIcons name="check" size={18} color="#fff" />
+                            <Text style={local.applyRangeText}>Apply</Text>
+                        </TouchableOpacity>
+                    )}
 
                     <TouchableOpacity style={local.sortSelectBtn} onPress={() => setShowSortPicker(true)}>
                         <MaterialIcons name="sort" size={18} color={isDark ? "#4da6ff" : "#0a84ff"} style={{ marginRight: 2 }} />
@@ -1484,6 +1599,79 @@ export default function WageReportScreen() {
 
 const getStyles = (isDark: boolean) => StyleSheet.create({
     container: { flex: 1, backgroundColor: isDark ? '#121212' : '#f5f5f5', paddingTop: 40 },
+    monthSelectorContainer: {
+        marginBottom: 14,
+    },
+    monthSelectorHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    monthSelectorLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: isDark ? '#fff' : '#333',
+    },
+    monthScrollView: {
+        flexGrow: 0,
+    },
+    monthScrollViewContent: {
+        paddingVertical: 4,
+        gap: 8,
+        flexDirection: 'row',
+    },
+    monthChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: isDark ? '#2a2a2a' : '#eaeaea',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: isDark ? '#333' : '#ddd',
+        minWidth: 80,
+    },
+    monthChipSelected: {
+        backgroundColor: '#0a84ff',
+        borderColor: '#0a84ff',
+    },
+    monthChipText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: isDark ? '#ccc' : '#444',
+    },
+    monthChipTextSelected: {
+        color: '#fff',
+    },
+    monthChipYearText: {
+        fontSize: 10,
+        color: isDark ? '#999' : '#777',
+        marginTop: 2,
+    },
+    monthChipYearTextSelected: {
+        color: '#e0f0ff',
+    },
+    customRangeToggleBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: isDark ? '#333' : '#ddd',
+        backgroundColor: isDark ? '#2a2a2a' : '#fafafa',
+        gap: 4,
+    },
+    customRangeToggleBtnSelected: {
+        backgroundColor: isDark ? '#1a2b3c' : '#e6f0ff',
+        borderColor: isDark ? '#4da6ff' : '#0a84ff',
+    },
+    customRangeToggleText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: isDark ? '#4da6ff' : '#0a84ff',
+    },
     headerRow: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         paddingHorizontal: 20, paddingBottom: 15, backgroundColor: isDark ? '#1e1e1e' : '#fff',
