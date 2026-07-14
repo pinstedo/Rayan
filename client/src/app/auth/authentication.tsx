@@ -64,7 +64,7 @@ export default function SignUpScreen() {
           Alert.alert(
             "Approval Required",
             "Your admin account request has been sent to existing administrators for approval. You will be able to log in once they grant you access.",
-            [{ text: "OK", onPress: () => router.push("/auth/authentication2" as any) }]
+            [{ text: "OK", onPress: () => router.push("/auth/verificationau" as any) }]
           );
         } else {
           await AsyncStorage.setItem("userData", JSON.stringify(data.user));
@@ -169,7 +169,7 @@ export default function SignUpScreen() {
 
         <View style={styles.footerContainer}>
           <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/auth/authentication2" as any)}>
+          <TouchableOpacity onPress={() => router.push("/auth/verificationau" as any)}>
             <Text style={styles.signInLink}>Sign In</Text>
           </TouchableOpacity>
         </View>

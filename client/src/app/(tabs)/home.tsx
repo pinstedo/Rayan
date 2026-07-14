@@ -338,7 +338,7 @@ export default function HomeScreen() {
 								<Text style={local.emptyText}>No recent activity</Text>
 							</View>
 						) : (
-							filteredRecent.map((r: string, i: number) => {
+							filteredRecent.slice(0, 5).map((r: string, i: number) => {
 								const parts = r.split(' • ');
 								const actionText = parts[0] || r;
 								const timeText = parts.length > 1 ? parts[1] : '';
@@ -485,7 +485,7 @@ export default function HomeScreen() {
 									recent.length === 0 ? (
 										<Text style={{ textAlign: 'center', color: isDark ? '#aaa' : '#666', marginTop: 20, marginBottom: 20 }}>No recent activity.</Text>
 									) : (
-										recent.map((r: string, i: number) => {
+										recent.slice(0, 5).map((r: string, i: number) =>{
 											const parts = r.split(' • ');
 											const actionText = parts[0] || r;
 											const timeText = parts.length > 1 ? parts[1] : '';

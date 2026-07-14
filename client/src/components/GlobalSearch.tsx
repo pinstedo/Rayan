@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../services/api';
 
@@ -12,7 +13,23 @@ export default function GlobalSearch() {
     const [results, setResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        const checkRole = async () => {
+            try {
+                const userDataStr = await AsyncStorage.getItem("userData");
+                if (userDataStr) {
+                    const userData = JSON.parse(userDataStr);
+                    setIsAdmin(userData.role === "admin");
+                }
+            } catch (error) {
+                console.error("Error loading user role in GlobalSearch:", error);
+            }
+        };
+        checkRole();
+    }, []);
 
     useEffect(() => {
         if (!query.trim()) {
@@ -57,6 +74,9 @@ export default function GlobalSearch() {
             case 'user':
                 router.push(`/(screens)/supervisor-details?id=${item.id}`);
                 break;
+            case 'screen':
+                router.push(item.route as any);
+                break;
         }
     };
 
@@ -68,7 +88,7 @@ export default function GlobalSearch() {
                 <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.icon} />
                 <TextInput
                     style={styles.input}
-                    placeholder="Search labours, sites, supervisors..."
+                    placeholder={isAdmin ? "Search screens, labours, sites..." : "Search labours, sites..."}
                     placeholderTextColor={colors.textSecondary}
                     value={query}
                     onChangeText={(t) => {
@@ -109,7 +129,7 @@ export default function GlobalSearch() {
                                             <Image source={{ uri: item.profile_image }} style={styles.image} />
                                         ) : (
                                             <Ionicons
-                                                name={item.type === 'site' ? 'business' : item.type === 'user' ? 'person-circle' : 'person'}
+                                                name={item.type === 'site' ? 'business' : item.type === 'user' ? 'person-circle' : item.type === 'screen' ? 'compass' : 'person'}
                                                 size={20}
                                                 color={colors.primary}
                                             />
@@ -120,7 +140,8 @@ export default function GlobalSearch() {
                                         <Text style={styles.resultSubtitle}>
                                             {item.type === 'labour' ? `Labour • ${item.trade || 'Worker'} • ${item.phone || ''}` :
                                                 item.type === 'site' ? `Site • ${item.address || ''}` :
-                                                    `Supervisor • ${item.phone || ''}`}
+                                                    item.type === 'screen' ? `Menu Feature` :
+                                                        `Supervisor • ${item.phone || ''}`}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
@@ -147,7 +168,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
-        shadowColor: "#000",
+        shadowColor: "#e80000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -163,7 +184,12 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
         fontSize: 16,
         color: colors.textPrimary,
         fontWeight: "500",
-    },
+        ...Platform.select({
+            web: {
+                outlineStyle: 'none',
+            }
+        })
+    } as any,
     dropdown: {
         position: 'absolute',
         top: 60,

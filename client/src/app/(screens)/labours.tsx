@@ -86,6 +86,16 @@ export default function Labours() {
 		}
 	});
 
+	useEffect(() => {
+		listManager.setConfig(prev => ({
+			...prev,
+			search: {
+				fields: isAdmin ? ["name", "phone", "trade", "aadhaar", "site"] : ["name", "phone"],
+				text: prev.search?.text || ""
+			}
+		}));
+	}, [isAdmin]);
+
 	// Assignment Modal State
 	const [showSitePicker, setShowSitePicker] = useState(false);
 	const [selectedLabour, setSelectedLabour] = useState<Labour | null>(null);
@@ -354,7 +364,7 @@ export default function Labours() {
 				<SearchBar
 					value={listManager.searchText}
 					onChangeText={listManager.setSearchText}
-					placeholder="Search by name, phone, trade..."
+					placeholder={isAdmin ? "Search by name, phone, trade, Aadhaar, site..." : "Search by name, phone..."}
 					style={local.searchBar}
 				/>
 				<View style={local.actionRow}>

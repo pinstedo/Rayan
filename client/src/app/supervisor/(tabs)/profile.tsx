@@ -111,7 +111,7 @@ export default function SupervisorProfile() {
                 console.error("Logout error:", error);
             } finally {
                 await AsyncStorage.clear();
-                router.replace("/auth/authentication2" as any);
+                router.replace("/auth/verificationau" as any);
             }
         };
 

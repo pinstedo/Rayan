@@ -65,7 +65,7 @@ export default function CreateNewPasswordScreen() {
         Alert.alert(
           "Success",
           "Password updated successfully! Please sign in with your new password.",
-          [{ text: "OK", onPress: () => router.replace("/auth/authentication2" as any) }]
+          [{ text: "OK", onPress: () => router.replace("/auth/verificationau" as any) }]
         );
       } else {
         Alert.alert("Failed to change password", data.error || "Please check your temporary password.");
@@ -80,7 +80,7 @@ export default function CreateNewPasswordScreen() {
 
   const handleLogout = async () => {
     await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
-    router.replace("/auth/authentication2" as any);
+    router.replace("/auth/verificationau" as any);
   };
 
   return (

@@ -71,7 +71,7 @@ export default function SplashScreen() {
 			}
 
 			// Default to login if checks fail
-			router.replace("/auth/authentication2" as any);
+			router.replace("/auth/verificationau" as any);
 		};
 
 		// Minimal delay to show splash

@@ -84,7 +84,7 @@ export function Sidebar({
 								console.error("Sidebar logout error:", e);
 							} finally {
 								await AsyncStorage.clear();
-								router.replace("/auth/authentication2" as any);
+								router.replace("/auth/verificationau" as any);
 							}
 						};
 						if (Platform.OS === "web") {

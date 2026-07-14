@@ -88,7 +88,7 @@ export default function OwnerDashboard() {
 
   const logout = async () => {
     await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
-    router.replace("/auth/authentication2" as any);
+    router.replace("/auth/verificationau" as any);
   };
 
   const summary = data?.summary;

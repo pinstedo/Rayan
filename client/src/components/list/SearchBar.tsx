@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, TextInput, ActivityIndicator, TouchableOpacity, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { ActivityIndicator, Platform, StyleProp, StyleSheet, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 
 interface SearchBarProps {
@@ -44,7 +44,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
-        shadowColor: "#000",
+        shadowColor: "#bc0606",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -60,5 +60,10 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
         fontSize: 16,
         color: colors.textPrimary,
         fontWeight: "500",
-    },
+        ...Platform.select({
+            web: {
+                outlineStyle: 'none',
+            }
+        })
+    } as any,
 });

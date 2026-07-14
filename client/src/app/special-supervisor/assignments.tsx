@@ -86,7 +86,7 @@ export default function SpecialSupervisorAssignments() {
 
   const logout = async () => {
     await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
-    router.replace("/auth/authentication2" as any);
+    router.replace("/auth/verificationau" as any);
   };
 
   const runAction = async (labour: Labour, action: () => Promise<Response>, success: string) => {
