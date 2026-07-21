@@ -73,6 +73,7 @@ interface AdvanceRecord {
     notes?: string;
     created_at: string;
     creator_name?: string;
+    created_by?: number;
 }
 
 interface FinancialHistoryRecord {
@@ -102,6 +103,7 @@ export default function LabourDetailsScreen() {
     const [labour, setLabour] = useState<Labour | null>(null);
     const [formData, setFormData] = useState<Partial<Labour>>({});
     const [userRole, setUserRole] = useState<string>("");
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
     // Forgot/Reset Password States
     const [adminPasswordModalVisible, setAdminPasswordModalVisible] = useState(false);
@@ -164,6 +166,7 @@ export default function LabourDetailsScreen() {
                 if (userDataStr) {
                     const userData = JSON.parse(userDataStr);
                     setUserRole(userData.role);
+                    setCurrentUserId(userData.id);
                 }
             } catch (error) {
                 console.error("Error loading user role:", error);
@@ -633,7 +636,13 @@ export default function LabourDetailsScreen() {
     const filteredOvertime = overtime.filter(r => r.date && r.date.startsWith(selectedMonth));
     const otStats = getOvertimeStats(filteredOvertime);
 
-    const filteredAdvances = advances.filter(r => r.date && r.date.startsWith(selectedMonth));
+    const filteredAdvances = advances.filter(r => {
+        const matchesMonth = r.date && r.date.startsWith(selectedMonth);
+        if (userRole === "supervisor") {
+            return matchesMonth && Number(r.created_by) === Number(currentUserId);
+        }
+        return matchesMonth;
+    });
     const advStats = getAdvancesStats(filteredAdvances);
 
     const filteredFinancial = financialHistory.filter(r => r.created_at && r.created_at.startsWith(selectedMonth));
@@ -1032,9 +1041,7 @@ export default function LabourDetailsScreen() {
                         <>
                             {/* Total */}
                             <View style={local.statsRow}>
-                                {userRole !== 'supervisor' && (
-                                    <StatBox label="Total Advanced" value={`₹${advStats.total.toFixed(0)}`} color={isDark ? '#ef9a9a' : '#c62828'} />
-                                )}
+                                <StatBox label="Total Advanced" value={`₹${advStats.total.toFixed(0)}`} color={isDark ? '#ef9a9a' : '#c62828'} />
                                 <StatBox label="No. of Advances" value={filteredAdvances.length} />
                             </View>
 
@@ -1053,6 +1060,8 @@ export default function LabourDetailsScreen() {
                                 />
                             </TouchableOpacity>
 
+                           
+
                             {isAdvancesDetailsExpanded && (
                                 <View style={local.accordionBody}>
                                     {filteredAdvances.map((rec) => (
@@ -1065,16 +1074,16 @@ export default function LabourDetailsScreen() {
                                                             • Given by {rec.creator_name}
                                                         </Text>
                                                      ) : null}
+
+                                              
                                                 </View>
                                                 {rec.notes ? (
                                                     <Text style={local.recordSub} numberOfLines={1}>{rec.notes}</Text>
                                                 ) : null}
                                             </View>
-                                            {userRole !== 'supervisor' && (
-                                                <Text style={[local.recordPrimary, { color: isDark ? '#ef9a9a' : '#c62828' }]}>
-                                                    ₹{rec.amount}
-                                                </Text>
-                                            )}
+                                            <Text style={[local.recordPrimary, { color: isDark ? '#ef9a9a' : '#c62828' }]}>
+                                                ₹{rec.amount}
+                                            </Text>
                                         </View>
                                     ))}
                                 </View>

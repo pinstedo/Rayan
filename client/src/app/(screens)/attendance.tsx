@@ -702,7 +702,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		backgroundColor: isDark ? '#1e1e1e' : '#fff',
 		borderBottomWidth: 1,
 		borderBottomColor: isDark ? '#333' : '#eee',
-		marginTop: 20
+		
 	},
 	backButton: { padding: 8 },
 	title: {

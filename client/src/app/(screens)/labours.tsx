@@ -11,6 +11,7 @@ import {
 	TouchableOpacity,
 	View
 } from "react-native";
+import { AdvanceModal } from "../../components/AdvanceModal";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
@@ -34,6 +35,7 @@ interface Labour {
 	site_id?: number;
 	status?: 'active' | 'unassigned' | 'leave' | 'pending';
 	created_at?: string;
+	monthly_advance?: number;
 }
 
 const sortOptions: SortOption[] = [
@@ -74,6 +76,10 @@ export default function Labours() {
 	const [allLabours, setAllLabours] = useState<Labour[]>([]);
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
+	const [userRole, setUserRole] = useState<string | null>(null);
+	const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+	const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+	const [selectedLabourForAdvance, setSelectedLabourForAdvance] = useState<Labour | null>(null);
 
 	const listManager = useListManager<Labour>({
 		initialData: allLabours,
@@ -131,6 +137,8 @@ export default function Labours() {
 			if (userDataStr) {
 				const userData = JSON.parse(userDataStr);
 				setIsAdmin(userData.role === "admin");
+				setUserRole(userData.role);
+				setCurrentUserId(userData.id);
 				await fetchLabours(userData.role === "supervisor" ? userData.id : supervisorId, isRefresh);
 				if (userData.role === "admin") {
 					await fetchSites();
@@ -292,6 +300,13 @@ export default function Labours() {
 		);
 	};
 
+	const canManageAdvance = userRole === "admin" || userRole === "supervisor";
+
+	const handleOpenAdvance = (labour: Labour) => {
+		setSelectedLabourForAdvance(labour);
+		setShowAdvanceModal(true);
+	};
+
 	const statusFilter = listManager.config.filters?.find(f => f.field === 'status');
 	const viewType = statusFilter ? statusFilter.value : 'all';
 
@@ -396,6 +411,7 @@ export default function Labours() {
 								onUnassign={handleUnassign}
 								onRevoke={handleEndLeave}
 								onMarkLeave={handleMarkLeave}
+								onAdvance={canManageAdvance ? handleOpenAdvance : undefined}
 								onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
 							/>
 						);
@@ -472,6 +488,14 @@ export default function Labours() {
 				type={modalConfig.type}
 				actions={modalConfig.actions}
 			/>
+
+			<AdvanceModal
+				visible={showAdvanceModal}
+				onClose={() => setShowAdvanceModal(false)}
+				onSuccess={onRefresh}
+				labour={selectedLabourForAdvance}
+				currentUserId={currentUserId}
+			/>
 		</ScrollView>
 	);
 }
@@ -479,7 +503,6 @@ export default function Labours() {
 const getStyles = (isDark: boolean) => StyleSheet.create({
 	container: {
 		flex: 1,
-		paddingTop: 40,
 		backgroundColor: isDark ? "#121212" : "#f5f5f5",
 	},
 	headerRow: {
@@ -488,7 +511,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "space-between",
 		paddingHorizontal: 20,
-		paddingBottom: 16,
+		paddingVertical: 15,
 		backgroundColor: isDark ? "#1e1e1e" : "#fff",
 		borderBottomWidth: 1,
 		borderBottomColor: isDark ? "#333" : "#eee",

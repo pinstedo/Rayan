@@ -19,7 +19,6 @@ interface Site {
 const options = [
     { key: "attendance", icon: "check-circle", title: "Attendance", desc: "Record and view attendance" },
     { key: "labours", icon: "group", title: "Labours", desc: "View assigned labours" },
-    { key: "advance", icon: "account-balance-wallet", title: "Advance", desc: "Manage advances" },
 ];
 
 export default function SupervisorHome(): JSX.Element {
@@ -123,10 +122,6 @@ export default function SupervisorHome(): JSX.Element {
         if (key === "labours") {
             // Navigate to shared labours screen, it will handle fetching based on role/id
             router.push("/(screens)/labours?view=flat");
-            return;
-        }
-        if (key === "advance") {
-            router.push("/(screens)/advance");
             return;
         }
         // navigate to dedicated management screen (ensure routes exist or create them)

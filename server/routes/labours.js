@@ -25,42 +25,56 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
         const db = await openDb();
         const { supervisor_id, status } = req.query;
 
-        let query = 'SELECT * FROM labours';
+        let advanceSubquery;
+        if (req.user?.role === ROLES.SUPERVISOR) {
+            const creatorId = Number(req.user.id);
+            advanceSubquery = `(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM advances
+                WHERE labour_id = l.id
+                  AND LEFT(date, 7) = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
+                  AND created_by = ${creatorId}
+            ) as monthly_advance`;
+        } else {
+            advanceSubquery = `(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM advances
+                WHERE labour_id = l.id
+                  AND LEFT(date, 7) = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
+            ) as monthly_advance`;
+        }
+
+        let query = `SELECT l.*, ${advanceSubquery} FROM labours l`;
         const params = [];
         const conditions = [];
 
         // Status filtering
         if (status === 'active' || status === 'assigned') {
-            conditions.push("site_id IS NOT NULL AND status != 'leave' AND status != 'pending'");
+            conditions.push("l.site_id IS NOT NULL AND l.status != 'leave' AND l.status != 'pending'");
         } else if (status === 'unassigned') {
-            conditions.push("site_id IS NULL AND status != 'leave' AND status != 'pending'");
+            conditions.push("l.site_id IS NULL AND l.status != 'leave' AND l.status != 'pending'");
         } else if (status === 'leave') {
-            conditions.push("status = 'leave'");
+            conditions.push("l.status = 'leave'");
         } else if (status === 'pending') {
-            conditions.push("status = 'pending'");
+            conditions.push("l.status = 'pending'");
         } else {
             // Default behavior: return all if not specified
         }
 
         if (supervisor_id) {
-            query = `
-                SELECT l.* 
-                FROM labours l
-                JOIN site_supervisors ss ON l.site_id = ss.site_id
-            `;
             conditions.push('ss.supervisor_id = ?');
             params.push(supervisor_id);
             conditions.push("l.status = 'active'");
         }
 
         if (req.user?.role === ROLES.SPECIAL_SUPERVISOR) {
-            conditions.push("status IN ('active', 'unassigned', 'leave')");
+            conditions.push("l.status IN ('active', 'unassigned', 'leave')");
         }
 
         if (conditions.length > 0) {
             if (supervisor_id) {
                 query = `
-                    SELECT l.* 
+                    SELECT l.*, ${advanceSubquery}
                     FROM labours l
                     JOIN site_supervisors ss ON l.site_id = ss.site_id
                     WHERE ss.supervisor_id = ? AND l.status = 'active'
@@ -72,7 +86,7 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
             }
         }
 
-        query += ' ORDER BY created_at DESC';
+        query += ' ORDER BY l.created_at DESC';
 
         const labours = await db.all(query, params);
         res.json(withWageCompatibilityList(labours));
