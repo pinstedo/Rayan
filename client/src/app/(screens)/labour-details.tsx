@@ -510,6 +510,17 @@ export default function LabourDetailsScreen() {
         return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
     };
 
+    const formatCustomRange = (yyyyMm: string) => {
+        try {
+            const [year, month] = yyyyMm.split('-').map(Number);
+            const startDate = new Date(year, month - 1, 10);
+            const endDate = new Date(year, month, 10);
+            return `${startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} to ${endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+        } catch {
+            return yyyyMm;
+        }
+    };
+
     const getOvertimeStats = (data: OvertimeRecord[]) => {
         const totalHours = data.reduce((sum, r) => sum + (r.hours || 0), 0);
         const totalAmount = data.reduce((sum, r) => sum + (r.amount || 0), 0);
@@ -637,11 +648,25 @@ export default function LabourDetailsScreen() {
     const otStats = getOvertimeStats(filteredOvertime);
 
     const filteredAdvances = advances.filter(r => {
-        const matchesMonth = r.date && r.date.startsWith(selectedMonth);
-        if (userRole === "supervisor") {
-            return matchesMonth && Number(r.created_by) === Number(currentUserId);
+        if (userRole === "admin") {
+            if (!r.date) return false;
+            const [year, month] = selectedMonth.split('-').map(Number);
+            const startDateStr = `${year}-${String(month).padStart(2, '0')}-10`;
+            let nextYear = year;
+            let nextMonth = month + 1;
+            if (nextMonth > 12) {
+                nextMonth = 1;
+                nextYear += 1;
+            }
+            const endDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-10`;
+            return r.date >= startDateStr && r.date <= endDateStr;
+        } else {
+            const matchesMonth = r.date && r.date.startsWith(selectedMonth);
+            if (userRole === "supervisor") {
+                return matchesMonth && Number(r.created_by) === Number(currentUserId);
+            }
+            return matchesMonth;
         }
-        return matchesMonth;
     });
     const advStats = getAdvancesStats(filteredAdvances);
 
@@ -1030,6 +1055,19 @@ export default function LabourDetailsScreen() {
                 {/* ══════════════════════════════════════ */}
                 <SectionCard>
                     <SectionHeader title="Advances" icon="cash-multiple" count={filteredAdvances.length} />
+
+                    {userRole === 'admin' && (
+                        <Text style={{ 
+                            fontSize: 13, 
+                            color: isDark ? '#90caf9' : '#1565c0', 
+                            fontWeight: '600', 
+                            marginTop: 4, 
+                            marginBottom: 8,
+                            paddingHorizontal: 4 
+                        }}>
+                            Range: {formatCustomRange(selectedMonth)}
+                        </Text>
+                    )}
 
                     {loadingAdvances ? (
                         <SectionLoading />

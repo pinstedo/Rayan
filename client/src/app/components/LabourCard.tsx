@@ -29,16 +29,32 @@ interface LabourCardProps {
     showMoveAction?: boolean;
     hideRate?: boolean;
     onPress?: (labour: Labour) => void;
+    isAdmin?: boolean;
 }
 
-export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onMarkLeave, onPress, showMoveAction = false, hideRate = false }: LabourCardProps) => {
+export const LabourCard = ({ labour, onMove, onUnassign, onRevoke, onAdvance, onMarkLeave, onPress, showMoveAction = false, hideRate = false, isAdmin = false }: LabourCardProps) => {
     const { isDark } = useTheme();
     const styles = getStyles(isDark);
     const months = [
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
     ];
-    const currentMonthName = months[new Date().getMonth()];
+    
+    const getAdvanceMonthName = () => {
+        if (isAdmin) {
+            const today = new Date();
+            const day = today.getDate();
+            let monthIndex = today.getMonth(); // 0-11
+            if (day < 10) {
+                // If it's before the 10th, the current calculation period is for the previous month
+                monthIndex = (monthIndex - 1 + 12) % 12;
+            }
+            return months[monthIndex];
+        }
+        return months[new Date().getMonth()];
+    };
+
+    const currentMonthName = getAdvanceMonthName();
 
     const getStatusColor = (status?: string) => {
         switch (status) {

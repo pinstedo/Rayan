@@ -44,7 +44,14 @@ router.get('/owner-daily', authorizeRole(OWNER_ROLES), async (req, res) => {
                 s.id,
                 s.name,
                 s.address,
-                s.status,
+                COALESCE(
+                  (SELECT sh.status FROM site_status_history sh 
+                   WHERE sh.site_id = s.id 
+                     AND sh.from_date <= ? 
+                     AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                   ORDER BY sh.from_date DESC LIMIT 1),
+                  s.status
+                ) as status,
                 s.completion_percentage,
                 COUNT(DISTINCT CASE WHEN l.status = 'active' THEN l.id END) as active_labour_count,
                 COUNT(DISTINCT l.id) as total_labour_count,
@@ -57,7 +64,7 @@ router.get('/owner-daily', authorizeRole(OWNER_ROLES), async (req, res) => {
             LEFT JOIN attendance a ON a.site_id = s.id AND a.date = ?
             GROUP BY s.id
             ORDER BY s.name ASC
-        `, [date]);
+        `, [date, date, date]);
 
         const advanceRows = await db.all(`
             SELECT
@@ -74,10 +81,21 @@ router.get('/owner-daily', authorizeRole(OWNER_ROLES), async (req, res) => {
         `, [date]);
 
         const siteStatusSummary = await db.all(`
-            SELECT COALESCE(status, 'active') as status, COUNT(*) as count
-            FROM sites
-            GROUP BY COALESCE(status, 'active')
-        `);
+            SELECT status, COUNT(*) as count
+            FROM (
+                SELECT 
+                    COALESCE(
+                      (SELECT sh.status FROM site_status_history sh 
+                       WHERE sh.site_id = s.id 
+                         AND sh.from_date <= ? 
+                         AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                       ORDER BY sh.from_date DESC LIMIT 1),
+                      s.status
+                    ) as status
+                FROM sites s
+            ) t
+            GROUP BY status
+        `, [date, date]);
 
         const totals = siteRows.reduce((acc, site) => {
             const full = Number(site.full_count) || 0;

@@ -526,10 +526,10 @@ export default function BonusAttendanceReportScreen() {
 }
 
 const getStyles = (isDark: boolean) => StyleSheet.create({
-    container: { flex: 1, backgroundColor: isDark ? '#121212' : '#f5f5f5', paddingTop: 40 },
+    container: { flex: 1, backgroundColor: isDark ? '#121212' : '#f5f5f5' },
     headerRow: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 20, paddingBottom: 15, backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        paddingHorizontal: 20, paddingVertical: 15, backgroundColor: isDark ? '#1e1e1e' : '#fff',
         borderBottomWidth: 1, borderBottomColor: isDark ? '#333' : '#eee'
     },
     backBtn: { padding: 5 },

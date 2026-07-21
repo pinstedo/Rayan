@@ -203,13 +203,12 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: isDark ? '#0e0e0e' : '#f0f2f5',
-        paddingTop: 40,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingBottom: 16,
+        paddingVertical: 15,
         backgroundColor: isDark ? '#1e1e1e' : '#fff',
         borderBottomWidth: 1,
         borderBottomColor: isDark ? '#333' : '#eee',

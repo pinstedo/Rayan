@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from '../../../components/RefreshFeedback';
+import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
 import { useListManager } from '../../../hooks/useListManager';
-import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from '../../../components/RefreshFeedback';
-import { SearchBar, FilterPanel, SortSelector, SortOption, FilterOption } from '../../../components/list';
 
 interface HistoryLog {
   id: number;
@@ -190,9 +190,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 60,
+    
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingVertical: 15,
     backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: isDark ? "#334155" : "#E2E8F0",

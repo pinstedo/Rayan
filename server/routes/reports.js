@@ -16,7 +16,14 @@ router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (r
             SELECT 
                 s.id as site_id,
                 s.name as site_name,
-                s.status,
+                COALESCE(
+                  (SELECT sh.status FROM site_status_history sh 
+                   WHERE sh.site_id = s.id 
+                     AND sh.from_date <= ? 
+                     AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                   ORDER BY sh.from_date DESC LIMIT 1),
+                  s.status
+                ) as status,
                 CASE 
                     WHEN MAX(CASE WHEN d.site_id IS NOT NULL THEN 1 ELSE 0 END) = 1 
                         THEN (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ?)
@@ -35,13 +42,19 @@ router.post('/site-attendance', authorizeRole(['admin', 'supervisor']), async (r
                 MAX(CASE WHEN d.site_id IS NOT NULL THEN 1 ELSE 0 END) as is_submitted
             FROM sites s
             LEFT JOIN daily_site_attendance_status d ON s.id = d.site_id AND d.date = ?
-            WHERE s.status = 'active'
-           
+            WHERE COALESCE(
+                  (SELECT sh.status FROM site_status_history sh 
+                   WHERE sh.site_id = s.id 
+                     AND sh.from_date <= ? 
+                     AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                   ORDER BY sh.from_date DESC LIMIT 1),
+                  s.status
+                ) = 'active'
             OR d.site_id IS NOT NULL 
                OR (SELECT COUNT(*) FROM attendance a WHERE a.site_id = s.id AND a.date = ?) > 0
             GROUP BY s.id
         `;
-        const reports = await db.all(query, [date, date, date, date, date, date, date, date]);
+        const reports = await db.all(query, Array(12).fill(date));
         res.json(reports);
     } catch (err) {
         console.error('Error serving site attendance report:', err);
@@ -895,6 +908,96 @@ router.post('/bonus-attendance-range', authorizeRole(['admin', 'supervisor']), a
 
     } catch (err) {
         console.error('Error generating bonus/attendance report:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/reports/submission-summary - Returns dates in a month where all active sites have submitted attendance
+router.post('/submission-summary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+    const { month, year } = req.body;
+
+    if (!month || !year) {
+        return res.status(400).json({ error: 'Month and year are required' });
+    }
+
+    try {
+        const db = await openDb();
+        const startMonthStr = month.toString().padStart(2, '0');
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const startDate = `${year}-${startMonthStr}-01`;
+        const endDate = `${year}-${startMonthStr}-${daysInMonth.toString().padStart(2, '0')}`;
+
+        const sites = await db.all(`
+            SELECT s.id, s.status, s.created_at
+            FROM sites s
+        `);
+        
+        const history = await db.all(`
+            SELECT site_id, status, from_date, to_date 
+            FROM site_status_history
+            WHERE from_date <= ? AND (to_date IS NULL OR to_date >= ?)
+        `, [endDate, startDate]);
+
+        const submissions = await db.all(`
+            SELECT site_id, date 
+            FROM daily_site_attendance_status
+            WHERE date >= ? AND date <= ?
+        `, [startDate, endDate]);
+
+        function getSiteStatusOnDate(siteId, dateStr) {
+            const hist = history.find(h => 
+                h.site_id === siteId && 
+                h.from_date <= dateStr && 
+                (h.to_date === null || h.to_date >= dateStr)
+            );
+            if (hist) return hist.status;
+            const siteRecord = sites.find(s => s.id === siteId);
+            return siteRecord ? siteRecord.status : 'inactive';
+        }
+
+        const markedDates = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${startMonthStr}-${d.toString().padStart(2, '0')}`;
+            
+            const activeSiteIds = sites
+                .filter(s => {
+                    let createdDateStr = '1970-01-01';
+                    if (s.created_at) {
+                        try {
+                            const cDate = new Date(s.created_at);
+                            if (!isNaN(cDate.getTime())) {
+                                const cy = cDate.getFullYear();
+                                const cm = String(cDate.getMonth() + 1).padStart(2, '0');
+                                const cd = String(cDate.getDate()).padStart(2, '0');
+                                createdDateStr = `${cy}-${cm}-${cd}`;
+                            }
+                        } catch (e) {}
+                    }
+                    if (dateStr < createdDateStr) return false;
+                    
+                    const statusOnDay = getSiteStatusOnDate(s.id, dateStr);
+                    return statusOnDay === 'active';
+                })
+                .map(s => s.id);
+                
+            if (activeSiteIds.length === 0) {
+                markedDates.push(dateStr);
+                continue;
+            }
+            
+            const submittedSiteIds = submissions
+                .filter(sub => sub.date === dateStr)
+                .map(sub => sub.site_id);
+                
+            const allSubmitted = activeSiteIds.every(id => submittedSiteIds.includes(id));
+            if (allSubmitted) {
+                markedDates.push(dateStr);
+            }
+        }
+
+        res.json({ dates: markedDates });
+    } catch (err) {
+        console.error("Error fetching submission summary:", err.message);
         res.status(500).json({ error: err.message });
     }
 });

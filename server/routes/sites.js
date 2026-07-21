@@ -6,26 +6,59 @@ const router = express.Router();
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 const { updateSiteHistory } = require('../utils/siteHistory');
+const { updateSiteStatusHistory } = require('../utils/siteStatusHistory');
 const { FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES } = require('../roles');
 const { withWageCompatibilityList } = require('../utils/wages');
 
-// List all sites (supports ?status=active|inactive filter)
+// List all sites (supports ?status=active|inactive filter and optional ?date=YYYY-MM-DD)
 router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
-        const { status } = req.query;
+        const { status, date } = req.query;
 
+        const selectParams = [];
+        const whereParams = [];
+        let selectClause = 's.*';
         let whereClause = '';
-        const params = [];
+
+        if (date) {
+            selectClause = `
+                s.id, s.name, s.address, s.description, s.last_active_date, s.notes, 
+                s.completion_percentage, s.created_by, s.created_at,
+                COALESCE(
+                  (SELECT sh.status FROM site_status_history sh 
+                   WHERE sh.site_id = s.id 
+                     AND sh.from_date <= ? 
+                     AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                   ORDER BY sh.from_date DESC LIMIT 1),
+                  s.status
+                ) as status
+            `;
+            selectParams.push(date, date);
+        }
 
         if (status === 'active' || status === 'inactive' || status === 'completed') {
-            whereClause = 'WHERE s.status = ?';
-            params.push(status);
+            if (date) {
+                whereClause = `
+                    WHERE COALESCE(
+                      (SELECT sh.status FROM site_status_history sh 
+                       WHERE sh.site_id = s.id 
+                         AND sh.from_date <= ? 
+                         AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                       ORDER BY sh.from_date DESC LIMIT 1),
+                      s.status
+                    ) = ?
+                `;
+                whereParams.push(date, date, status);
+            } else {
+                whereClause = 'WHERE s.status = ?';
+                whereParams.push(status);
+            }
         }
 
         const sites = await db.all(`
             SELECT 
-                s.*,
+                ${selectClause},
                 COUNT(DISTINCT ss.supervisor_id) as supervisor_count,
                 COUNT(DISTINCT l.id) as labour_count
             FROM sites s
@@ -34,24 +67,60 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
             ${whereClause}
             GROUP BY s.id
             ORDER BY s.name ASC
-        `, params);
+        `, [...selectParams, ...whereParams]);
         res.json(sites);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Get ACTIVE sites assigned to a supervisor - MUST be before /:id route
+// Get ACTIVE sites assigned to a supervisor - MUST be before /:id route (supports optional ?date=YYYY-MM-DD)
 router.get('/supervisor/:supervisorId', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
-        const sites = await db.all(`
-            SELECT s.*, ss.assigned_at
-            FROM sites s
-            JOIN site_supervisors ss ON s.id = ss.site_id
-            WHERE ss.supervisor_id = ? AND s.status = 'active'
-            ORDER BY s.name ASC
-        `, [req.params.supervisorId]);
+        const { date } = req.query;
+        let query;
+        const params = [req.params.supervisorId];
+
+        if (date) {
+            query = `
+                SELECT 
+                    s.id, s.name, s.address, s.description, s.last_active_date, s.notes, 
+                    s.completion_percentage, s.created_by, s.created_at, ss.assigned_at,
+                    COALESCE(
+                      (SELECT sh.status FROM site_status_history sh 
+                       WHERE sh.site_id = s.id 
+                         AND sh.from_date <= ? 
+                         AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                       ORDER BY sh.from_date DESC LIMIT 1),
+                      s.status
+                    ) as status
+                FROM sites s
+                JOIN site_supervisors ss ON s.id = ss.site_id
+                WHERE ss.supervisor_id = ? 
+                  AND COALESCE(
+                    (SELECT sh.status FROM site_status_history sh 
+                     WHERE sh.site_id = s.id 
+                       AND sh.from_date <= ? 
+                       AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                     ORDER BY sh.from_date DESC LIMIT 1),
+                    s.status
+                  ) = 'active'
+                ORDER BY s.name ASC
+            `;
+            params.unshift(date, date); // Add for the select clause COALESCE subquery
+            params.push(date, date);    // Add for the where clause COALESCE subquery
+        } else {
+            query = `
+                SELECT s.*, ss.assigned_at
+                FROM sites s
+                JOIN site_supervisors ss ON s.id = ss.site_id
+                WHERE ss.supervisor_id = ? AND s.status = 'active'
+                ORDER BY s.name ASC
+            `;
+        }
+
+        const sites = await db.all(query, params);
         res.json(sites);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -75,6 +144,8 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
 
         const newSite = await db.get(`SELECT * FROM sites WHERE id = ?`, [result.lastID]);
         
+        await updateSiteStatusHistory(db, result.lastID, 'active');
+
         await logHistory({
             type: 'site',
             action: 'created',
@@ -90,11 +161,30 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     }
 });
 
-// Get site details with assigned supervisors
+// Get site details with assigned supervisors (supports optional ?date=YYYY-MM-DD)
 router.get('/:id', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
-        const site = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        const { date } = req.query;
+        let site;
+        if (date) {
+            site = await db.get(`
+                SELECT 
+                    s.id, s.name, s.address, s.description, s.last_active_date, s.notes, 
+                    s.completion_percentage, s.created_by, s.created_at,
+                    COALESCE(
+                      (SELECT sh.status FROM site_status_history sh 
+                       WHERE sh.site_id = s.id 
+                         AND sh.from_date <= ? 
+                         AND (sh.to_date IS NULL OR sh.to_date >= ?)
+                       ORDER BY sh.from_date DESC LIMIT 1),
+                      s.status
+                    ) as status
+                FROM sites s WHERE s.id = ?
+            `, [date, date, req.params.id]);
+        } else {
+            site = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
+        }
 
         if (!site) {
             return res.status(404).json({ error: 'Site not found' });
@@ -173,6 +263,8 @@ router.put('/:id/status', authorizeRole(['admin']), async (req, res) => {
             [status, notes || null, lastActiveDate, completionPercentage, req.params.id]
         );
 
+        await updateSiteStatusHistory(db, req.params.id, status);
+
         const updated = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
         
         await logHistory({
@@ -216,6 +308,10 @@ router.put('/:id/progress', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, r
             `UPDATE sites SET completion_percentage = ?, status = ? WHERE id = ?`,
             [progress, newStatus, req.params.id]
         );
+
+        if (newStatus !== site.status) {
+            await updateSiteStatusHistory(db, req.params.id, newStatus);
+        }
 
         const updated = await db.get('SELECT * FROM sites WHERE id = ?', [req.params.id]);
         

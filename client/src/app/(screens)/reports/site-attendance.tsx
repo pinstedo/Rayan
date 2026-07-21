@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -35,6 +35,19 @@ export default function SiteAttendanceReport() {
     const [date, setDate] = useState(new Date());
     const [showCalendar, setShowCalendar] = useState(false);
     const [reports, setReports] = useState<SiteReport[]>([]);
+    const [markedDates, setMarkedDates] = useState<string[]>([]);
+
+    const fetchMarkedDates = async (month: number, year: number) => {
+        try {
+            const response = await api.post(`/reports/submission-summary`, { month, year });
+            if (response.ok) {
+                const data = await response.json();
+                setMarkedDates(data.dates || []);
+            }
+        } catch (error) {
+            console.error("Error fetching submission summary dates:", error);
+        }
+    };
 
     const fetchReports = async (selectedDate: Date) => {
         setLoading(true);
@@ -87,7 +100,7 @@ export default function SiteAttendanceReport() {
 
     return (
         <View style={local.container}>
-            <Stack.Screen options={{ headerShown: false }} />
+            
             <View style={local.headerRow}>
                 <TouchableOpacity onPress={() => router.back()} style={local.backBtnText}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
@@ -122,8 +135,8 @@ export default function SiteAttendanceReport() {
                 <Calendar
                     selectedDate={date}
                     onDateSelect={handleDateChange}
-                    markedDates={[]}
-                    onMonthChange={() => { }}
+                    markedDates={markedDates}
+                    onMonthChange={fetchMarkedDates}
                 />
             </CustomModal>
 
@@ -198,14 +211,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: isDark ? "#121212" : "#f4f6f8",
-        paddingTop: 40,
     },
     headerRow: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: 20,
-        paddingBottom: 15,
+        paddingVertical: 15,
         backgroundColor: isDark ? "#1e1e1e" : "#fff",
         borderBottomWidth: 1,
         borderBottomColor: isDark ? "#333" : "#e0e0e0",

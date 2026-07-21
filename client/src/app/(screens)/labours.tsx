@@ -413,6 +413,7 @@ export default function Labours() {
 								onMarkLeave={handleMarkLeave}
 								onAdvance={canManageAdvance ? handleOpenAdvance : undefined}
 								onPress={(labour) => router.push(`/(screens)/labour-details?id=${labour.id}`)}
+								isAdmin={isAdmin}
 							/>
 						);
 					}

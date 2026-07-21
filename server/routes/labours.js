@@ -35,6 +35,24 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
                   AND LEFT(date, 7) = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
                   AND created_by = ${creatorId}
             ) as monthly_advance`;
+        } else if (req.user?.role === ROLES.ADMIN || req.user?.role === ROLES.OWNER) {
+            advanceSubquery = `(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM advances
+                WHERE labour_id = l.id
+                  AND date >= (
+                      CASE 
+                          WHEN EXTRACT(DAY FROM CURRENT_DATE) < 10 THEN TO_CHAR(CURRENT_DATE - INTERVAL '1 month', 'YYYY-MM')
+                          ELSE TO_CHAR(CURRENT_DATE, 'YYYY-MM')
+                      END || '-10'
+                  )
+                  AND date <= (
+                      CASE 
+                          WHEN EXTRACT(DAY FROM CURRENT_DATE) < 10 THEN TO_CHAR(CURRENT_DATE, 'YYYY-MM')
+                          ELSE TO_CHAR(CURRENT_DATE + INTERVAL '1 month', 'YYYY-MM')
+                      END || '-10'
+                  )
+            ) as monthly_advance`;
         } else {
             advanceSubquery = `(
                 SELECT COALESCE(SUM(amount), 0)
