@@ -356,6 +356,79 @@ router.put('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES), as
     }
 });
 
+// Get advances given by a supervisor (Admin/Owner only)
+router.get('/supervisors/:id/advances', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const db = await openDb();
+        
+        // First verify that the supervisor exists and is a supervisor/special_supervisor
+        const supervisor = await db.get(
+            `SELECT id, name, phone, role FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor') AND is_deleted = false`,
+            [id]
+        );
+        if (!supervisor) {
+            return res.status(404).json({ error: 'Supervisor not found' });
+        }
+
+        // Fetch advances given by this supervisor
+        const advances = await db.all(
+            `SELECT a.id, a.amount, a.date, a.notes, a.labour_id, l.name AS labour_name
+             FROM advances a
+             JOIN labours l ON a.labour_id = l.id
+             WHERE a.created_by = ?
+             ORDER BY a.date DESC, a.created_at DESC`,
+            [id]
+        );
+
+        // Group advances by month
+        const grouped = {};
+        for (const adv of advances) {
+            let monthName = 'Unknown Month';
+            if (adv.date && adv.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, monthStr] = adv.date.split('-');
+                const monthIdx = parseInt(monthStr, 10) - 1;
+                const months = [
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                ];
+                if (monthIdx >= 0 && monthIdx < 12) {
+                    monthName = `${months[monthIdx]} ${year}`;
+                }
+            } else if (adv.date) {
+                try {
+                    const d = new Date(adv.date);
+                    if (!isNaN(d.getTime())) {
+                        const months = [
+                            "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"
+                        ];
+                        monthName = `${months[d.getMonth()]} ${d.getFullYear()}`;
+                    }
+                } catch (e) {}
+            }
+
+            if (!grouped[monthName]) {
+                grouped[monthName] = {
+                    month: monthName,
+                    total_amount: 0,
+                    advances: []
+                };
+            }
+            grouped[monthName].total_amount += adv.amount;
+            grouped[monthName].advances.push(adv);
+        }
+
+        // Convert the grouped object to an array
+        const result = Object.values(grouped);
+        
+        res.json(result);
+    } catch (err) {
+        console.error('Fetch supervisor advances error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get Deleted Supervisors (Bin) — must be registered BEFORE /:id to avoid route conflict
 router.get('/supervisors/bin', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     if (req.user.role !== ROLES.ADMIN) {
@@ -365,6 +438,24 @@ router.get('/supervisors/bin', authenticateToken, authorizeRole(ADMIN_ROLES), as
         const db = await openDb();
         const supervisors = await db.all(`SELECT id, name, phone, role, deleted_at FROM users WHERE role IN ('supervisor', 'special_supervisor') AND is_deleted = true`);
         res.json(supervisors);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get a single supervisor details (Admin/Owner only)
+router.get('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const db = await openDb();
+        const supervisor = await db.get(
+            `SELECT id, name, phone, role FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor') AND is_deleted = false`,
+            [id]
+        );
+        if (!supervisor) {
+            return res.status(404).json({ error: 'Supervisor not found' });
+        }
+        res.json(supervisor);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

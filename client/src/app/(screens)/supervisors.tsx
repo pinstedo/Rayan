@@ -2,6 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTheme } from "../../context/ThemeContext";
 import {
     Alert,
     FlatList,
@@ -22,6 +23,8 @@ interface Supervisor {
 
 export default function SupervisorsScreen() {
     const router = useRouter();
+    const { isDark } = useTheme();
+    const styles = getStyles(isDark);
     const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -70,13 +73,13 @@ export default function SupervisorsScreen() {
             })}
         >
             <View style={styles.iconWrap}>
-                <MaterialIcons name="person" size={24} color="#0a84ff" />
+                <MaterialIcons name="person" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
             </View>
             <View style={styles.info}>
                 <Text style={styles.name}>{item.name}</Text>
                 <Text style={styles.phone}>{item.phone}</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#ccc" />
+            <MaterialIcons name="chevron-right" size={24} color={isDark ? "#555" : "#ccc"} />
         </TouchableOpacity>
     );
 
@@ -84,7 +87,7 @@ export default function SupervisorsScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color="#000" />
+                    <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Supervisors</Text>
                 <View style={styles.headerActions}>
@@ -92,13 +95,13 @@ export default function SupervisorsScreen() {
                         onPress={() => router.push("/(screens)/supervisor-bin")}
                         style={styles.actionButton}
                     >
-                        <MaterialIcons name="delete-outline" size={24} color="#ff3b30" />
+                        <MaterialIcons name="delete-outline" size={24} color={isDark ? "#ff453a" : "#ff3b30"} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => router.push("/(screens)/add-supervisor")}
                         style={styles.actionButton}
                     >
-                        <MaterialIcons name="add" size={24} color="#0a84ff" />
+                        <MaterialIcons name="add" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -115,7 +118,7 @@ export default function SupervisorsScreen() {
                         contentContainerStyle={[styles.list, supervisors.length === 0 && styles.listEmpty]}
                         ListEmptyComponent={
                             <View style={styles.emptyState}>
-                                <MaterialIcons name="supervisor-account" size={64} color="#ccc" />
+                                <MaterialIcons name="supervisor-account" size={64} color={isDark ? "#555" : "#ccc"} />
                                 <Text style={styles.emptyText}>No supervisors added yet</Text>
                                 <TouchableOpacity
                                     onPress={() => router.push("/(screens)/add-supervisor")}
@@ -135,10 +138,10 @@ export default function SupervisorsScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#f5f5f5",
+        backgroundColor: isDark ? "#121212" : "#f5f5f5",
     },
     header: {
         flexDirection: "row",
@@ -146,9 +149,9 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: "#fff",
+        backgroundColor: isDark ? "#1e1e1e" : "#fff",
         borderBottomWidth: 1,
-        borderBottomColor: "#eee",
+        borderBottomColor: isDark ? "#333" : "#eee",
     },
     backButton: {
         padding: 8,
@@ -156,7 +159,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 18,
         fontWeight: "600",
-        color: "#333",
+        color: isDark ? "#fff" : "#333",
     },
     headerActions: {
         flexDirection: "row",
@@ -180,21 +183,23 @@ const styles = StyleSheet.create({
     card: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#fff",
+        backgroundColor: isDark ? "#1e1e1e" : "#fff",
         padding: 16,
         borderRadius: 12,
         marginBottom: 12,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: isDark ? 0.3 : 0.1,
         shadowRadius: 4,
         elevation: 3,
+        borderWidth: isDark ? 1 : 0,
+        borderColor: isDark ? "#333" : "transparent",
     },
     iconWrap: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: "#e8f4ff",
+        backgroundColor: isDark ? "#173a5a" : "#e8f4ff",
         justifyContent: "center",
         alignItems: "center",
         marginRight: 12,
@@ -205,12 +210,12 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 16,
         fontWeight: "600",
-        color: "#333",
+        color: isDark ? "#fff" : "#333",
         marginBottom: 4,
     },
     phone: {
         fontSize: 14,
-        color: "#666",
+        color: isDark ? "#aaa" : "#666",
     },
     emptyState: {
         flex: 1,
@@ -220,12 +225,12 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
-        color: "#999",
+        color: isDark ? "#aaa" : "#999",
         marginTop: 16,
         marginBottom: 24,
     },
     addFirstButton: {
-        backgroundColor: "#0a84ff",
+        backgroundColor: isDark ? "#3B82F6" : "#0a84ff",
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 8,
