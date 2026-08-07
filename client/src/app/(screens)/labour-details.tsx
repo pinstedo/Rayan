@@ -1286,7 +1286,7 @@ export default function LabourDetailsScreen() {
                         />
                     </View>
                     <View style={local.inputGroup}>
-                        <Text style={local.label}>Date</Text>
+                        <Text style={local.label}>Date (Increment Applied On)</Text>
                         <TouchableOpacity style={[local.input, { justifyContent: 'center' }]} onPress={() => setShowIncrementDatePicker(!showIncrementDatePicker)}>
                             <Text style={{ color: isDark ? "#fff" : "#333", fontSize: 16, paddingVertical: 4 }}>
                                 {formatDate(incrementDate.toISOString())}
@@ -1305,6 +1305,26 @@ export default function LabourDetailsScreen() {
                                 />
                             </View>
                         )}
+                        {/* Effective-date notice */}
+                        {(() => {
+                            const dateStr = incrementDate.toISOString().split('T')[0];
+                            const isFirstOfMonth = incrementDate.getDate() === 1;
+                            return (
+                                <View style={local.incrementEffectiveNotice}>
+                                    <MaterialCommunityIcons
+                                        name="information-outline"
+                                        size={14}
+                                        color={isDark ? '#64b5f6' : '#0a84ff'}
+                                    />
+                                    <Text style={local.incrementEffectiveText}>
+                                        {isFirstOfMonth
+                                            ? `Increment starting on 1st: the entire month from ${dateStr} onwards will calculate with the new rate.`
+                                            : `New rate will apply starting on ${dateStr}. Days before ${dateStr} use the previous rate.`
+                                        }
+                                    </Text>
+                                </View>
+                            );
+                        })()}
                     </View>
                     <View style={local.inputGroup}>
                         <Text style={local.label}>Notes</Text>
@@ -2006,6 +2026,23 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
         color: isDark ? '#81c784' : '#2e7d32',
+    },
+    incrementEffectiveNotice: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 6,
+        marginTop: 8,
+        padding: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: isDark ? '#1e3a5c' : '#bfdbfe',
+        backgroundColor: isDark ? '#0d1f33' : '#eff6ff',
+    },
+    incrementEffectiveText: {
+        fontSize: 12,
+        flex: 1,
+        lineHeight: 17,
+        color: isDark ? '#93c5fd' : '#1d4ed8',
     },
     monthSelector: {
         flexDirection: 'row',
