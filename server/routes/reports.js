@@ -152,7 +152,7 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
             // Overtime
             let overtimeQuery = `
-                SELECT SUM(amount) as total_amount 
+                SELECT SUM(amount) as total_amount, SUM(hours) as total_hours 
                 FROM overtime 
                 WHERE labour_id = ?
             `;
@@ -173,6 +173,7 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
 
             const overtimeResult = await db.get(overtimeQuery, overtimeParams);
             const overtimeAmount = overtimeResult.total_amount || 0;
+            const overtimeHours = overtimeResult.total_hours || 0;
 
             // Advances
             let advanceQuery = `
@@ -283,6 +284,7 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 absent_days: absentDays,
                 wage: wage,
                 overtime_amount: overtimeAmount,
+                overtime_hours: overtimeHours,
                 advance_amount: advanceAmount,
                 food_allowance_amount: siteLevelFoodAmount,
                 food_deduction_amount: perLabourFoodAmount,
@@ -482,7 +484,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         `, withLabourIds(endDate));
 
         const allOvertime = await db.all(`
-            SELECT labour_id, date, amount
+            SELECT labour_id, date, amount, hours
             FROM overtime
             WHERE labour_id IN (${labourIdPlaceholders}) AND date <= ?
         `, withLabourIds(endDate));
@@ -585,9 +587,10 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 }
             });
 
-            const otAmount = otByLabour[labour.id]
-                .filter(o => isPrevious ? o.date < startDate : (o.date >= startDate && o.date <= endDate))
-                .reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
+            const otRecs = otByLabour[labour.id]
+                .filter(o => isPrevious ? o.date < startDate : (o.date >= startDate && o.date <= endDate));
+            const otAmount = otRecs.reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
+            const otHours = otRecs.reduce((sum, curr) => sum + (Number(curr.hours) || 0), 0);
 
             const advAmount = advByLabour[labour.id]
                 .filter(a => isPrevious ? a.date < advanceStartDate : (a.date >= advanceStartDate && a.date <= advanceEndDate))
@@ -620,6 +623,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 wage,
                 wageBreakdown,
                 otAmount,
+                otHours,
                 foodAmount: foodAllowanceAmount,
                 foodDeductionAmount,
                 advAmount,
@@ -652,6 +656,7 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 current_wage: currStats.wage,
                 wage_breakdown: currStats.wageBreakdown,
                 current_overtime_amount: currStats.otAmount,
+                current_overtime_hours: currStats.otHours,
                 current_food_allowance_amount: currStats.foodAmount,
                 current_food_deduction_amount: currStats.foodDeductionAmount,
                 current_food_given_amount: currStats.foodDeductionAmount,

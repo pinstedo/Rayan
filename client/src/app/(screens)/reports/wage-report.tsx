@@ -486,12 +486,13 @@ export default function WageReportScreen() {
                 previousBalance: acc.previousBalance + toAmount(curr.previous_balance),
                 wage: acc.wage + toAmount(curr.current_wage),
                 ot: acc.ot + toAmount(curr.current_overtime_amount),
+                otHours: acc.otHours + toAmount(curr.current_overtime_hours),
                 food: acc.food + toAmount(curr.current_food_allowance_amount),
                 foodDeduction: acc.foodDeduction + getFoodDeductionAmount(curr),
                 adv: acc.adv + toAmount(curr.current_advance_amount),
                 paid: acc.paid + toAmount(curr.salary_paid),
                 closing: acc.closing + toAmount(curr.closing_balance)
-            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, food: 0, foodDeduction: 0, adv: 0, paid: 0, closing: 0 });
+            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, otHours: 0, food: 0, foodDeduction: 0, adv: 0, paid: 0, closing: 0 });
 
             const generatedAt = new Date().toLocaleString(undefined, {
                 day: '2-digit',
@@ -680,6 +681,10 @@ export default function WageReportScreen() {
                                 <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
                             <div class="metric">
+                                <div class="metric-label">Total Overtime</div>
+                                <div class="metric-value">${formatCountValue(totals.otHours)} hrs (${formatCurrencyHtml(totals.ot)})</div>
+                            </div>
+                            <div class="metric">
                                 <div class="metric-label">Previous Balance</div>
                                 <div class="metric-value">${formatCurrencyHtml(totals.previousBalance)}</div>
                             </div>
@@ -719,7 +724,7 @@ export default function WageReportScreen() {
                                     </div>
                                     <div class="detail">
                                         <div class="detail-label">OT</div>
-                                        <div class="detail-value">${formatCurrencyHtml(item.current_overtime_amount)}</div>
+                                        <div class="detail-value">${formatCountValue(item.current_overtime_hours)} hrs (${formatCurrencyHtml(item.current_overtime_amount)})</div>
                                     </div>
                                     <div class="detail">
                                         <div class="detail-label">Food Allow</div>
@@ -934,6 +939,10 @@ export default function WageReportScreen() {
                                 <div class="metric-value">${formatCountValue(totals.fullDays)} F / ${formatCountValue(totals.halfDays)} H</div>
                             </div>
                             <div class="metric">
+                                <div class="metric-label">Total Overtime</div>
+                                <div class="metric-value">${formatCountValue(totals.otHours)} hrs (&#8377;${formatCurrencyValue(totals.ot)})</div>
+                            </div>
+                            <div class="metric">
                                 <div class="metric-label">Previous Balance</div>
                                 <div class="metric-value">&#8377;${formatCurrencyValue(totals.previousBalance)}</div>
                             </div>
@@ -956,11 +965,11 @@ export default function WageReportScreen() {
                                 <col style="width: 4%;" />
                                 <col style="width: 7%;" />
                                 <col style="width: 8%;" />
-                                <col style="width: 5%;" />
-                                <col style="width: 8%;" />
-                                <col style="width: 8%;" />
-                                <col style="width: 8%;" />
-                                <col style="width: 8%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
+                                <col style="width: 7%;" />
                                 <col style="width: 15%;" />
                             </colgroup>
                             <thead>
@@ -972,7 +981,7 @@ export default function WageReportScreen() {
                                     <th>Half</th>
                                     <th>Prev Bal</th>
                                     <th>Wage</th>
-                                    <th>OT</th>
+                                    <th>OT (Hrs/₹)</th>
                                     <th>Food Allow</th>
                                     <th>Food Given</th>
                                     <th>Advance</th>
@@ -990,7 +999,7 @@ export default function WageReportScreen() {
                                         <td class="center">${formatCountValue(item.current_half_days)}</td>
                                         <td class="num">${formatCurrencyValue(item.previous_balance)}</td>
                                         <td class="num">${formatCurrencyValue(item.current_wage)}</td>
-                                        <td class="num">${formatCurrencyValue(item.current_overtime_amount)}</td>
+                                        <td class="num">${formatCountValue(item.current_overtime_hours)} h<br/><span class="muted">&#8377;${formatCurrencyValue(item.current_overtime_amount)}</span></td>
                                         <td class="num">${formatCurrencyValue(item.current_food_allowance_amount)}</td>
                                         <td class="num deduct">${formatDeductionValue(getFoodDeductionAmount(item))}</td>
                                         <td class="num deduct">${formatDeductionValue(item.current_advance_amount)}</td>
@@ -1006,7 +1015,7 @@ export default function WageReportScreen() {
                                     <td class="center">${formatCountValue(totals.halfDays)}</td>
                                     <td class="num">${formatCurrencyValue(totals.previousBalance)}</td>
                                     <td class="num">${formatCurrencyValue(totals.wage)}</td>
-                                    <td class="num">${formatCurrencyValue(totals.ot)}</td>
+                                    <td class="num">${formatCountValue(totals.otHours)} h<br/>&#8377;${formatCurrencyValue(totals.ot)}</td>
                                     <td class="num">${formatCurrencyValue(totals.food)}</td>
                                     <td class="num deduct">${formatDeductionValue(totals.foodDeduction)}</td>
                                     <td class="num deduct">${formatDeductionValue(totals.adv)}</td>
@@ -1200,7 +1209,7 @@ export default function WageReportScreen() {
                                     ${basicWageRowsHtml}
                                     ${otAmount > 0 ? `
                                     <tr>
-                                        <td>Overtime</td>
+                                        <td>Overtime (${formatCountValue(item.current_overtime_hours)} hrs)</td>
                                         <td class="amount">${formatCurrency(otAmount)}</td>
                                     </tr>` : ''}
                                     ${foodAmount > 0 ? `
@@ -1425,6 +1434,12 @@ export default function WageReportScreen() {
                             </Text>
                         </View>
                         <View style={local.row}>
+                            <Text style={local.label}>Total Overtime:</Text>
+                            <Text style={local.otValue}>
+                                {formatCountValue((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.current_overtime_hours || 0), 0))} hrs (₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.current_overtime_amount || 0), 0))})
+                            </Text>
+                        </View>
+                        <View style={local.row}>
                             <Text style={local.label}>Closing Balance:</Text>
                             <Text style={local.value}>
                                 ₹{formatCurrency((Array.isArray(reportData) ? reportData : []).reduce((sum, item) => sum + (item.closing_balance || 0), 0))}
@@ -1500,6 +1515,22 @@ export default function WageReportScreen() {
                                 <View style={local.balanceBadge}>
                                     <Text style={local.balanceLabel}>Closing Balance</Text>
                                     <Text style={local.balanceValue}>₹{formatCurrency(item.closing_balance)}</Text>
+                                </View>
+                            </View>
+                            <View style={local.labourStatsRow}>
+                                <View style={local.labourStat}>
+                                    <Text style={local.labourStatLabel}>Wage</Text>
+                                    <Text style={local.labourStatValue}>₹{formatCurrency(item.current_wage)}</Text>
+                                </View>
+                                {toAmount(item.current_overtime_amount) > 0 && (
+                                    <View style={[local.labourStat, local.labourStatOt]}>
+                                        <Text style={local.labourStatLabel}>Overtime</Text>
+                                        <Text style={local.labourStatOtValue}>{formatCountValue(item.current_overtime_hours)} hrs (₹{formatCurrency(item.current_overtime_amount)})</Text>
+                                    </View>
+                                )}
+                                <View style={local.labourStat}>
+                                    <Text style={local.labourStatLabel}>Attendance</Text>
+                                    <Text style={local.labourStatValue}>{item.current_full_days}F / {item.current_half_days}H</Text>
                                 </View>
                             </View>
                             <View style={[local.labourRow, { marginTop: 10 }]}>
@@ -1871,5 +1902,47 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     sortOptionTextSelected: {
         fontWeight: 'bold',
         color: isDark ? '#64b5f6' : '#0a84ff',
-    }
+    },
+    otValue: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: isDark ? '#FFB74D' : '#E65100',
+    },
+    labourStatsRow: {
+        flexDirection: 'row',
+        marginTop: 10,
+        gap: 8,
+    },
+    labourStat: {
+        flex: 1,
+        backgroundColor: isDark ? '#2a2a2a' : '#f5f7fa',
+        borderRadius: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+        alignItems: 'center',
+    },
+    labourStatOt: {
+        backgroundColor: isDark ? '#2d1f00' : '#fff8e1',
+        borderWidth: 1,
+        borderColor: isDark ? '#7a4b00' : '#FFB300',
+    },
+    labourStatLabel: {
+        fontSize: 10,
+        color: isDark ? '#aaa' : '#888',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    labourStatValue: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: isDark ? '#eee' : '#222',
+        marginTop: 2,
+    },
+    labourStatOtValue: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: isDark ? '#FFB74D' : '#E65100',
+        marginTop: 2,
+    },
 });
