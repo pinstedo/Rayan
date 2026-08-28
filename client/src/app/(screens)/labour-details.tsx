@@ -1368,7 +1368,8 @@ export default function LabourDetailsScreen() {
                     {
                         text: isVerifyingAdmin ? "Verifying..." : "Verify & Reset",
                         onPress: handlePasswordReset,
-                        style: "default"
+                        style: "default",
+                        disabled: isVerifyingAdmin
                     }
                 ]}
             >

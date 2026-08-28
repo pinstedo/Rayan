@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
 import { ROLES, getRoleLabel } from "../../utils/roles";
@@ -28,52 +29,95 @@ export default function AddSupervisorScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalConfig, setModalConfig] = useState<{
+        title: string;
+        message: string;
+        type: ModalType;
+        actions: { text: string; onPress: () => void; style?: "cancel" | "destructive" | "default" }[];
+    }>({
+        title: "",
+        message: "",
+        type: "default",
+        actions: [],
+    });
+
+    const showModal = (
+        title: string,
+        message: string,
+        type: ModalType = "default",
+        actions?: { text: string; onPress: () => void; style?: "cancel" | "destructive" | "default" }[]
+    ) => {
+        setModalConfig({
+            title,
+            message,
+            type,
+            actions: actions || [
+                {
+                    text: "OK",
+                    onPress: () => setModalVisible(false),
+                    style: "default",
+                },
+            ],
+        });
+        setModalVisible(true);
+    };
+
     const handleAddSupervisor = async () => {
         if (!name.trim()) {
-            Alert.alert("Validation Error", "Please enter the supervisor's name.");
+            showModal("Validation Error", "Please enter the supervisor's name.", "error");
             return;
         }
         if (!phone.trim()) {
-            Alert.alert("Validation Error", "Please enter the phone number.");
+            showModal("Validation Error", "Please enter the phone number.", "error");
             return;
         }
         if (phone.trim().length < 10) {
-            Alert.alert("Validation Error", "Phone number must be at least 10 digits.");
+            showModal("Validation Error", "Phone number must be at least 10 digits.", "error");
             return;
         }
         if (!password.trim()) {
-            Alert.alert("Validation Error", "Please enter a password.");
+            showModal("Validation Error", "Please enter a password.", "error");
             return;
         }
         if (password.trim().length < 6) {
-            Alert.alert("Validation Error", "Password must be at least 6 characters.");
+            showModal("Validation Error", "Password must be at least 6 characters.", "error");
             return;
         }
 
         setLoading(true);
         try {
             const response = await api.post("/auth/add-supervisor", {
-                name,
-                phone,
-                password,
+                name: name.trim(),
+                phone: phone.trim(),
+                password: password.trim(),
                 role,
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                if (Platform.OS === 'web') {
-                    window.alert(`${getRoleLabel(role)} added successfully!`);
-                } else {
-                    Alert.alert("Success", `${getRoleLabel(role)} added successfully!`);
-                }
-                router.back();
+                showModal(
+                    "Success",
+                    `${getRoleLabel(role)} added successfully!`,
+                    "success",
+                    [
+                        {
+                            text: "OK",
+                            onPress: () => {
+                                setModalVisible(false);
+                                router.back();
+                            },
+                            style: "default",
+                        },
+                    ]
+                );
             } else {
-                Alert.alert("Error", data.error || "Failed to add supervisor");
+                showModal("Error", data.error || "Failed to add supervisor", "error");
             }
         } catch (error) {
             console.error("Add supervisor error:", error);
-            Alert.alert("Error", "Unable to connect to server");
+            showModal("Error", "Unable to connect to server", "error");
         } finally {
             setLoading(false);
         }
@@ -182,6 +226,15 @@ export default function AddSupervisorScreen() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            <CustomModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                actions={modalConfig.actions}
+            />
         </KeyboardAvoidingView>
     );
 }

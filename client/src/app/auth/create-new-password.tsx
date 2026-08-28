@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { API_URL } from "../../constants";
+import { api } from "../../services/api";
 import { useTheme } from "../../context/ThemeContext";
 
 export default function CreateNewPasswordScreen() {
@@ -21,16 +21,11 @@ export default function CreateNewPasswordScreen() {
   const { isDark } = useTheme();
   const styles = getStyles(isDark);
   
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleChangePassword = async () => {
-    if (!currentPassword.trim()) {
-      Alert.alert("Validation", "Please enter the temporary password you were given.");
-      return;
-    }
     if (!newPassword.trim()) {
       Alert.alert("Validation", "Please enter your new password.");
       return;
@@ -46,16 +41,7 @@ export default function CreateNewPasswordScreen() {
 
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("token");
-      
-      const response = await fetch(`${API_URL}/auth/change-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
+      const response = await api.post("/auth/change-password", { newPassword });
 
       const data = await response.json();
 
@@ -64,11 +50,11 @@ export default function CreateNewPasswordScreen() {
         await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
         Alert.alert(
           "Success",
-          "Password updated successfully! Please sign in with your new password.",
+          "Password set successfully! Please sign in with your new password.",
           [{ text: "OK", onPress: () => router.replace("/auth/verificationau" as any) }]
         );
       } else {
-        Alert.alert("Failed to change password", data.error || "Please check your temporary password.");
+        Alert.alert("Failed to set password", data.error || "Something went wrong. Please try again.");
       }
     } catch (error) {
       console.error("Change password error:", error);
@@ -95,24 +81,11 @@ export default function CreateNewPasswordScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>Create New Password</Text>
-          <Text style={styles.subtitle}>You must update your temporary password to continue</Text>
+          <Text style={styles.title}>Set New Password</Text>
+          <Text style={styles.subtitle}>Choose a strong password to secure your account</Text>
         </View>
 
         <View style={styles.formContainer}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Temporary Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter temporary password"
-              placeholderTextColor={isDark ? "#888" : "#A0AEC0"}
-              secureTextEntry
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              autoCapitalize="none"
-            />
-          </View>
-
           <View style={styles.inputGroup}>
             <Text style={styles.label}>New Password</Text>
             <TextInput
@@ -147,7 +120,7 @@ export default function CreateNewPasswordScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Update Password</Text>
+              <Text style={styles.primaryButtonText}>Set New Password</Text>
             )}
           </TouchableOpacity>
 

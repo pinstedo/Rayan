@@ -13,6 +13,7 @@ interface HistoryLog {
   action: string;
   reference_id: number;
   name: string;
+  site_name: string | null;
   metadata: string; // JSON string
   created_by: number;
   created_by_name: string;
@@ -111,6 +112,12 @@ export default function HistoryScreen() {
             {item.type.charAt(0).toUpperCase() + item.type.slice(1)} {actionFormatted}
           </Text>
           <Text style={styles.logName}>{item.name || `ID #${item.reference_id}`}</Text>
+          {item.type !== 'site' && item.site_name ? (
+            <View style={styles.siteTag}>
+              <MaterialIcons name="domain" size={12} color={isDark ? '#818CF8' : '#4F46E5'} />
+              <Text style={styles.siteTagText}>{item.site_name}</Text>
+            </View>
+          ) : null}
           {metaSnippet ? <Text style={styles.metaText}>{metaSnippet}</Text> : null}
           
           <View style={styles.footerContainer}>
@@ -276,6 +283,22 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     overflow: "hidden",
+  },
+  siteTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: isDark ? "rgba(99, 102, 241, 0.15)" : "#EEF2FF",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 6,
+    gap: 4,
+  },
+  siteTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: isDark ? '#818CF8' : '#4F46E5',
   },
   footerContainer: {
     flexDirection: "row",

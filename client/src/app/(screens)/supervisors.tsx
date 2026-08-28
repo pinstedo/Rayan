@@ -19,6 +19,7 @@ interface Supervisor {
     id: number;
     name: string;
     phone: string;
+    role?: string;
 }
 
 export default function SupervisorsScreen() {
@@ -64,24 +65,38 @@ export default function SupervisorsScreen() {
         }, [])
     );
 
-    const renderSupervisor = ({ item }: { item: Supervisor }) => (
-        <TouchableOpacity
-            style={styles.card}
-            onPress={() => router.push({
-                pathname: "/(screens)/supervisor-details",
-                params: { id: item.id, name: item.name, phone: item.phone }
-            })}
-        >
-            <View style={styles.iconWrap}>
-                <MaterialIcons name="person" size={24} color={isDark ? "#4da6ff" : "#0a84ff"} />
-            </View>
-            <View style={styles.info}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.phone}>{item.phone}</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={isDark ? "#555" : "#ccc"} />
-        </TouchableOpacity>
-    );
+    const renderSupervisor = ({ item }: { item: Supervisor }) => {
+        const isSpecial = item.role === "special_supervisor";
+        return (
+            <TouchableOpacity
+                style={styles.card}
+                onPress={() => router.push({
+                    pathname: "/(screens)/supervisor-details",
+                    params: { id: item.id, name: item.name, phone: item.phone, role: item.role }
+                })}
+            >
+                <View style={[styles.iconWrap, isSpecial && styles.iconWrapSpecial]}>
+                    <MaterialIcons 
+                        name={isSpecial ? "stars" : "person"} 
+                        size={24} 
+                        color={isSpecial ? "#ff9500" : (isDark ? "#4da6ff" : "#0a84ff")} 
+                    />
+                </View>
+                <View style={styles.info}>
+                    <View style={styles.nameRow}>
+                        <Text style={styles.name}>{item.name}</Text>
+                        {isSpecial && (
+                            <View style={styles.specialBadge}>
+                                <Text style={styles.specialBadgeText}>SPECIAL</Text>
+                            </View>
+                        )}
+                    </View>
+                    <Text style={styles.phone}>{item.phone}</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color={isDark ? "#555" : "#ccc"} />
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -204,14 +219,36 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         alignItems: "center",
         marginRight: 12,
     },
+    iconWrapSpecial: {
+        backgroundColor: isDark ? "#3d2e00" : "#fff8e7",
+    },
     info: {
         flex: 1,
+    },
+    nameRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 4,
     },
     name: {
         fontSize: 16,
         fontWeight: "600",
         color: isDark ? "#fff" : "#333",
-        marginBottom: 4,
+    },
+    specialBadge: {
+        backgroundColor: isDark ? "#4a3500" : "#fff3cd",
+        borderColor: isDark ? "#ff9500" : "#ffeba8",
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+    },
+    specialBadgeText: {
+        fontSize: 10,
+        fontWeight: "700",
+        color: isDark ? "#ffb340" : "#b27b00",
+        letterSpacing: 0.5,
     },
     phone: {
         fontSize: 14,

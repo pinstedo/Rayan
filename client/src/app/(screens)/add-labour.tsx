@@ -215,22 +215,47 @@ export default function AddLabour() {
         <TextInput style={local.input} value={aadhaar} onChangeText={setAadhaar} placeholder="" placeholderTextColor={isDark ? "#888" : "#999"} keyboardType="phone-pad" maxLength={12} />
 
         <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Date of Birth:</Text>
-        <TouchableOpacity style={local.input} onPress={() => setShowDatePicker(true)}>
-          <Text style={{ color: dateOfBirth ? (isDark ? "#fff" : "#000") : (isDark ? "#888" : "#999"), paddingVertical: 4 }}>
-            {dateOfBirth ? formatDate(dateOfBirth) : "Select Date of Birth"}
-          </Text>
-        </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={dateOfBirth || new Date()}
-            mode="date"
-            display="default"
-            onChange={(event: any, selectedDate?: Date) => {
-              setShowDatePicker(false);
-              if (selectedDate) setDateOfBirth(selectedDate);
+        {Platform.OS === 'web' ? (
+          <input
+            type="date"
+            max={new Date().toISOString().split('T')[0]}
+            value={dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              setDateOfBirth(val ? new Date(val + 'T00:00:00') : null);
             }}
-            maximumDate={new Date()}
+            style={{
+              borderWidth: 1,
+              borderColor: isDark ? '#444' : '#e6e6e6',
+              padding: 10,
+              borderRadius: 8,
+              backgroundColor: isDark ? '#2a2a2a' : '#fafafa',
+              color: isDark ? '#fff' : '#000',
+              fontSize: 16,
+              width: '100%',
+              boxSizing: 'border-box',
+            } as any}
           />
+        ) : (
+          <>
+            <TouchableOpacity style={local.input} onPress={() => setShowDatePicker(true)}>
+              <Text style={{ color: dateOfBirth ? (isDark ? "#fff" : "#000") : (isDark ? "#888" : "#999"), paddingVertical: 4 }}>
+                {dateOfBirth ? formatDate(dateOfBirth) : "Select Date of Birth"}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={dateOfBirth || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event: any, selectedDate?: Date) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) setDateOfBirth(selectedDate);
+                }}
+                maximumDate={new Date()}
+              />
+            )}
+          </>
         )}
 
         <Text style={[styles.labelname, { color: isDark ? "#aaa" : "#333" }]}>Job site:</Text>

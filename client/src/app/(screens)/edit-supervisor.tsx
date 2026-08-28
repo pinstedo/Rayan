@@ -167,10 +167,12 @@ export default function EditSupervisorScreen() {
             setTempPasswordModalVisible(true);
         };
 
+        const supervisorRole = (params.role as string) || 'supervisor';
+
         const submitReset = async (verificationToken: string, confirmReplace = false) => {
             const resetRes = await api.post(`/admin/users/${id}/reset-password`, {
                 verificationToken,
-                role: 'supervisor',
+                role: supervisorRole,
                 confirmReplace
             });
             const resetData = await resetRes.json();

@@ -6,6 +6,7 @@ import {
     ActivityIndicator,
     Image,
     Modal,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
@@ -108,22 +109,46 @@ export const EditProfileModal = ({ visible, onClose, labour, onSave }: EditProfi
 
                     {/* Inputs */}
                     <Text style={styles.label}>Date of Birth</Text>
-                    <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
-                        <Text style={{ color: dateOfBirth ? "#000" : "#999" }}>
-                            {dateOfBirth ? formatDate(dateOfBirth) : "Select Date of Birth"}
-                        </Text>
-                    </TouchableOpacity>
-                    {showDatePicker && (
-                        <DateTimePicker
-                            value={dateOfBirth || new Date()}
-                            mode="date"
-                            display="default"
-                            onChange={(event: any, selectedDate?: Date) => {
-                                setShowDatePicker(false);
-                                if (selectedDate) setDateOfBirth(selectedDate);
+                    {Platform.OS === 'web' ? (
+                        <input
+                            type="date"
+                            max={new Date().toISOString().split('T')[0]}
+                            value={dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : ''}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setDateOfBirth(val ? new Date(val + 'T00:00:00') : null);
                             }}
-                            maximumDate={new Date()}
+                            style={{
+                                border: '1px solid #ccc',
+                                padding: 10,
+                                borderRadius: 8,
+                                backgroundColor: '#fafafa',
+                                color: '#000',
+                                fontSize: 16,
+                                width: '100%',
+                                boxSizing: 'border-box',
+                            } as any}
                         />
+                    ) : (
+                        <>
+                            <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
+                                <Text style={{ color: dateOfBirth ? "#000" : "#999" }}>
+                                    {dateOfBirth ? formatDate(dateOfBirth) : "Select Date of Birth"}
+                                </Text>
+                            </TouchableOpacity>
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    value={dateOfBirth || new Date()}
+                                    mode="date"
+                                    display="default"
+                                    onChange={(event: any, selectedDate?: Date) => {
+                                        setShowDatePicker(false);
+                                        if (selectedDate) setDateOfBirth(selectedDate);
+                                    }}
+                                    maximumDate={new Date()}
+                                />
+                            )}
+                        </>
                     )}
 
                     <Text style={styles.label}>Emergency Phone</Text>

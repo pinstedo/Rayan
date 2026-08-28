@@ -778,8 +778,8 @@ const changePasswordHandler = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    if (!currentPassword || !newPassword) {
-        return res.status(400).json({ error: 'Current password and new password are required' });
+    if (!newPassword) {
+        return res.status(400).json({ error: 'New password is required' });
     }
 
     try {
@@ -804,9 +804,15 @@ const changePasswordHandler = async (req, res) => {
             return res.status(403).json({ error: 'Temporary password expired. Please ask admin to generate a new password.' });
         }
 
-        const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-        if (!isMatch) {
-            return res.status(400).json({ error: 'Incorrect current password' });
+        // If NOT a forced password reset, require the current password to be verified
+        if (!user.password_reset_required) {
+            if (!currentPassword) {
+                return res.status(400).json({ error: 'Current password is required' });
+            }
+            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+            if (!isMatch) {
+                return res.status(400).json({ error: 'Incorrect current password' });
+            }
         }
 
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
@@ -814,7 +820,7 @@ const changePasswordHandler = async (req, res) => {
         
         await db.run(
             `UPDATE ${table} 
-             SET password_hash = ?, password_reset_required = false, last_password_changed_at = ? 
+             SET password_hash = ?, password_reset_required = false, password_reset_generated_at = NULL, last_password_changed_at = ? 
              WHERE id = ?`,
             [hashedNewPassword, timestamp, userId]
         );

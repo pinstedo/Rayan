@@ -41,7 +41,10 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put("/", copy));
           return response;
         })
-        .catch(() => caches.match("/") || caches.match(request))
+        .catch(async () => {
+          const cached = await caches.match("/") || await caches.match(request);
+          return cached || new Response("Offline", { status: 503, statusText: "Service Unavailable" });
+        })
     );
     return;
   }
@@ -59,7 +62,7 @@ self.addEventListener("fetch", (event) => {
           })
           .catch(() => cached);
 
-        return cached || network;
+        return cached || network.then((r) => r || new Response("Offline", { status: 503 }));
       })
     );
   }

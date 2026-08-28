@@ -13,7 +13,19 @@ router.get('/', authenticateToken, async (req, res) => {
     const { listConfig, type, action, search, startDate, endDate, limit = 50, offset = 0 } = req.query;
 
     let baseQuery = `
-      SELECT h.*, u.name as created_by_name 
+      SELECT h.*, u.name as created_by_name,
+        CASE
+          WHEN h.type = 'attendance' THEN (SELECT s.name FROM sites s WHERE s.id = h.reference_id)
+          WHEN h.type = 'site' THEN h.name
+          WHEN h.type = 'labour' THEN (
+            CASE
+              WHEN h.metadata IS NOT NULL AND h.metadata::text LIKE '%"site"%'
+              THEN (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site') LIMIT 1)
+              ELSE NULL
+            END
+          )
+          ELSE NULL
+        END as site_name
       FROM history_logs h
       LEFT JOIN users u ON h.created_by = u.id
     `;

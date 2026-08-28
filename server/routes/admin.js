@@ -130,8 +130,8 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRole(['admi
         return res.status(401).json({ error: 'Verification session required. Please verify admin password.' });
     }
 
-    if (!['labour', 'supervisor'].includes(role)) {
-        return res.status(400).json({ error: 'Role must be labour or supervisor.' });
+    if (!['labour', 'supervisor', 'special_supervisor'].includes(role)) {
+        return res.status(400).json({ error: 'Role must be labour, supervisor, or special supervisor.' });
     }
 
     try {

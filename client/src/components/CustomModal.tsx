@@ -9,6 +9,7 @@ interface ModalAction {
     text: string;
     onPress: () => void;
     style?: 'cancel' | 'destructive' | 'default';
+    disabled?: boolean;
 }
 
 interface CustomModalProps {
@@ -103,9 +104,11 @@ export const CustomModal: React.FC<CustomModalProps> = ({
                                             action.style === 'cancel' && styles.cancelButton,
                                             action.style === 'destructive' && styles.destructiveButton,
                                             action.style === 'default' && styles.defaultButton,
-                                            index > 0 && { marginLeft: 10 }
+                                            index > 0 && { marginLeft: 10 },
+                                            action.disabled && { opacity: 0.5 }
                                         ]}
-                                        onPress={action.onPress}
+                                        onPress={action.disabled ? undefined : action.onPress}
+                                        disabled={action.disabled}
                                     >
                                         <Text
                                             style={[

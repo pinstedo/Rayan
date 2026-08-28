@@ -59,7 +59,7 @@ const LabourDashboard = () => {
             setError(null);
             const token = await AsyncStorage.getItem("token");
             if (!token) {
-                router.replace("/auth/labour-login" as any);
+                router.replace("/auth/verificationau" as any);
                 return;
             }
 
