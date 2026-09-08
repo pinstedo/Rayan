@@ -306,6 +306,19 @@ export default function LabourDetailsScreen() {
             Alert.alert("Error", "Please enter a valid amount");
             return;
         }
+        // Client-side eligibility guard
+        const continuousDays = Number(
+            labour?.continuous_working_days !== undefined && labour?.continuous_working_days !== null
+                ? labour?.continuous_working_days
+                : labour?.worked_days_count || 0
+        );
+        if (continuousDays < 285) {
+            Alert.alert(
+                "Not Eligible",
+                `This labour has not reached 285 continuous working days yet.\nCurrent: ${continuousDays.toFixed(1)} days`
+            );
+            return;
+        }
         try {
             setSavingBonus(true);
             const response = await api.post(`/labours/${id}/bonus`, {
@@ -319,7 +332,7 @@ export default function LabourDetailsScreen() {
                 setLabour(data as Labour);
                 setFormData(data as Labour);
                 fetchFinancialHistory();
-                Alert.alert("Success", "Bonus recorded successfully");
+                Alert.alert("Success", "Bonus recorded successfully. Continuous working days reset to 0.");
                 setShowBonusModal(false);
                 setBonusAmount("");
                 setBonusNotes("");
@@ -338,6 +351,19 @@ export default function LabourDetailsScreen() {
     const handleSaveIncrement = async () => {
         if (!incrementAmount || isNaN(Number(incrementAmount)) || Number(incrementAmount) <= 0) {
             Alert.alert("Error", "Please enter a positive increment amount");
+            return;
+        }
+        // Client-side eligibility guard
+        const continuousDays = Number(
+            labour?.continuous_working_days !== undefined && labour?.continuous_working_days !== null
+                ? labour?.continuous_working_days
+                : labour?.worked_days_count || 0
+        );
+        if (continuousDays < 300) {
+            Alert.alert(
+                "Not Eligible",
+                `This labour has not reached 300 continuous working days yet.\nCurrent: ${continuousDays.toFixed(1)} days`
+            );
             return;
         }
         try {
@@ -763,49 +789,120 @@ export default function LabourDetailsScreen() {
                     </View>
                 </View>
 
-                {/* Progress bar: 0 to 285 days */}
+                {/* Progress bar: dual-phase — Bonus (0→285) then Increment (285→300) */}
                 {(() => {
-                    const continuous = Number(labour.continuous_working_days !== undefined && labour.continuous_working_days !== null ? labour.continuous_working_days : labour.worked_days_count || 0);
+                    const continuous = Number(
+                        labour.continuous_working_days !== undefined && labour.continuous_working_days !== null
+                            ? labour.continuous_working_days
+                            : labour.worked_days_count || 0
+                    );
                     const isBonusEligible = continuous >= 285;
                     const isIncEligible = continuous >= 300;
-                    
-                    const progress = Math.min(1, continuous / 285);
-                    const pct = Math.round(progress * 100);
-                    
-                    let label = `Progress to Bonus Eligibility (285 days)`;
+
+                    // Phase 1 progress: 0 → 285 (capped at 100%)
+                    const phase1Pct = Math.min(100, Math.round((continuous / 285) * 100));
+                    // Phase 2 progress: 285 → 300 (only shown when bonus-eligible)
+                    const phase2Pct = isBonusEligible
+                        ? Math.min(100, Math.round(((continuous - 285) / (300 - 285)) * 100))
+                        : 0;
+
+                    let label: string;
+                    let subLabel: string;
                     if (isIncEligible) {
-                        label = `✓ Eligible for Increment (300 days)`;
+                        label = '✓ Eligible for Increment (300 days)';
+                        subLabel = 'Also eligible for bonus';
                     } else if (isBonusEligible) {
-                        label = `✓ Eligible for Bonus (285 days)`;
+                        label = `✓ Eligible for Bonus (285 days) — ${continuous.toFixed(1)} / 300 days`;
+                        subLabel = `${(300 - continuous).toFixed(1)} more days for Increment`;
+                    } else {
+                        label = `Progress to Bonus: ${continuous.toFixed(1)} / 285 days`;
+                        subLabel = `${(285 - continuous).toFixed(1)} more days needed`;
                     }
-                    
+
                     return (
                         <View style={local.progressContainer}>
                             <View style={local.progressHeader}>
-                                <Text style={local.progressLabel}>{label}</Text>
-                                <Text style={local.progressPct}>{pct}%</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={local.progressLabel}>{label}</Text>
+                                    <Text style={[local.progressLabel, { fontSize: 11, color: isDark ? '#666' : '#aaa', marginTop: 2 }]}>
+                                        {subLabel}
+                                    </Text>
+                                </View>
+                                <Text style={local.progressPct}>{isIncEligible ? 100 : phase1Pct}%</Text>
                             </View>
+                            {/* Phase 1 bar: 0 → 285 (Bonus) */}
                             <View style={local.progressTrack}>
-                                <View style={[local.progressFill, { width: `${pct}%` as any, backgroundColor: isIncEligible ? '#81c784' : isBonusEligible ? '#4CAF50' : isDark ? '#4da6ff' : '#0a84ff' }]} />
+                                <View style={[local.progressFill, {
+                                    width: `${phase1Pct}%` as any,
+                                    backgroundColor: isBonusEligible ? '#4CAF50' : isDark ? '#4da6ff' : '#0a84ff',
+                                }]} />
                             </View>
+                            {/* Phase 2 bar: 285 → 300 (Increment) — only visible when bonus-eligible */}
+                            {isBonusEligible && (
+                                <View style={{ marginTop: 5 }}>
+                                    <Text style={[local.progressLabel, { fontSize: 11, marginBottom: 3 }]}>
+                                        Increment: {continuous.toFixed(1)} / 300 days
+                                    </Text>
+                                    <View style={local.progressTrack}>
+                                        <View style={[local.progressFill, {
+                                            width: `${phase2Pct}%` as any,
+                                            backgroundColor: isIncEligible ? '#81c784' : isDark ? '#ffb74d' : '#ff9800',
+                                        }]} />
+                                    </View>
+                                </View>
+                            )}
                         </View>
                     );
                 })()}
 
                 {/* ── Quick Actions ── */}
-                <View style={local.actionRow}>
-                    <TouchableOpacity style={local.actionBtn} onPress={() => setShowBonusModal(true)}>
-                        <Ionicons name="gift-outline" size={20} color="#fff" />
-                        <Text style={local.actionBtnText}>Record Bonus</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[local.actionBtn, { backgroundColor: isDark ? '#2e7d32' : '#4CAF50' }]}
-                        onPress={() => { setIncrementAmount(""); setShowIncrementModal(true); }}
-                    >
-                        <Ionicons name="trending-up-outline" size={20} color="#fff" />
-                        <Text style={local.actionBtnText}>Apply Increment</Text>
-                    </TouchableOpacity>
-                </View>
+                {(() => {
+                    const continuous = Number(
+                        labour?.continuous_working_days !== undefined && labour?.continuous_working_days !== null
+                            ? labour?.continuous_working_days
+                            : labour?.worked_days_count || 0
+                    );
+                    const isBonusEligible = continuous >= 285;
+                    const isIncEligible = continuous >= 300;
+
+                    return (
+                        <View>
+                            <View style={local.actionRow}>
+                                <TouchableOpacity
+                                    style={[local.actionBtn, !isBonusEligible && local.actionBtnDisabled]}
+                                    onPress={() => setShowBonusModal(true)}
+                                    disabled={!isBonusEligible}
+                                >
+                                    <Ionicons name="gift-outline" size={20} color="#fff" />
+                                    <Text style={local.actionBtnText}>Record Bonus</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[local.actionBtn, { backgroundColor: isDark ? '#2e7d32' : '#4CAF50' }, !isIncEligible && local.actionBtnDisabled]}
+                                    onPress={() => { setIncrementAmount(""); setShowIncrementModal(true); }}
+                                    disabled={!isIncEligible}
+                                >
+                                    <Ionicons name="trending-up-outline" size={20} color="#fff" />
+                                    <Text style={local.actionBtnText}>Apply Increment</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {/* Eligibility hints below buttons */}
+                            <View style={local.actionRow}>
+                                {!isBonusEligible && (
+                                    <Text style={[local.actionHint, { flex: 1, textAlign: 'center' }]}>
+                                        Needs 285 days
+                                    </Text>
+                                )}
+                                {isBonusEligible && <View style={{ flex: 1 }} />}
+                                {!isIncEligible && (
+                                    <Text style={[local.actionHint, { flex: 1, textAlign: 'center' }]}>
+                                        Needs 300 days
+                                    </Text>
+                                )}
+                                {isIncEligible && <View style={{ flex: 1 }} />}
+                            </View>
+                        </View>
+                    );
+                })()}
 
                 {/* ── Personal Information ── */}
                 <View style={local.formContainer}>
@@ -1611,6 +1708,18 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: "#fff",
         fontWeight: "700",
         fontSize: 14,
+    },
+    actionBtnDisabled: {
+        backgroundColor: isDark ? '#333' : '#ccc',
+        shadowOpacity: 0,
+        elevation: 0,
+        opacity: 0.6,
+    },
+    actionHint: {
+        fontSize: 11,
+        color: isDark ? '#888' : '#999',
+        marginTop: -8,
+        marginBottom: 6,
     },
 
     // Form container (personal/work info)

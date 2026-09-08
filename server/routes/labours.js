@@ -569,32 +569,61 @@ router.put('/me', async (req, res) => {
     }
 });
 
-// Get labours eligible for bonus (continuous_working_days >= 285)
+// Get labours eligible for bonus (>= 285) or increment (>= 300)
 // NOTE: Must be defined BEFORE /:id route to avoid param matching
 router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const labours = await db.all(
-            `SELECT id, name, phone, site, site_id, rate, status,
+            `SELECT id, name, phone, site, site_id, rate, daily_wage, status,
                     worked_days_count, continuous_working_days, total_working_days, increment_cycle_count, total_bonus_earned
              FROM labours
              WHERE COALESCE(continuous_working_days, worked_days_count, 0) >= 285
              ORDER BY COALESCE(continuous_working_days, worked_days_count, 0) DESC`
         );
-        // Add calculated bonus to each labour
+
+        const BONUS_THRESHOLD = 285;
+        const INCREMENT_THRESHOLD = 300;
+
         const result = labours.map(l => {
             const normal = withWageCompatibility(l);
-            const continuous = Number(l.continuous_working_days !== null && l.continuous_working_days !== undefined ? l.continuous_working_days : l.worked_days_count || 0);
+            const continuous = Number(
+                l.continuous_working_days !== null && l.continuous_working_days !== undefined
+                    ? l.continuous_working_days
+                    : l.worked_days_count || 0
+            );
+
+            const isIncEligible = continuous >= INCREMENT_THRESHOLD;
+            const isBonusEligible = continuous >= BONUS_THRESHOLD;
+
+            // eligible_for: 'increment' | 'bonus' | 'none'
+            const eligible_for = isIncEligible ? 'increment' : (isBonusEligible ? 'bonus' : 'none');
+
+            // Progress: for increment-eligible, calculate against 300; for bonus-eligible, against 285
+            const progressTarget = isIncEligible ? INCREMENT_THRESHOLD : BONUS_THRESHOLD;
+            const progress_percent = Math.min(100, Math.round((continuous / progressTarget) * 100));
+
+            // bonus_due only relevant when bonus-eligible
+            const bonus_due = isBonusEligible ? Math.round((continuous / 22) * 100) / 100 : 0;
+
             return {
                 ...normal,
                 rate: normal.daily_wage || 0,
                 worked_days_count: continuous,
                 continuous_working_days: continuous,
-                total_working_days: Number(l.total_working_days !== null && l.total_working_days !== undefined ? l.total_working_days : l.worked_days_count || 0),
-                bonus_due: Math.round((continuous / 22) * 100) / 100,
-                progress_percent: Math.min(100, Math.round((continuous / 285) * 100))
+                total_working_days: Number(
+                    l.total_working_days !== null && l.total_working_days !== undefined
+                        ? l.total_working_days
+                        : l.worked_days_count || 0
+                ),
+                bonus_due,
+                progress_percent,
+                eligible_for,
+                is_bonus_eligible: isBonusEligible,
+                is_increment_eligible: isIncEligible,
             };
         });
+
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -786,6 +815,14 @@ router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res
 
         const continuousDaysAtTime = Number(labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0);
 
+        // Eligibility guard: must have >= 285 continuous working days
+        if (continuousDaysAtTime < 285) {
+            await db.run('ROLLBACK');
+            return res.status(400).json({
+                error: `Labour is not yet eligible for a bonus. Requires 285 continuous working days (current: ${continuousDaysAtTime.toFixed(1)}).`
+            });
+        }
+
         // 1. Insert into legacy bonus_payments
         const result = await db.run(
             `INSERT INTO bonus_payments (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?) RETURNING id`,
@@ -856,6 +893,14 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
         const newDailyRate = currentDailyRate + incrementAmt;
         const newHourlyRate = hourlyFromDailyWage(newDailyRate);
         const continuousDaysAtTime = Number(labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0);
+
+        // Eligibility guard: must have >= 300 continuous working days
+        if (continuousDaysAtTime < 300) {
+            await db.run('ROLLBACK');
+            return res.status(400).json({
+                error: `Labour is not yet eligible for an increment. Requires 300 continuous working days (current: ${continuousDaysAtTime.toFixed(1)}).`
+            });
+        }
 
         // Update salary, reset worked_days_count & continuous_working_days, increment cycle count.
         // total_working_days is preserved.

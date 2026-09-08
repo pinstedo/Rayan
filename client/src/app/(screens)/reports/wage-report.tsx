@@ -147,10 +147,6 @@ const formatCountValue = (value: unknown) => {
     return amount.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 };
 
-const getFoodDeductionAmount = (item: any) => {
-    return toAmount(item?.current_food_deduction_amount ?? item?.current_food_given_amount);
-};
-
 const escapeHtml = (unsafe: unknown) => {
     return String(unsafe ?? '').replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -488,11 +484,10 @@ export default function WageReportScreen() {
                 ot: acc.ot + toAmount(curr.current_overtime_amount),
                 otHours: acc.otHours + toAmount(curr.current_overtime_hours),
                 food: acc.food + toAmount(curr.current_food_allowance_amount),
-                foodDeduction: acc.foodDeduction + getFoodDeductionAmount(curr),
                 adv: acc.adv + toAmount(curr.current_advance_amount),
                 paid: acc.paid + toAmount(curr.salary_paid),
                 closing: acc.closing + toAmount(curr.closing_balance)
-            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, otHours: 0, food: 0, foodDeduction: 0, adv: 0, paid: 0, closing: 0 });
+            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, otHours: 0, food: 0, adv: 0, paid: 0, closing: 0 });
 
             const generatedAt = new Date().toLocaleString(undefined, {
                 day: '2-digit',
@@ -523,120 +518,112 @@ export default function WageReportScreen() {
                             .header {
                                 border-bottom: 2px solid #243b53;
                                 padding-bottom: 10px;
-                                margin-bottom: 10px;
                             }
                             .eyebrow {
-                                margin: 0 0 3px;
-                                color: #52606d;
+                                margin: 0;
                                 font-size: 10px;
-                                font-weight: 700;
                                 text-transform: uppercase;
+                                letter-spacing: 0.8px;
+                                color: #627d98;
+                                font-weight: bold;
                             }
                             h1 {
-                                margin: 0 0 8px;
+                                margin: 2px 0 8px 0;
+                                font-size: 20px;
                                 color: #102a43;
-                                font-size: 22px;
-                                line-height: 1.1;
                             }
                             .period-grid {
                                 display: grid;
-                                grid-template-columns: 1fr;
-                                gap: 6px;
+                                grid-template-columns: repeat(2, 1fr);
+                                gap: 8px;
                             }
                             .period {
-                                border: 1px solid #bcccdc;
+                                background: #f0f4f8;
+                                padding: 6px 8px;
                                 border-radius: 4px;
-                                padding: 6px;
                             }
                             .period-label {
-                                color: #52606d;
-                                font-size: 9px;
-                                font-weight: 700;
+                                font-size: 8.5px;
                                 text-transform: uppercase;
+                                color: #627d98;
+                                font-weight: bold;
                             }
                             .period-value {
-                                margin-top: 2px;
+                                font-size: 11px;
+                                font-weight: bold;
                                 color: #102a43;
-                                font-weight: 700;
                             }
                             .summary-grid {
                                 display: grid;
-                                grid-template-columns: 1fr 1fr;
+                                grid-template-columns: repeat(3, 1fr);
                                 gap: 6px;
-                                margin: 10px 0;
+                                margin: 12px 0;
                             }
                             .metric {
                                 border: 1px solid #d9e2ec;
-                                border-left: 3px solid #0a84ff;
-                                border-radius: 4px;
                                 background: #f8fafc;
-                                padding: 7px;
+                                padding: 7px 8px;
+                                border-radius: 4px;
                             }
                             .metric-label {
-                                color: #52606d;
-                                font-size: 9px;
-                                font-weight: 700;
+                                font-size: 8.5px;
                                 text-transform: uppercase;
+                                color: #627d98;
+                                font-weight: bold;
                             }
                             .metric-value {
-                                margin-top: 3px;
+                                font-size: 12px;
+                                font-weight: bold;
                                 color: #102a43;
-                                font-size: 14px;
-                                font-weight: 800;
+                                margin-top: 2px;
                             }
                             .section-title {
-                                margin: 12px 0 6px;
+                                font-size: 12px;
+                                font-weight: bold;
                                 color: #102a43;
-                                font-size: 14px;
-                                font-weight: 800;
+                                margin: 14px 0 8px 0;
+                                text-transform: uppercase;
+                                letter-spacing: 0.5px;
                             }
                             .labour {
-                                border: 1px solid #bcccdc;
-                                border-left: 4px solid #0a84ff;
-                                border-radius: 5px;
+                                border: 1px solid #d9e2ec;
+                                border-radius: 4px;
+                                padding: 8px;
                                 margin-bottom: 8px;
                                 page-break-inside: avoid;
-                                overflow: hidden;
                             }
                             .labour-head {
                                 display: flex;
                                 justify-content: space-between;
-                                gap: 8px;
-                                background: #f8fafc;
-                                padding: 7px;
-                                border-bottom: 1px solid #d9e2ec;
+                                align-items: baseline;
+                                border-bottom: 1px solid #e2e8f0;
+                                padding-bottom: 4px;
+                                margin-bottom: 6px;
                             }
                             .labour-name {
+                                font-size: 12px;
+                                font-weight: bold;
                                 color: #102a43;
-                                font-size: 13px;
-                                font-weight: 800;
                             }
                             .payable {
-                                color: #0b4f8a;
-                                font-weight: 800;
-                                text-align: right;
-                                white-space: nowrap;
+                                font-size: 12px;
+                                font-weight: bold;
+                                color: #0b69a3;
                             }
                             .detail-grid {
                                 display: grid;
-                                grid-template-columns: 1fr 1fr 1fr;
+                                grid-template-columns: repeat(3, 1fr);
+                                gap: 6px 8px;
                             }
-                            .detail {
-                                min-height: 34px;
-                                padding: 6px 7px;
-                                border-right: 1px solid #d9e2ec;
-                                border-bottom: 1px solid #d9e2ec;
-                            }
-                            .detail:nth-child(3n) { border-right: 0; }
                             .detail-label {
-                                color: #627d98;
-                                font-size: 8.5px;
-                                font-weight: 700;
+                                font-size: 8px;
                                 text-transform: uppercase;
+                                color: #627d98;
+                                font-weight: bold;
                             }
                             .detail-value {
-                                margin-top: 2px;
-                                color: #17202a;
+                                font-size: 10.5px;
+                                color: #102a43;
                                 font-weight: 800;
                             }
                             .deduct { color: #b42318; }
@@ -731,10 +718,6 @@ export default function WageReportScreen() {
                                         <div class="detail-value">${formatCurrencyHtml(item.current_food_allowance_amount)}</div>
                                     </div>
                                     <div class="detail">
-                                        <div class="detail-label">Food Given</div>
-                                        <div class="detail-value deduct">${formatDeductionCurrencyHtml(getFoodDeductionAmount(item))}</div>
-                                    </div>
-                                    <div class="detail">
                                         <div class="detail-label">Advance</div>
                                         <div class="detail-value deduct">${formatDeductionCurrencyHtml(item.current_advance_amount)}</div>
                                     </div>
@@ -751,7 +734,7 @@ export default function WageReportScreen() {
                         `).join('')}
 
                         <div class="notes">
-                            Closing Balance = previous balance + full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
+                            Closing Balance = previous balance + full-month wage + overtime + food allowance - advances through cutoff - paid amount through cutoff.
                         </div>
                         <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </body>
@@ -960,17 +943,16 @@ export default function WageReportScreen() {
                             <colgroup>
                                 <col style="width: 3%;" />
                                 <col style="width: 15%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 4%;" />
-                                <col style="width: 4%;" />
-                                <col style="width: 7%;" />
                                 <col style="width: 8%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 7%;" />
-                                <col style="width: 15%;" />
+                                <col style="width: 4%;" />
+                                <col style="width: 4%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 9%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 8%;" />
+                                <col style="width: 17%;" />
                             </colgroup>
                             <thead>
                                 <tr>
@@ -983,7 +965,6 @@ export default function WageReportScreen() {
                                     <th>Wage</th>
                                     <th>OT (Hrs/₹)</th>
                                     <th>Food Allow</th>
-                                    <th>Food Given</th>
                                     <th>Advance</th>
                                     <th>Paid</th>
                                     <th>Closing</th>
@@ -1001,7 +982,6 @@ export default function WageReportScreen() {
                                         <td class="num">${formatCurrencyValue(item.current_wage)}</td>
                                         <td class="num">${formatCountValue(item.current_overtime_hours)} h<br/><span class="muted">&#8377;${formatCurrencyValue(item.current_overtime_amount)}</span></td>
                                         <td class="num">${formatCurrencyValue(item.current_food_allowance_amount)}</td>
-                                        <td class="num deduct">${formatDeductionValue(getFoodDeductionAmount(item))}</td>
                                         <td class="num deduct">${formatDeductionValue(item.current_advance_amount)}</td>
                                         <td class="num paid">${formatCurrencyValue(item.salary_paid)}</td>
                                         <td class="num closing-col">${formatCurrencyValue(item.closing_balance)}</td>
@@ -1017,7 +997,6 @@ export default function WageReportScreen() {
                                     <td class="num">${formatCurrencyValue(totals.wage)}</td>
                                     <td class="num">${formatCountValue(totals.otHours)} h<br/>&#8377;${formatCurrencyValue(totals.ot)}</td>
                                     <td class="num">${formatCurrencyValue(totals.food)}</td>
-                                    <td class="num deduct">${formatDeductionValue(totals.foodDeduction)}</td>
                                     <td class="num deduct">${formatDeductionValue(totals.adv)}</td>
                                     <td class="num">${formatCurrencyValue(totals.paid)}</td>
                                     <td class="num">${formatCurrencyValue(totals.closing)}</td>
@@ -1026,7 +1005,7 @@ export default function WageReportScreen() {
                         </table>
 
                         <div class="notes">
-                            Closing Balance = previous balance + full-month wage + overtime + food allowance - food given - advances through cutoff - paid amount through cutoff.
+                            Closing Balance = previous balance + full-month wage + overtime + food allowance - advances through cutoff - paid amount through cutoff.
                         </div>
                         <div class="generated">Generated on ${escapeHtml(generatedAt)}</div>
                     </div>
@@ -1128,7 +1107,6 @@ export default function WageReportScreen() {
                 const grossWage = item.current_wage || 0;
                 const otAmount = item.current_overtime_amount || 0;
                 const foodAmount = item.current_food_allowance_amount || 0;
-                const foodDeductionAmount = getFoodDeductionAmount(item);
                 const advances = item.current_advance_amount || 0;
                 const previousBalance = toAmount(item.previous_balance);
 
@@ -1216,11 +1194,6 @@ export default function WageReportScreen() {
                                     <tr>
                                         <td>Food Allowance</td>
                                         <td class="amount">${formatCurrency(foodAmount)}</td>
-                                    </tr>` : ''}
-                                    ${foodDeductionAmount > 0 ? `
-                                    <tr style="background-color: #fff9f9;">
-                                        <td>Less: Food Given</td>
-                                        <td class="amount text-red">-${formatCurrency(foodDeductionAmount)}</td>
                                     </tr>` : ''}
                                     
                                     <tr style="background-color: #fff9f9;">
