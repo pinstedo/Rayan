@@ -1,5 +1,6 @@
 const express = require('express');
 const { openDb } = require('../database');
+const { getApplicableHourlyRate } = require('../utils/wages');
 
 const router = express.Router();
 
@@ -48,11 +49,40 @@ router.post('/', async (req, res) => {
     try {
         await db.run('BEGIN TRANSACTION');
 
+        const labourIds = [...new Set(records.map(r => r.labour_id).filter(Boolean))];
+        const labourMap = new Map();
+        const histMap = new Map();
+
+        if (labourIds.length > 0) {
+            const placeholders = labourIds.map(() => '?').join(',');
+            const labours = await db.all(`SELECT id, rate, daily_wage FROM labours WHERE id IN (${placeholders})`, labourIds);
+            labours.forEach(l => labourMap.set(l.id, l));
+
+            const allHistory = await db.all(
+                `SELECT labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, date FROM salary_history WHERE labour_id IN (${placeholders}) ORDER BY date ASC`,
+                labourIds
+            );
+            allHistory.forEach(h => {
+                if (!histMap.has(h.labour_id)) histMap.set(h.labour_id, []);
+                histMap.get(h.labour_id).push(h);
+            });
+        }
+
         for (const record of records) {
             const { labour_id, site_id, date, hours, amount, notes, created_by } = record;
 
-            if (!labour_id || !site_id || !date || hours === undefined || amount === undefined) {
+            if (!labour_id || !site_id || !date || hours === undefined) {
                 throw new Error(`Missing required fields for labour_id: ${labour_id}`);
+            }
+
+            const labour = labourMap.get(labour_id);
+            const history = histMap.get(labour_id) || [];
+            let computedAmount;
+            if (labour) {
+                const hourlyRate = getApplicableHourlyRate(labour, history, date);
+                computedAmount = (Number(hours) || 0) * hourlyRate;
+            } else {
+                computedAmount = Number(amount) || 0;
             }
 
             // Check if record exists
@@ -67,14 +97,14 @@ router.post('/', async (req, res) => {
                     `UPDATE overtime 
                      SET hours = ?, amount = ?, notes = ?, site_id = ? 
                      WHERE id = ?`,
-                    [hours, amount, notes, site_id, existing.id]
+                    [hours, computedAmount, notes, site_id, existing.id]
                 );
             } else {
                 // Insert
                 await db.run(
                     `INSERT INTO overtime (labour_id, site_id, date, hours, amount, notes, created_by) 
                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [labour_id, site_id, date, hours, amount, notes, created_by]
+                    [labour_id, site_id, date, hours, computedAmount, notes, created_by]
                 );
             }
         }

@@ -45,6 +45,59 @@ const withWageCompatibility = (labour) => {
 
 const withWageCompatibilityList = (labours) => labours.map(withWageCompatibility);
 
+const getApplicableHourlyRate = (labour, salaryHistory = [], date) => {
+  if (!salaryHistory || salaryHistory.length === 0) {
+    return getLabourHourlyRate(labour);
+  }
+  if (!date) {
+    return getLabourHourlyRate(labour);
+  }
+
+  let applicableRate = null;
+  for (let i = salaryHistory.length - 1; i >= 0; i--) {
+    if (salaryHistory[i].date <= date) {
+      applicableRate = salaryHistory[i].new_daily_wage !== null && salaryHistory[i].new_daily_wage !== undefined
+        ? hourlyFromDailyWage(salaryHistory[i].new_daily_wage)
+        : salaryHistory[i].new_rate;
+      break;
+    }
+  }
+
+  if (applicableRate !== null) return applicableRate;
+
+  if (salaryHistory[0].previous_daily_wage !== null && salaryHistory[0].previous_daily_wage !== undefined) {
+    return hourlyFromDailyWage(salaryHistory[0].previous_daily_wage);
+  }
+  if (salaryHistory[0].previous_rate !== null && salaryHistory[0].previous_rate !== undefined) {
+    return salaryHistory[0].previous_rate;
+  }
+  return getLabourHourlyRate(labour);
+};
+
+const syncLabourOvertimeAmounts = async (db, labourId, fromDate = null) => {
+  const labour = await db.get('SELECT id, rate, daily_wage FROM labours WHERE id = ?', [labourId]);
+  if (!labour) return;
+
+  const history = await db.all(
+    'SELECT previous_rate, new_rate, previous_daily_wage, new_daily_wage, date FROM salary_history WHERE labour_id = ? ORDER BY date ASC',
+    [labourId]
+  );
+
+  let query = 'SELECT id, date, hours FROM overtime WHERE labour_id = ?';
+  const params = [labourId];
+  if (fromDate) {
+    query += ' AND date >= ?';
+    params.push(fromDate);
+  }
+
+  const overtimeRecords = await db.all(query, params);
+  for (const ot of overtimeRecords) {
+    const hourlyRate = getApplicableHourlyRate(labour, history, ot.date);
+    const amount = (Number(ot.hours) || 0) * hourlyRate;
+    await db.run('UPDATE overtime SET amount = ? WHERE id = ?', [amount, ot.id]);
+  }
+};
+
 module.exports = {
   STANDARD_DAILY_HOURS,
   hourlyFromDailyWage,
@@ -52,6 +105,9 @@ module.exports = {
   dailyWageFromPayload,
   getLabourDailyWage,
   getLabourHourlyRate,
+  getApplicableHourlyRate,
+  syncLabourOvertimeAmounts,
   withWageCompatibility,
   withWageCompatibilityList,
 };
+

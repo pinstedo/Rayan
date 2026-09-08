@@ -151,29 +151,27 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             });
 
             // Overtime
-            let overtimeQuery = `
-                SELECT SUM(amount) as total_amount, SUM(hours) as total_hours 
+            let detailedOvertimeQuery = `
+                SELECT date, hours, amount 
                 FROM overtime 
                 WHERE labour_id = ?
             `;
-            const overtimeParams = [labour.id];
+            const detailedOvertimeParams = [labour.id];
 
             if (startDate) {
-                overtimeQuery += ` AND date >= ?`;
-                overtimeParams.push(startDate);
+                detailedOvertimeQuery += ` AND date >= ?`;
+                detailedOvertimeParams.push(startDate);
             }
             if (endDate) {
-                overtimeQuery += ` AND date <= ?`;
-                overtimeParams.push(endDate);
+                detailedOvertimeQuery += ` AND date <= ?`;
+                detailedOvertimeParams.push(endDate);
             }
             if (site_id) {
-                overtimeQuery += ` AND site_id = ?`;
-                overtimeParams.push(site_id);
+                detailedOvertimeQuery += ` AND site_id = ?`;
+                detailedOvertimeParams.push(site_id);
             }
 
-            const overtimeResult = await db.get(overtimeQuery, overtimeParams);
-            const overtimeAmount = overtimeResult.total_amount || 0;
-            const overtimeHours = overtimeResult.total_hours || 0;
+            const detailedOvertime = await db.all(detailedOvertimeQuery, detailedOvertimeParams);
 
             // Advances
             let advanceQuery = `
@@ -260,6 +258,15 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 } else if (record.status === 'half') {
                     wage += 4 * dailyRate;
                 }
+            });
+
+            let overtimeAmount = 0;
+            let overtimeHours = 0;
+            detailedOvertime.forEach(ot => {
+                const hourlyRate = getRateForDate(ot.date);
+                const hrs = Number(ot.hours) || 0;
+                overtimeHours += hrs;
+                overtimeAmount += hrs * hourlyRate;
             });
 
             const siteLevelFoodAmount = siteLevelFoodCount * globalFoodRate;
@@ -583,8 +590,8 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
 
             const otRecs = otByLabour[labour.id]
                 .filter(o => isPrevious ? o.date < startDate : (o.date >= startDate && o.date <= endDate));
-            const otAmount = otRecs.reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
             const otHours = otRecs.reduce((sum, curr) => sum + (Number(curr.hours) || 0), 0);
+            const otAmount = otRecs.reduce((sum, curr) => sum + ((Number(curr.hours) || 0) * getRateForDate(curr.date)), 0);
 
             const advAmount = advByLabour[labour.id]
                 .filter(a => isPrevious ? a.date < advanceStartDate : (a.date >= advanceStartDate && a.date <= advanceEndDate))

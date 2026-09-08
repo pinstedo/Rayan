@@ -15,6 +15,7 @@ const {
     dailyWageFromPayload,
     getLabourDailyWage,
     hourlyFromDailyWage,
+    syncLabourOvertimeAmounts,
     withWageCompatibility,
     withWageCompatibilityList
 } = require('../utils/wages');
@@ -684,6 +685,7 @@ router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
                     req.user ? req.user.id : null
                 ]
             );
+            await syncLabourOvertimeAmounts(db, req.params.id, today);
         }
 
         let newStatus = currentLabour.status;
@@ -932,6 +934,9 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
             `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date) VALUES (?, 'increment', ?, ?, ?)`,
             [labour_id, incrementAmt, continuousDaysAtTime, incrementDate]
         );
+
+        // Sync existing overtime records from incrementDate onwards
+        await syncLabourOvertimeAmounts(db, labour_id, incrementDate);
 
         await db.run('COMMIT');
 
