@@ -53,6 +53,8 @@ export default function SpecialSupervisorAssignments() {
   // Site Picker Modal
   const [sitePickerVisible, setSitePickerVisible] = useState(false);
   const [siteSearchQuery, setSiteSearchQuery] = useState("");
+  const [sitePickerTab, setSitePickerTab] = useState<"assigned" | "all">("assigned");
+  const [assignedSiteIds, setAssignedSiteIds] = useState<Set<number>>(new Set());
 
   // Assign Labour Modal
   const [assignModalVisible, setAssignModalVisible] = useState(false);
@@ -109,25 +111,44 @@ export default function SpecialSupervisorAssignments() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [sitesRes, laboursRes] = await Promise.all([
+      const userDataStr = await AsyncStorage.getItem("userData");
+      let userId = null;
+      if (userDataStr) {
+        const user = JSON.parse(userDataStr);
+        userId = user.id;
+        setCurrentUserId(user.id);
+      }
+
+      const [allSitesRes, assignedSitesRes, laboursRes] = await Promise.all([
         api.get("/sites?status=active"),
+        userId ? api.get(`/sites/supervisor/${userId}`) : Promise.resolve({ ok: false, json: async () => [] }),
         api.get("/labours"),
       ]);
-      const sitesData = await sitesRes.json();
+
+      const allSitesData = await allSitesRes.json();
+      const assignedSitesData = assignedSitesRes.ok ? await assignedSitesRes.json() : [];
       const laboursData = await laboursRes.json();
 
-      if (sitesRes.ok) {
-        setSites(sitesData);
+      const assignedIds = new Set((Array.isArray(assignedSitesData) ? assignedSitesData : []).map((s: Site) => s.id));
+      setAssignedSiteIds(assignedIds);
+
+      if (allSitesRes.ok) {
+        const sortedSites = Array.isArray(allSitesData) ? [...allSitesData].sort((a: Site, b: Site) => (a.name || "").localeCompare(b.name || "")) : [];
+        setSites(sortedSites);
+
         setSelectedSite((current) => {
           if (current) {
-            const updated = sitesData.find((s: Site) => s.id === current.id);
-            return updated || sitesData[0] || null;
+            const updated = sortedSites.find((s: Site) => s.id === current.id);
+            if (updated) return updated;
           }
-          return sitesData[0] || null;
+          // Default to first assigned site if available, else first active site
+          const firstAssigned = sortedSites.find((s: Site) => assignedIds.has(s.id));
+          return firstAssigned || sortedSites[0] || null;
         });
       }
+
       if (laboursRes.ok) {
-        setLabours(laboursData);
+        setLabours(Array.isArray(laboursData) ? laboursData : []);
       }
     } catch (error) {
       console.error("Special supervisor fetch error:", error);
@@ -206,13 +227,17 @@ export default function SpecialSupervisorAssignments() {
   // Sites matching search in site picker modal
   const filteredSites = useMemo(() => {
     const text = siteSearchQuery.trim().toLowerCase();
-    if (!text) return sites;
-    return sites.filter(
+    let result = sites;
+    if (sitePickerTab === "assigned") {
+      result = sites.filter((s) => assignedSiteIds.has(s.id));
+    }
+    if (!text) return result;
+    return result.filter(
       (s) =>
         s.name.toLowerCase().includes(text) ||
         (s.address && s.address.toLowerCase().includes(text))
     );
-  }, [sites, siteSearchQuery]);
+  }, [sites, assignedSiteIds, sitePickerTab, siteSearchQuery]);
 
   const logout = async () => {
     await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
@@ -445,7 +470,15 @@ export default function SpecialSupervisorAssignments() {
         <View style={{ flex: 1 }}>
           {/* Active Site Selection Card */}
           <View style={local.siteSelectorSection}>
-            <Text style={local.sectionLabel}>ACTIVE SITE</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text style={local.sectionLabel}>ACTIVE SITE</Text>
+              {selectedSite && assignedSiteIds.has(selectedSite.id) && (
+                <View style={local.assignedCardBadge}>
+                  <MaterialIcons name="stars" size={13} color="#ff9500" />
+                  <Text style={local.assignedCardBadgeText}>ASSIGNED TO YOU</Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
               style={local.siteSelectCard}
               onPress={() => {
@@ -489,6 +522,19 @@ export default function SpecialSupervisorAssignments() {
                 </View>
 
                 <View style={local.actionButtonsRow}>
+                  {/* Mark Attendance Button */}
+                  <TouchableOpacity
+                    style={local.markAttendanceBtn}
+                    onPress={() => {
+                      if (selectedSite) {
+                        router.push(`/(screens)/attendance?siteId=${selectedSite.id}&siteName=${encodeURIComponent(selectedSite.name)}` as any);
+                      }
+                    }}
+                  >
+                    <MaterialIcons name="check-circle" size={16} color="#fff" />
+                    <Text style={local.markAttendanceText}>Attendance</Text>
+                  </TouchableOpacity>
+
                   {/* Global Give Advance Button */}
                   <TouchableOpacity
                     style={local.giveAdvanceBtn}
@@ -631,6 +677,36 @@ export default function SpecialSupervisorAssignments() {
               />
             </View>
 
+            {/* Site Picker Filter Tabs */}
+            <View style={local.siteTabGroup}>
+              <TouchableOpacity
+                style={[local.siteTab, sitePickerTab === "assigned" && local.siteTabActive]}
+                onPress={() => setSitePickerTab("assigned")}
+              >
+                <MaterialIcons
+                  name="star"
+                  size={14}
+                  color={sitePickerTab === "assigned" ? "#fff" : colors.textSecondary}
+                />
+                <Text style={[local.siteTabText, sitePickerTab === "assigned" && local.siteTabTextActive]}>
+                  Assigned ({assignedSiteIds.size})
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[local.siteTab, sitePickerTab === "all" && local.siteTabActive]}
+                onPress={() => setSitePickerTab("all")}
+              >
+                <MaterialIcons
+                  name="domain"
+                  size={14}
+                  color={sitePickerTab === "all" ? "#fff" : colors.textSecondary}
+                />
+                <Text style={[local.siteTabText, sitePickerTab === "all" && local.siteTabTextActive]}>
+                  All Sites ({sites.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <FlatList
               data={filteredSites}
               keyExtractor={(item) => item.id.toString()}
@@ -668,6 +744,11 @@ export default function SpecialSupervisorAssignments() {
                         {item.address || "No address specified"}
                       </Text>
                     </View>
+                    {assignedSiteIds.has(item.id) && (
+                      <View style={local.assignedTagBadge}>
+                        <Text style={local.assignedTagText}>Assigned</Text>
+                      </View>
+                    )}
                     <View
                       style={[
                         local.selectableSiteBadge,
@@ -1648,6 +1729,77 @@ const getStyles = (isDark: boolean, colors: any) =>
     assignableCardChecked: {
       borderColor: colors.primary,
       backgroundColor: isDark ? "#1e293b" : "#f0f7ff",
+    },
+    markAttendanceBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "#34c759",
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 8,
+    },
+    markAttendanceText: {
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    assignedCardBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: isDark ? "#3d2e00" : "#fff8e7",
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: isDark ? "#ff9500" : "#ffe0b2",
+    },
+    assignedCardBadgeText: {
+      fontSize: 10,
+      fontWeight: "800",
+      color: isDark ? "#ffb340" : "#b27b00",
+      letterSpacing: 0.5,
+    },
+    siteTabGroup: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 12,
+    },
+    siteTab: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: isDark ? "#27272a" : "#e5e7eb",
+    },
+    siteTabActive: {
+      backgroundColor: colors.primary,
+    },
+    siteTabText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    siteTabTextActive: {
+      color: "#fff",
+    },
+    assignedTagBadge: {
+      backgroundColor: isDark ? "#3d2e00" : "#fff8e7",
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: isDark ? "#ff9500" : "#ffe0b2",
+      marginRight: 6,
+    },
+    assignedTagText: {
+      fontSize: 10,
+      fontWeight: "800",
+      color: isDark ? "#ffb340" : "#b27b00",
     },
     assignableCheckRow: {
       flex: 1,

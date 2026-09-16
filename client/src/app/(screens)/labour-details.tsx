@@ -691,7 +691,7 @@ export default function LabourDetailsScreen() {
             return r.date >= startDateStr && r.date <= endDateStr;
         } else {
             const matchesMonth = r.date && r.date.startsWith(selectedMonth);
-            if (userRole === "supervisor") {
+            if (userRole === "supervisor" || userRole === "special_supervisor") {
                 return matchesMonth && Number(r.created_by) === Number(currentUserId);
             }
             return matchesMonth;

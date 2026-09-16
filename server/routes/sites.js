@@ -195,7 +195,7 @@ router.get('/:id', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
             SELECT u.id, u.name, u.phone, ss.assigned_at
             FROM users u
             JOIN site_supervisors ss ON u.id = ss.supervisor_id
-            WHERE ss.site_id = ?
+            WHERE ss.site_id = ? AND u.is_deleted = false
         `, [req.params.id]);
 
         // Get labours at this site
@@ -341,14 +341,25 @@ router.post('/:id/assign', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, re
     try {
         const db = await openDb();
 
-        // Verify supervisor exists and has supervisor role
+        const site = await db.get('SELECT name, status FROM sites WHERE id = ?', [req.params.id]);
+        if (!site) return res.status(404).json({ error: 'Site not found' });
+
+        if (site.status === 'inactive' || site.status === 'completed') {
+            return res.status(400).json({ error: `Cannot assign supervisor to a ${site.status} site.` });
+        }
+
+        // Verify supervisor exists, is active (not revoked/deleted), and has supervisor or special_supervisor role
         const supervisor = await db.get(
-            `SELECT * FROM users WHERE id = ? AND role = 'supervisor'`,
+            `SELECT * FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor')`,
             [supervisor_id]
         );
 
         if (!supervisor) {
             return res.status(404).json({ error: 'Supervisor not found' });
+        }
+
+        if (supervisor.is_deleted) {
+            return res.status(400).json({ error: 'Cannot assign a revoked or deleted supervisor to a site. Restore them first.' });
         }
 
         await db.run(
@@ -358,7 +369,7 @@ router.post('/:id/assign', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, re
 
         res.status(201).json({ message: 'Supervisor assigned to site' });
     } catch (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
+        if (err.code === '23505' || err.message.includes('UNIQUE constraint failed') || err.message.includes('duplicate key')) {
             return res.status(400).json({ error: 'Supervisor already assigned to this site' });
         }
         res.status(500).json({ error: err.message });

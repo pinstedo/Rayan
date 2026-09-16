@@ -26,6 +26,7 @@ export default function EditSupervisorScreen() {
     const [id] = useState(params.id);
     const [name, setName] = useState(params.name as string || "");
     const [phone, setPhone] = useState(params.phone as string || "");
+    const [role, setRole] = useState(params.role as string || "supervisor");
     const [loading, setLoading] = useState(false);
 
     // Forgot/Reset Password States
@@ -76,6 +77,7 @@ export default function EditSupervisorScreen() {
             const payload: any = {
                 name,
                 phone,
+                role,
             };
 
             const response = await api.put(`/auth/supervisors/${id}`, payload);
@@ -290,6 +292,55 @@ export default function EditSupervisorScreen() {
                                 value={phone}
                                 keyboardType="phone-pad"
                             />
+                        </View>
+                    </View>
+
+                    <View style={local.inputGroup}>
+                        <Text style={local.label}>Supervisor Type</Text>
+                        <View style={local.roleSelectorRow}>
+                            <TouchableOpacity
+                                style={[
+                                    local.roleOption,
+                                    role === "supervisor" && local.roleOptionActive,
+                                ]}
+                                onPress={() => setRole("supervisor")}
+                            >
+                                <Ionicons
+                                    name="person-outline"
+                                    size={18}
+                                    color={role === "supervisor" ? "#fff" : (isDark ? "#aaa" : "#666")}
+                                />
+                                <Text
+                                    style={[
+                                        local.roleOptionText,
+                                        role === "supervisor" && local.roleOptionTextActive,
+                                    ]}
+                                >
+                                    Supervisor
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    local.roleOption,
+                                    role === "special_supervisor" && local.roleOptionSpecialActive,
+                                ]}
+                                onPress={() => setRole("special_supervisor")}
+                            >
+                                <Ionicons
+                                    name="star-outline"
+                                    size={18}
+                                    color={role === "special_supervisor" ? "#fff" : (isDark ? "#aaa" : "#666")}
+                                />
+                                <Text
+                                    style={[
+                                        local.roleOptionText,
+                                        role === "special_supervisor" && local.roleOptionTextActive,
+                                    ]}
+                                >
+                                    Special Supervisor
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -585,5 +636,37 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         color: "#ff3b30",
         fontSize: 16,
         fontWeight: "600",
+    },
+    roleSelectorRow: {
+        flexDirection: "row",
+        gap: 10,
+    },
+    roleOption: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: isDark ? "#2a2a2a" : "#f5f6fa",
+        borderWidth: 1,
+        borderColor: isDark ? "#444" : "#e1e1e1",
+    },
+    roleOptionActive: {
+        backgroundColor: "#0a84ff",
+        borderColor: "#0a84ff",
+    },
+    roleOptionSpecialActive: {
+        backgroundColor: "#ff9500",
+        borderColor: "#ff9500",
+    },
+    roleOptionText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: isDark ? "#aaa" : "#666",
+    },
+    roleOptionTextActive: {
+        color: "#fff",
     },
 });

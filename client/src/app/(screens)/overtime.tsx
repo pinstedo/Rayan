@@ -78,7 +78,7 @@ export default function OvertimeScreen() {
 				const userDataStr = await AsyncStorage.getItem("userData");
 				if (userDataStr) {
 					const userData = JSON.parse(userDataStr);
-					if (userData.role === "supervisor") {
+					if (userData.role === "supervisor" || userData.role === "special_supervisor") {
 						supId = userData.id;
 					}
 				}

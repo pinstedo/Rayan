@@ -48,6 +48,8 @@ export default function AttendanceScreen() {
 	const { siteId, siteName, dateStr } = useLocalSearchParams();
 	const [labours, setLabours] = useState<Labour[]>([]);
 	const [attendance, setAttendance] = useState<Map<number, 'full' | 'half' | 'absent'>>(new Map());
+	const [defaultAttendance, setDefaultAttendance] = useState<Map<number, 'full' | 'half' | 'absent'>>(new Map());
+	const [snapshotBeforeMarkAll, setSnapshotBeforeMarkAll] = useState<Map<number, 'full' | 'half' | 'absent'> | null>(null);
 	const [overtimeData, setOvertimeData] = useState<Map<number, number>>(new Map());
 	const [foodAllowanceData, setFoodAllowanceData] = useState<Map<number, { enabled: boolean; amount: string }>>(new Map());
 	const [globalFoodRate, setGlobalFoodRate] = useState(70);
@@ -83,6 +85,18 @@ export default function AttendanceScreen() {
 	const isGlobalView = !siteId;
 	const isToday = date.toDateString() === new Date().toDateString();
 	const canEdit = !isGlobalView && (!locked || isAdmin);
+
+	const activeLabours = useMemo(() => {
+		return labours.filter(l => {
+			const s = l.status?.toLowerCase() || 'active';
+			return s === 'active';
+		});
+	}, [labours]);
+
+	const isAllFull = useMemo(() => {
+		if (activeLabours.length === 0) return false;
+		return activeLabours.every(l => attendance.get(l.id) === 'full');
+	}, [activeLabours, attendance]);
 
 	const initialData = useMemo(() => labours.map(l => ({
 		...l,
@@ -223,9 +237,13 @@ export default function AttendanceScreen() {
 					});
 				});
 				setAttendance(newAttendance);
+				setDefaultAttendance(new Map(newAttendance));
+				setSnapshotBeforeMarkAll(null);
 				setFoodAllowanceData(newFoodAllowance);
 			} else {
 				setAttendance(new Map());
+				setDefaultAttendance(new Map());
+				setSnapshotBeforeMarkAll(null);
 				setFoodAllowanceData(new Map());
 			}
 		} catch (error) {
@@ -281,6 +299,65 @@ export default function AttendanceScreen() {
 			newMap.set(labourId, status);
 			return newMap;
 		});
+	};
+
+	const handleMarkAllFull = () => {
+		if (isGlobalView || !canEdit || activeLabours.length === 0) return;
+
+		if (isAllFull) {
+			showModal(
+				"Reset Attendance",
+				"Are you sure you want to reset attendance back to default?",
+				"confirmation",
+				[
+					{
+						text: "Cancel",
+						onPress: () => setModalConfig(prev => ({ ...prev, visible: false })),
+						style: "cancel"
+					},
+					{
+						text: "Reset to Default",
+						onPress: () => {
+							setModalConfig(prev => ({ ...prev, visible: false }));
+							const target = snapshotBeforeMarkAll ?? defaultAttendance;
+							const targetIsAllFull = activeLabours.length > 0 && activeLabours.every(l => target.get(l.id) === 'full');
+							const newMap = targetIsAllFull ? new Map() : new Map(target);
+							setAttendance(newMap);
+							setSnapshotBeforeMarkAll(null);
+						},
+						style: "destructive"
+					}
+				]
+			);
+		} else {
+			showModal(
+				"Mark All Full",
+				"Are you sure you want to mark all active workers as Full?",
+				"confirmation",
+				[
+					{
+						text: "Cancel",
+						onPress: () => setModalConfig(prev => ({ ...prev, visible: false })),
+						style: "cancel"
+					},
+					{
+						text: "Mark All Full",
+						onPress: () => {
+							setModalConfig(prev => ({ ...prev, visible: false }));
+							setSnapshotBeforeMarkAll(new Map(attendance));
+							setAttendance(prev => {
+								const newMap = new Map(prev);
+								activeLabours.forEach(l => {
+									newMap.set(l.id, 'full');
+								});
+								return newMap;
+							});
+						},
+						style: "default"
+					}
+				]
+			);
+		}
 	};
 
 	const handleOvertimeChange = (labourId: number, delta: number) => {
@@ -377,7 +454,20 @@ export default function AttendanceScreen() {
 		}
 	};
 
-	// Filter logic replaced by listManager
+	const totalLabours = labours.length;
+	const markedCounts = useMemo(() => {
+		let full = 0;
+		let half = 0;
+		let absent = 0;
+		attendance.forEach((st) => {
+			if (st === 'full') full++;
+			else if (st === 'half') half++;
+			else if (st === 'absent') absent++;
+		});
+		const markedTotal = full + half + absent;
+		const pending = Math.max(0, totalLabours - markedTotal);
+		return { full, half, absent, pending, markedTotal };
+	}, [attendance, totalLabours]);
 
 	const renderItem = ({ item }: { item: Labour & { attendance_status: string } }) => {
 		const status = attendance.get(item.id);
@@ -612,6 +702,57 @@ export default function AttendanceScreen() {
 							thumbColor={foodProvided ? (isDark ? "#4da6ff" : "#0a84ff") : (isDark ? "#ccc" : "#f4f3f4")}
 						/>
 					</View>
+
+					{/* Attendance Progress & Quick Action Card */}
+					<View style={local.summaryCard}>
+						<View style={local.summaryHeader}>
+							<View style={{ flex: 1 }}>
+								<Text style={local.summaryTitle}>Attendance Progress</Text>
+								<Text style={local.summaryCountText}>{markedCounts.markedTotal} of {totalLabours} Workers Marked</Text>
+							</View>
+							{canEdit && (
+								<TouchableOpacity
+									style={[local.markAllBtn, isAllFull && local.resetAllBtn]}
+									onPress={handleMarkAllFull}
+								>
+									<MaterialIcons name={isAllFull ? "undo" : "done-all"} size={16} color="#fff" />
+									<Text style={local.markAllBtnText}>
+										{isAllFull ? "Reset to Default" : "Mark All Full"}
+									</Text>
+								</TouchableOpacity>
+							)}
+						</View>
+
+						<View style={local.progressBarTrack}>
+							<View
+								style={[
+									local.progressBarFill,
+									{ width: `${totalLabours > 0 ? (markedCounts.markedTotal / totalLabours) * 100 : 0}%` }
+								]}
+							/>
+						</View>
+
+						<View style={local.pillsRow}>
+							<View style={[local.pill, { backgroundColor: isDark ? '#1b4721' : '#e8f5e9' }]}>
+								<View style={[local.pillDot, { backgroundColor: '#4CAF50' }]} />
+								<Text style={[local.pillText, { color: isDark ? '#81c784' : '#2e7d32' }]}>Full: {markedCounts.full}</Text>
+							</View>
+							<View style={[local.pill, { backgroundColor: isDark ? '#422c06' : '#fff8e1' }]}>
+								<View style={[local.pillDot, { backgroundColor: '#FF9800' }]} />
+								<Text style={[local.pillText, { color: isDark ? '#ffb74d' : '#f57f17' }]}>Half: {markedCounts.half}</Text>
+							</View>
+							<View style={[local.pill, { backgroundColor: isDark ? '#421616' : '#ffebee' }]}>
+								<View style={[local.pillDot, { backgroundColor: '#F44336' }]} />
+								<Text style={[local.pillText, { color: isDark ? '#e57373' : '#c62828' }]}>Absent: {markedCounts.absent}</Text>
+							</View>
+							{markedCounts.pending > 0 && (
+								<View style={[local.pill, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0' }]}>
+									<View style={[local.pillDot, { backgroundColor: '#9e9e9e' }]} />
+									<Text style={[local.pillText, { color: isDark ? '#aaa' : '#666' }]}>Pending: {markedCounts.pending}</Text>
+								</View>
+							)}
+						</View>
+					</View>
 				</View>
 			)}
 		</View>
@@ -672,6 +813,14 @@ export default function AttendanceScreen() {
 
 			{!isGlobalView && (
 				<View style={local.footer}>
+					<View style={local.footerInfoRow}>
+						<Text style={local.footerSummaryText}>
+							{markedCounts.markedTotal} of {totalLabours} Marked
+						</Text>
+						<Text style={local.footerDetailText}>
+							Full: {markedCounts.full} | Half: {markedCounts.half} | Absent: {markedCounts.absent}
+						</Text>
+					</View>
 					<Pressable
 						style={[local.submitBtn, (submitting || !canEdit) && local.submitBtnDisabled]}
 						onPress={handleSubmit}
@@ -980,6 +1129,97 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
 	},
 	otValueDisabled: {
 		color: isDark ? "#666" : "#aaa",
+	},
+	summaryCard: {
+		backgroundColor: isDark ? "#252525" : "#f8f9fa",
+		borderRadius: 12,
+		padding: 14,
+		marginTop: 12,
+		borderWidth: 1,
+		borderColor: isDark ? "#383838" : "#e9ecef",
+	},
+	summaryHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 10,
+	},
+	summaryTitle: {
+		fontSize: 15,
+		fontWeight: "700",
+		color: isDark ? "#fff" : "#212529",
+	},
+	summaryCountText: {
+		fontSize: 12,
+		color: isDark ? "#aaa" : "#6c757d",
+		marginTop: 2,
+	},
+	markAllBtn: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 4,
+		backgroundColor: "#0a84ff",
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		borderRadius: 8,
+	},
+	resetAllBtn: {
+		backgroundColor: isDark ? "#e65100" : "#f57c00",
+	},
+	markAllBtnText: {
+		color: "#fff",
+		fontSize: 12,
+		fontWeight: "600",
+	},
+	progressBarTrack: {
+		height: 8,
+		backgroundColor: isDark ? "#333" : "#e9ecef",
+		borderRadius: 4,
+		overflow: "hidden",
+		marginBottom: 12,
+	},
+	progressBarFill: {
+		height: "100%",
+		backgroundColor: "#4CAF50",
+		borderRadius: 4,
+	},
+	pillsRow: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		gap: 6,
+	},
+	pill: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 12,
+	},
+	pillDot: {
+		width: 8,
+		height: 8,
+		borderRadius: 4,
+	},
+	pillText: {
+		fontSize: 12,
+		fontWeight: "600",
+	},
+	footerInfoRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 8,
+		paddingHorizontal: 4,
+	},
+	footerSummaryText: {
+		fontSize: 13,
+		fontWeight: "700",
+		color: isDark ? "#fff" : "#2d3436",
+	},
+	footerDetailText: {
+		fontSize: 12,
+		color: isDark ? "#aaa" : "#636e72",
 	}
 });
 

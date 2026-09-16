@@ -320,10 +320,14 @@ router.post('/add-supervisor', authenticateToken, authorizeRole(ADMIN_ROLES), as
 // Update Supervisor (Admin Only)
 router.put('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES), async (req, res) => {
     const { id } = req.params;
-    const { name, phone, password } = req.body;
+    const { name, phone, password, role } = req.body;
 
     if (!name || !phone) {
         return res.status(400).json({ error: 'Name and phone are required' });
+    }
+
+    if (role && ![ROLES.SUPERVISOR, ROLES.SPECIAL_SUPERVISOR].includes(role)) {
+        return res.status(400).json({ error: 'Invalid supervisor role' });
     }
 
     try {
@@ -334,20 +338,22 @@ router.put('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES), as
             return res.status(404).json({ error: 'Supervisor not found' });
         }
 
+        const targetRole = role || existing.role;
+
         if (password) {
             const hashedPassword = await bcrypt.hash(password, 10);
             await db.run(
-                `UPDATE users SET name = ?, phone = ?, password_hash = ? WHERE id = ?`,
-                [name, phone, hashedPassword, id]
+                `UPDATE users SET name = ?, phone = ?, role = ?, password_hash = ? WHERE id = ?`,
+                [name, phone, targetRole, hashedPassword, id]
             );
         } else {
             await db.run(
-                `UPDATE users SET name = ?, phone = ? WHERE id = ?`,
-                [name, phone, id]
+                `UPDATE users SET name = ?, phone = ?, role = ? WHERE id = ?`,
+                [name, phone, targetRole, id]
             );
         }
 
-        res.json({ message: 'Supervisor updated successfully' });
+        res.json({ message: 'Supervisor updated successfully', role: targetRole });
     } catch (err) {
         if (err.code === '23505' || err.message.includes('unique')) {
             return res.status(400).json({ error: 'Phone number already registered' });

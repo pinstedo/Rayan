@@ -112,7 +112,7 @@ export default function AddLabour() {
           if (response.ok) {
             setSites(data);
           }
-        } else if (userData.role === "supervisor") {
+        } else if (userData.role === "supervisor" || userData.role === "special_supervisor") {
           const response = await api.get(`/sites/supervisor/${userData.id}`);
           const data = await response.json();
           if (response.ok) {

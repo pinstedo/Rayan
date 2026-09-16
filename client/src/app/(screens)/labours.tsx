@@ -139,7 +139,7 @@ export default function Labours() {
 				setIsAdmin(userData.role === "admin");
 				setUserRole(userData.role);
 				setCurrentUserId(userData.id);
-				await fetchLabours(userData.role === "supervisor" ? userData.id : supervisorId, isRefresh);
+				await fetchLabours((userData.role === "supervisor" || userData.role === "special_supervisor") ? userData.id : supervisorId, isRefresh);
 				if (userData.role === "admin") {
 					await fetchSites();
 				}
@@ -300,7 +300,7 @@ export default function Labours() {
 		);
 	};
 
-	const canManageAdvance = userRole === "admin" || userRole === "supervisor";
+	const canManageAdvance = userRole === "admin" || userRole === "supervisor" || userRole === "special_supervisor";
 
 	const handleOpenAdvance = (labour: Labour) => {
 		setSelectedLabourForAdvance(labour);

@@ -4,6 +4,7 @@ const { openDb } = require('../database');
 const router = express.Router();
 
 const { authorizeRole } = require('../middleware/auth');
+const { FIELD_SUPERVISOR_ROLES } = require('../roles');
 const { logHistory } = require('../utils/historyLogger');
 
 // ── Bonus Eligibility Helper ─────────────────────────────────────────────────
@@ -62,7 +63,7 @@ function statusDelta(status) {
 }
 
 // Get attendance for a specific site and date, or all sites if site_id is missing
-router.post('/fetch', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/fetch', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { site_id, date } = req.body;
 
     if (!date) {
@@ -113,7 +114,7 @@ router.get('/my-attendance', async (req, res) => {
 });
 
 // Get attendance summary (marked dates) for a site and month
-router.post('/summary', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/summary', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { site_id, month, year } = req.body;
 
     if (!site_id || !month || !year) {
@@ -147,7 +148,7 @@ router.post('/summary', authorizeRole(['admin', 'supervisor']), async (req, res)
 });
 
 // Get lock status for a specific site and date
-router.post('/lock-status', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/lock-status', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { site_id, date } = req.body;
 
     if (!site_id || !date) {
@@ -170,7 +171,7 @@ router.post('/lock-status', authorizeRole(['admin', 'supervisor']), async (req, 
 });
 
 // Mark attendance (batch or single)
-router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     const { records, food_provided } = req.body;
     // records should be an array of { labour_id, site_id, supervisor_id, date, status }
 
@@ -365,7 +366,7 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
 });
 
 // Get all attendance records for a specific labour
-router.get('/labour/:id', authorizeRole(['admin', 'supervisor']), async (req, res) => {
+router.get('/labour/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
     try {
         const db = await openDb();
         const records = await db.all(
