@@ -401,7 +401,7 @@ router.post('/:id/assign-labour', authorizeRole(ASSIGNMENT_ROLES), async (req, r
             return res.status(400).json({ error: 'Cannot assign a labour who is currently on leave. End their leave first.' });
         }
 
-        await db.run('UPDATE labours SET site_id = ?, site = ?, status = "active" WHERE id = ?', [req.params.id, site.name, labour_id]);
+        await db.run("UPDATE labours SET site_id = ?, site = ?, status = 'active' WHERE id = ?", [req.params.id, site.name, labour_id]);
         await updateSiteHistory(db, labour_id, req.params.id);
         res.json({ message: 'Labour assigned to site' });
     } catch (err) {
@@ -413,7 +413,7 @@ router.post('/:id/assign-labour', authorizeRole(ASSIGNMENT_ROLES), async (req, r
 router.delete('/:id/unassign-labour/:labourId', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     try {
         const db = await openDb();
-        await db.run('UPDATE labours SET site_id = NULL, site = NULL, status = "unassigned" WHERE id = ?', [req.params.labourId]);
+        await db.run("UPDATE labours SET site_id = NULL, site = NULL, status = 'unassigned' WHERE id = ?", [req.params.labourId]);
         await updateSiteHistory(db, req.params.labourId, null);
         res.json({ message: 'Labour removed from site' });
     } catch (err) {

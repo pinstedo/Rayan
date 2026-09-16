@@ -97,9 +97,19 @@ export default function HistoryScreen() {
       else if (item.type === 'site' && item.action === 'progress_updated') metaSnippet = `Progress: ${meta.progress}%`;
       else if (item.type === 'labour' && meta.status) metaSnippet = `Status: ${meta.status}`;
       else if (item.type === 'attendance' && meta.records_count) metaSnippet = `${meta.records_count} records marked`;
+      else if (item.action === 'bulk_backdated_assignment') metaSnippet = `${meta.count || 0} labourers assigned`;
+      else if (item.action === 'bulk_backdated_unassignment') metaSnippet = `${meta.count || 0} labourers unassigned`;
       else metaSnippet = item.metadata ? 'Details updated' : '';
     } catch {
       // ignore parse error implicitly
+    }
+
+    let displayName = item.name;
+    if (displayName && item.site_name && /^Attendance for Site #?\d+/i.test(displayName)) {
+      displayName = displayName.replace(/^Attendance for Site #?\d+/i, `Attendance for ${item.site_name}`);
+    }
+    if (!displayName) {
+      displayName = item.site_name || `ID #${item.reference_id}`;
     }
 
     return (
@@ -111,7 +121,7 @@ export default function HistoryScreen() {
           <Text style={styles.logTitle}>
             {item.type.charAt(0).toUpperCase() + item.type.slice(1)} {actionFormatted}
           </Text>
-          <Text style={styles.logName}>{item.name || `ID #${item.reference_id}`}</Text>
+          <Text style={styles.logName}>{displayName}</Text>
           {item.type !== 'site' && item.site_name ? (
             <View style={styles.siteTag}>
               <MaterialIcons name="domain" size={12} color={isDark ? '#818CF8' : '#4F46E5'} />

@@ -1,9 +1,9 @@
 const { Pool } = require('pg');
 require('dotenv').config();
-const { STANDARD_DAILY_HOURS, syncLabourOvertimeAmounts } = require('./utils/wages');
+const { STANDARD_DAILY_HOURS } = require('./utils/wages');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/proto',
+  connectionString: process.env.DATABASE_URL || 'https://rayan-1ed19-default-rtdb.firebaseio.com/',
 });
 
 // A wrapper to translate SQLite `?` to PostgreSQL `$1, $2, ...`
@@ -321,6 +321,7 @@ async function initDb() {
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS worked_days_count NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS total_working_days NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS continuous_working_days NUMERIC DEFAULT 0`);
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS increment_continuous_days NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS increment_cycle_count INTEGER DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS total_bonus_earned NUMERIC DEFAULT 0`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS daily_wage REAL`);
@@ -336,8 +337,9 @@ async function initDb() {
   await db.run(
     `UPDATE labours
      SET total_working_days = CASE WHEN COALESCE(total_working_days, 0) = 0 THEN COALESCE(worked_days_count, 0) ELSE total_working_days END,
-         continuous_working_days = CASE WHEN COALESCE(continuous_working_days, 0) = 0 THEN COALESCE(worked_days_count, 0) ELSE continuous_working_days END
-     WHERE COALESCE(total_working_days, 0) = 0 OR COALESCE(continuous_working_days, 0) = 0`
+         continuous_working_days = CASE WHEN COALESCE(continuous_working_days, 0) = 0 THEN COALESCE(worked_days_count, 0) ELSE continuous_working_days END,
+         increment_continuous_days = CASE WHEN COALESCE(increment_continuous_days, 0) = 0 THEN COALESCE(continuous_working_days, worked_days_count, 0) ELSE increment_continuous_days END
+     WHERE COALESCE(total_working_days, 0) = 0 OR COALESCE(continuous_working_days, 0) = 0 OR COALESCE(increment_continuous_days, 0) = 0`
   );
 
   const wageMigration = await db.get(`SELECT value FROM app_settings WHERE key = 'wage_storage_migrated_to_daily'`);
@@ -396,24 +398,7 @@ async function initDb() {
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS labour_status TEXT`);
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS site_id_snapshot INTEGER`);
 
-  // Sync overtime amounts based on salary history / daily wage
-  const overtimeSyncMigration = await db.get(`SELECT value FROM app_settings WHERE key = 'overtime_amounts_synced_with_salary_history'`);
-  if (!overtimeSyncMigration || overtimeSyncMigration.value !== 'true') {
-    try {
-      const distinctLaboursWithOvertime = await db.all(`SELECT DISTINCT labour_id FROM overtime`);
-      for (const row of distinctLaboursWithOvertime) {
-        if (row.labour_id) {
-          await syncLabourOvertimeAmounts(db, row.labour_id);
-        }
-      }
-      await db.run(
-        `INSERT INTO app_settings (key, value) VALUES ('overtime_amounts_synced_with_salary_history', 'true')
-         ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = CURRENT_TIMESTAMP`
-      );
-    } catch (err) {
-      console.error('Error syncing overtime amounts:', err.message);
-    }
-  }
+
 
   // Password reset columns for users & labours
   await alterSafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_required BOOLEAN DEFAULT false`);
@@ -483,6 +468,21 @@ async function initDb() {
     `, [todayStr]);
   } catch (e) {
     console.error('Error backfilling site_status_history:', e);
+  }
+
+  // Backfill history_logs to replace "Attendance for Site <id>" with site names
+  try {
+    await db.run(`
+      UPDATE history_logs h
+      SET name = 'Attendance for ' || s.name || SUBSTRING(h.name FROM ' \\([0-9-]+\\)$')
+      FROM sites s
+      WHERE h.type = 'attendance'
+        AND h.reference_id = s.id
+        AND (h.name LIKE 'Attendance for Site %' OR h.name LIKE 'Attendance for Site #%')
+        AND s.name IS NOT NULL
+    `);
+  } catch (e) {
+    console.error('Error backfilling history_logs site names:', e);
   }
 
   console.log('Database initialized.');

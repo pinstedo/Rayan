@@ -4,6 +4,19 @@ const { openDb } = require('../database');
 const { authenticateToken } = require('../middleware/auth');
 const { buildListQuery } = require('../utils/listProcessor');
 
+function normalizeHistoryLog(log) {
+  if (!log) return log;
+  let name = log.name;
+  const siteName = log.site_name;
+  if (name && siteName) {
+    name = name.replace(/^Attendance for Site #?\d+/i, `Attendance for ${siteName}`);
+  }
+  return {
+    ...log,
+    name: name || siteName || (log.reference_id ? `ID #${log.reference_id}` : 'System Event')
+  };
+}
+
 // GET /api/history
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -15,16 +28,50 @@ router.get('/', authenticateToken, async (req, res) => {
     let baseQuery = `
       SELECT h.*, u.name as created_by_name,
         CASE
-          WHEN h.type = 'attendance' THEN (SELECT s.name FROM sites s WHERE s.id = h.reference_id)
           WHEN h.type = 'site' THEN h.name
-          WHEN h.type = 'labour' THEN (
-            CASE
-              WHEN h.metadata IS NOT NULL AND h.metadata::text LIKE '%"site"%'
-              THEN (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site') LIMIT 1)
-              ELSE NULL
-            END
+          WHEN h.type = 'attendance' THEN (
+            COALESCE(
+              (SELECT s.name FROM sites s WHERE s.id = h.reference_id),
+              (CASE WHEN h.metadata IS NOT NULL AND (h.metadata::text LIKE '%"site"%' OR h.metadata::text LIKE '%"site_name"%' OR h.metadata::text LIKE '%"site_id"%') THEN 
+                COALESCE(
+                  (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site')),
+                  (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site_name')),
+                  (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site_id')),
+                  (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site')),
+                  (h.metadata::json->>'site_name'),
+                  (h.metadata::json->>'site')
+                )
+               ELSE NULL END),
+              (SELECT s.name FROM attendance a JOIN sites s ON a.site_id = s.id WHERE a.labour_id = h.reference_id ORDER BY a.id DESC LIMIT 1)
+            )
           )
-          ELSE NULL
+          WHEN h.type = 'labour' THEN (
+            COALESCE(
+              (SELECT s.name FROM labours l JOIN sites s ON l.site_id = s.id WHERE l.id = h.reference_id),
+              (SELECT s.name FROM labour_site_history lsh JOIN sites s ON lsh.site_id = s.id WHERE lsh.labour_id = h.reference_id ORDER BY lsh.id DESC LIMIT 1),
+              (CASE WHEN h.metadata IS NOT NULL AND (h.metadata::text LIKE '%"site"%' OR h.metadata::text LIKE '%"site_name"%' OR h.metadata::text LIKE '%"site_id"%') THEN 
+                COALESCE(
+                  (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site')),
+                  (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site_name')),
+                  (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site_id')),
+                  (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site')),
+                  (h.metadata::json->>'site_name'),
+                  (h.metadata::json->>'site')
+                )
+               ELSE NULL END)
+            )
+          )
+          ELSE (
+            CASE WHEN h.metadata IS NOT NULL AND (h.metadata::text LIKE '%"site_id"%' OR h.metadata::text LIKE '%"site_name"%' OR h.metadata::text LIKE '%"site"%') THEN
+              COALESCE(
+                (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site_id')),
+                (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site')),
+                (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site_name')),
+                (h.metadata::json->>'site_name'),
+                (h.metadata::json->>'site')
+              )
+            ELSE NULL END
+          )
         END as site_name
       FROM history_logs h
       LEFT JOIN users u ON h.created_by = u.id
@@ -44,7 +91,7 @@ router.get('/', authenticateToken, async (req, res) => {
       const countRes = await db.get(countQuery.query, countQuery.params);
       
       const logs = await db.all(query, params);
-      return res.json({ success: true, count: logs.length, totalCount: parseInt(countRes.total || 0, 10), data: logs });
+      return res.json({ success: true, count: logs.length, totalCount: parseInt(countRes.total || 0, 10), data: logs.map(normalizeHistoryLog) });
     }
 
     // Legacy mode
@@ -82,16 +129,10 @@ router.get('/', authenticateToken, async (req, res) => {
     query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
     params.push(parseInt(limit, 10), parseInt(offset, 10));
 
-    // For openDb wrapper, we might need to rely on pg's $1, $2 inside standard queries
-    // BUT openDb translate ? into $1 automatically in the wrapper if we use ?. 
-    // Ah wait, database.js has _convertQuery(sql) which replaces ? with $1...
-    // So if I pass $1, it won't be replaced but node-pg understands $1 natively.
-    // However, if I use a mix it might be problematic. Let's stick to Node-PG's native $1 natively.
-    
-    const client = await db.client; // bypassing wrapper translation just to be safe, or just use native query
+    const client = await db.client;
     const logs = await client.query(query, params);
 
-    res.json({ success: true, count: logs.rowCount, data: logs.rows });
+    res.json({ success: true, count: logs.rowCount, data: logs.rows.map(normalizeHistoryLog) });
   } catch (error) {
     console.error('Error fetching history:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch history' });

@@ -169,7 +169,53 @@ router.get('/recent', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) =>
         const db = await openDb();
 
         const logs = await db.all(`
-            SELECT h.*, u.name as user_name 
+            SELECT h.*, u.name as user_name,
+                CASE
+                  WHEN h.type = 'site' THEN h.name
+                  WHEN h.type = 'attendance' THEN (
+                    COALESCE(
+                      (SELECT s.name FROM sites s WHERE s.id = h.reference_id),
+                      (CASE WHEN h.metadata IS NOT NULL AND (h.metadata::text LIKE '%"site"%' OR h.metadata::text LIKE '%"site_name"%' OR h.metadata::text LIKE '%"site_id"%') THEN 
+                        COALESCE(
+                          (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site')),
+                          (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site_name')),
+                          (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site_id')),
+                          (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site')),
+                          (h.metadata::json->>'site_name'),
+                          (h.metadata::json->>'site')
+                        )
+                       ELSE NULL END),
+                      (SELECT s.name FROM attendance a JOIN sites s ON a.site_id = s.id WHERE a.labour_id = h.reference_id ORDER BY a.id DESC LIMIT 1)
+                    )
+                  )
+                  WHEN h.type = 'labour' THEN (
+                    COALESCE(
+                      (SELECT s.name FROM labours l JOIN sites s ON l.site_id = s.id WHERE l.id = h.reference_id),
+                      (SELECT s.name FROM labour_site_history lsh JOIN sites s ON lsh.site_id = s.id WHERE lsh.labour_id = h.reference_id ORDER BY lsh.id DESC LIMIT 1),
+                      (CASE WHEN h.metadata IS NOT NULL AND (h.metadata::text LIKE '%"site"%' OR h.metadata::text LIKE '%"site_name"%' OR h.metadata::text LIKE '%"site_id"%') THEN 
+                        COALESCE(
+                          (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site')),
+                          (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site_name')),
+                          (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site_id')),
+                          (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site')),
+                          (h.metadata::json->>'site_name'),
+                          (h.metadata::json->>'site')
+                        )
+                       ELSE NULL END)
+                    )
+                  )
+                  ELSE (
+                    CASE WHEN h.metadata IS NOT NULL AND (h.metadata::text LIKE '%"site_id"%' OR h.metadata::text LIKE '%"site_name"%' OR h.metadata::text LIKE '%"site"%') THEN
+                      COALESCE(
+                        (SELECT s.name FROM sites s WHERE s.id::text = (h.metadata::json->>'site_id')),
+                        (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site')),
+                        (SELECT s.name FROM sites s WHERE s.name = (h.metadata::json->>'site_name')),
+                        (h.metadata::json->>'site_name'),
+                        (h.metadata::json->>'site')
+                      )
+                    ELSE NULL END
+                  )
+                END as site_name
             FROM history_logs h
             LEFT JOIN users u ON h.created_by = u.id
             ORDER BY h.created_at DESC 
@@ -182,7 +228,16 @@ router.get('/recent', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) =>
             const actionFormatted = formatActionName(item.action);
             const typeFormatted = item.type.charAt(0).toUpperCase() + item.type.slice(1);
             let text = `${typeFormatted} ${actionFormatted}`;
-            if (item.name) text += `: ${item.name}`;
+            
+            let displayName = item.name;
+            if (displayName && item.site_name) {
+                displayName = displayName.replace(/^Attendance for Site #?\d+/i, `Attendance for ${item.site_name}`);
+            }
+            if (!displayName) {
+                displayName = item.site_name || (item.reference_id ? `ID #${item.reference_id}` : '');
+            }
+
+            if (displayName) text += `: ${displayName}`;
             
             // Format time safely
             let timeStr = '';

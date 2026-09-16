@@ -591,7 +591,9 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
             const otRecs = otByLabour[labour.id]
                 .filter(o => isPrevious ? o.date < startDate : (o.date >= startDate && o.date <= endDate));
             const otHours = otRecs.reduce((sum, curr) => sum + (Number(curr.hours) || 0), 0);
-            const otAmount = otRecs.reduce((sum, curr) => sum + ((Number(curr.hours) || 0) * getRateForDate(curr.date)), 0);
+            const otAmount = isPrevious
+                ? otRecs.reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0)
+                : otRecs.reduce((sum, curr) => sum + ((Number(curr.hours) || 0) * getRateForDate(curr.date)), 0);
 
             const advAmount = advByLabour[labour.id]
                 .filter(a => isPrevious ? a.date < advanceStartDate : (a.date >= advanceStartDate && a.date <= advanceEndDate))

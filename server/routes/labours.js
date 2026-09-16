@@ -10,7 +10,7 @@ const router = express.Router();
 const { authorizeRole } = require('../middleware/auth');
 const { logHistory } = require('../utils/historyLogger');
 const { updateSiteHistory } = require('../utils/siteHistory');
-const { ROLES, FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES } = require('../roles');
+const { ROLES, FIELD_SUPERVISOR_ROLES, ASSIGNMENT_ROLES, ADVANCE_ROLES } = require('../roles');
 const {
     dailyWageFromPayload,
     getLabourDailyWage,
@@ -190,12 +190,18 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             await updateSiteHistory(db, result.lastID, site_id);
         }
 
+        let assignedSiteName = site;
+        if (site_id && !assignedSiteName) {
+            const s = await db.get('SELECT name FROM sites WHERE id = ?', [site_id]);
+            if (s) assignedSiteName = s.name;
+        }
+
         await logHistory({
             type: 'labour',
             action: 'created',
             reference_id: result.lastID,
             name: name,
-            metadata: { phone, site, status: initialStatus, opening_balance: openingBalance, opening_working_days: openingWorkingDays },
+            metadata: { phone, site: assignedSiteName, site_id, site_name: assignedSiteName, status: initialStatus, opening_balance: openingBalance, opening_working_days: openingWorkingDays },
             created_by: req.user ? req.user.id : null
         });
 
@@ -408,8 +414,8 @@ router.post('/backdate-assign', authorizeRole(['admin']), async (req, res) => {
             }
 
             // Log history
-            await db.run('INSERT INTO history_logs (type, action, metadata, created_by) VALUES (?, ?, ?, ?)',
-                ['labour', 'bulk_backdated_assignment', JSON.stringify({ count: selectedIdsSet.size, site_id, from_date }), req.user ? req.user.id : null]);
+            await db.run('INSERT INTO history_logs (type, action, reference_id, name, metadata, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+                ['labour', 'bulk_backdated_assignment', site_id, site.name, JSON.stringify({ count: selectedIdsSet.size, site_id, site_name: site.name, site: site.name, from_date }), req.user ? req.user.id : null]);
 
             await db.run('COMMIT');
             res.json({ message: 'Labours successfully backdate assigned' });
@@ -510,8 +516,11 @@ router.post('/backdate-unassign', authorizeRole(['admin']), async (req, res) => 
                 }
             }
 
-            await db.run('INSERT INTO history_logs (type, action, metadata, created_by) VALUES (?, ?, ?, ?)',
-                ['labour', 'bulk_backdated_unassignment', JSON.stringify({ count: selectedIdsSet.size, site_id, from_date }), req.user ? req.user.id : null]);
+            const site = await db.get('SELECT name FROM sites WHERE id = ?', [site_id]);
+            const siteName = site?.name || `Site #${site_id}`;
+
+            await db.run('INSERT INTO history_logs (type, action, reference_id, name, metadata, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+                ['labour', 'bulk_backdated_unassignment', site_id, siteName, JSON.stringify({ count: selectedIdsSet.size, site_id, site_name: siteName, site: siteName, from_date }), req.user ? req.user.id : null]);
 
             await db.run('COMMIT');
             res.json({ message: 'Labours successfully backdate unassigned' });
@@ -577,9 +586,11 @@ router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) 
         const db = await openDb();
         const labours = await db.all(
             `SELECT id, name, phone, site, site_id, rate, daily_wage, status,
-                    worked_days_count, continuous_working_days, total_working_days, increment_cycle_count, total_bonus_earned
+                    worked_days_count, continuous_working_days, increment_continuous_days,
+                    total_working_days, increment_cycle_count, total_bonus_earned
              FROM labours
              WHERE COALESCE(continuous_working_days, worked_days_count, 0) >= 285
+                OR COALESCE(increment_continuous_days, continuous_working_days, worked_days_count, 0) >= 300
              ORDER BY COALESCE(continuous_working_days, worked_days_count, 0) DESC`
         );
 
@@ -588,30 +599,43 @@ router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) 
 
         const result = labours.map(l => {
             const normal = withWageCompatibility(l);
-            const continuous = Number(
+            const continuousBonus = Number(
                 l.continuous_working_days !== null && l.continuous_working_days !== undefined
                     ? l.continuous_working_days
                     : l.worked_days_count || 0
             );
+            const continuousIncrement = Number(
+                l.increment_continuous_days !== null && l.increment_continuous_days !== undefined
+                    ? l.increment_continuous_days
+                    : continuousBonus
+            );
 
-            const isIncEligible = continuous >= INCREMENT_THRESHOLD;
-            const isBonusEligible = continuous >= BONUS_THRESHOLD;
+            const isIncEligible = continuousIncrement >= INCREMENT_THRESHOLD;
+            const isBonusEligible = continuousBonus >= BONUS_THRESHOLD;
 
-            // eligible_for: 'increment' | 'bonus' | 'none'
-            const eligible_for = isIncEligible ? 'increment' : (isBonusEligible ? 'bonus' : 'none');
+            // eligible_for: 'both' | 'increment' | 'bonus' | 'none'
+            const eligible_for = (isIncEligible && isBonusEligible)
+                ? 'both'
+                : isIncEligible
+                    ? 'increment'
+                    : isBonusEligible
+                        ? 'bonus'
+                        : 'none';
 
-            // Progress: for increment-eligible, calculate against 300; for bonus-eligible, against 285
-            const progressTarget = isIncEligible ? INCREMENT_THRESHOLD : BONUS_THRESHOLD;
-            const progress_percent = Math.min(100, Math.round((continuous / progressTarget) * 100));
+            // Progress: separate targets for increment and bonus
+            const bonus_progress_percent = Math.min(100, Math.round((continuousBonus / BONUS_THRESHOLD) * 100));
+            const increment_progress_percent = Math.min(100, Math.round((continuousIncrement / INCREMENT_THRESHOLD) * 100));
+            const progress_percent = isIncEligible ? increment_progress_percent : bonus_progress_percent;
 
             // bonus_due only relevant when bonus-eligible
-            const bonus_due = isBonusEligible ? Math.round((continuous / 22) * 100) / 100 : 0;
+            const bonus_due = isBonusEligible ? Math.round((continuousBonus / 22) * 100) / 100 : 0;
 
             return {
                 ...normal,
                 rate: normal.daily_wage || 0,
-                worked_days_count: continuous,
-                continuous_working_days: continuous,
+                worked_days_count: continuousBonus,
+                continuous_working_days: continuousBonus,
+                increment_continuous_days: continuousIncrement,
                 total_working_days: Number(
                     l.total_working_days !== null && l.total_working_days !== undefined
                         ? l.total_working_days
@@ -619,6 +643,8 @@ router.get('/eligible', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) 
                 ),
                 bonus_due,
                 progress_percent,
+                bonus_progress_percent,
+                increment_progress_percent,
                 eligible_for,
                 is_bonus_eligible: isBonusEligible,
                 is_increment_eligible: isIncEligible,
@@ -706,6 +732,12 @@ router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             await updateSiteHistory(db, req.params.id, site_id || null);
         }
 
+        let assignedSiteName = site;
+        if (site_id && !assignedSiteName) {
+            const s = await db.get('SELECT name FROM sites WHERE id = ?', [site_id]);
+            if (s) assignedSiteName = s.name;
+        }
+
         const updated = withWageCompatibility(await db.get('SELECT * FROM labours WHERE id = ?', [req.params.id]));
 
         await logHistory({
@@ -713,7 +745,7 @@ router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             action: 'updated',
             reference_id: req.params.id,
             name: name,
-            metadata: { phone, site, daily_wage: nextDailyWage },
+            metadata: { phone, site: assignedSiteName, site_id, site_name: assignedSiteName, daily_wage: nextDailyWage },
             created_by: req.user ? req.user.id : null
         });
 
@@ -770,10 +802,10 @@ router.put('/:id/status', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
             );
         }
 
-        // CRITICAL: Reset worked_days_count immediately when marked on leave
+        // CRITICAL: Reset worked_days_count and all continuous days immediately when marked on leave
         if (status === 'leave') {
             await db.run(
-                'UPDATE labours SET worked_days_count = 0, continuous_working_days = 0 WHERE id = ?',
+                'UPDATE labours SET worked_days_count = 0, continuous_working_days = 0, increment_continuous_days = 0 WHERE id = ?',
                 [req.params.id]
             );
         }
@@ -894,21 +926,25 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
         const currentDailyRate = getLabourDailyWage(labour);
         const newDailyRate = currentDailyRate + incrementAmt;
         const newHourlyRate = hourlyFromDailyWage(newDailyRate);
-        const continuousDaysAtTime = Number(labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0);
+        const incrementDaysAtTime = Number(
+            labour.increment_continuous_days !== null && labour.increment_continuous_days !== undefined
+                ? labour.increment_continuous_days
+                : (labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0)
+        );
 
-        // Eligibility guard: must have >= 300 continuous working days
-        if (continuousDaysAtTime < 300) {
+        // Eligibility guard: must have >= 300 continuous working days for increment
+        if (incrementDaysAtTime < 300) {
             await db.run('ROLLBACK');
             return res.status(400).json({
-                error: `Labour is not yet eligible for an increment. Requires 300 continuous working days (current: ${continuousDaysAtTime.toFixed(1)}).`
+                error: `Labour is not yet eligible for an increment. Requires 300 continuous working days (current: ${incrementDaysAtTime.toFixed(1)}).`
             });
         }
 
-        // Update salary, reset worked_days_count & continuous_working_days, increment cycle count.
+        // Update salary, reset increment_continuous_days (continuous_working_days for bonus is preserved), increment cycle count.
         // total_working_days is preserved.
         await db.run(
             `UPDATE labours 
-             SET rate = ?, daily_wage = ?, worked_days_count = 0, continuous_working_days = 0, increment_cycle_count = COALESCE(increment_cycle_count, 0) + 1
+             SET rate = ?, daily_wage = ?, increment_continuous_days = 0, increment_cycle_count = COALESCE(increment_cycle_count, 0) + 1
              WHERE id = ?`,
             [newHourlyRate, newDailyRate, labour_id]
         );
@@ -932,7 +968,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
         // Record in consolidated financial history table
         await db.run(
             `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date) VALUES (?, 'increment', ?, ?, ?)`,
-            [labour_id, incrementAmt, continuousDaysAtTime, incrementDate]
+            [labour_id, incrementAmt, incrementDaysAtTime, incrementDate]
         );
 
         // Sync existing overtime records from incrementDate onwards
@@ -945,7 +981,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
             action: 'increment_applied',
             reference_id: labour_id,
             name: labour.name,
-            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, continuous_days_reset: continuousDaysAtTime, date: incrementDate, notes },
+            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, continuous_days_reset: incrementDaysAtTime, date: incrementDate, notes },
             created_by: req.user ? req.user.id : null
         });
 
@@ -974,7 +1010,7 @@ router.get('/:id/financial-history', authorizeRole(FIELD_SUPERVISOR_ROLES), asyn
 });
 
 // Add Advance
-router.post('/:id/advance', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
+router.post('/:id/advance', authorizeRole(ADVANCE_ROLES), async (req, res) => {
     const { amount, date, notes, created_by } = req.body;
     const labour_id = req.params.id;
 
@@ -1001,7 +1037,7 @@ router.post('/:id/advance', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, r
 });
 
 // Get Advances for a Labour
-router.get('/:id/advances', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
+router.get('/:id/advances', authorizeRole(ADVANCE_ROLES), async (req, res) => {
     // Note: Labours should only see their own advances.
     // The query filters by labour_id (params.id).
     // If a labour fetches /:id/advances, we must ensure :id matches req.user.id if they are a labour.

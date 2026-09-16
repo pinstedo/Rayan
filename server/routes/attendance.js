@@ -303,14 +303,15 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
             const diff = newDelta - oldDelta;
 
             if (diff !== 0) {
-                // Update worked_days_count, total_working_days, and continuous_working_days, ensuring they never go below 0
+                // Update worked_days_count, total_working_days, continuous_working_days (bonus), and increment_continuous_days (increment), ensuring they never go below 0
                 await db.run(
                     `UPDATE labours SET 
                         worked_days_count = GREATEST(0, COALESCE(worked_days_count, 0) + ?),
                         total_working_days = GREATEST(0, COALESCE(total_working_days, 0) + ?),
-                        continuous_working_days = GREATEST(0, COALESCE(continuous_working_days, 0) + ?)
+                        continuous_working_days = GREATEST(0, COALESCE(continuous_working_days, 0) + ?),
+                        increment_continuous_days = GREATEST(0, COALESCE(increment_continuous_days, 0) + ?)
                      WHERE id = ?`,
-                    [diff, diff, diff, labour_id]
+                    [diff, diff, diff, diff, labour_id]
                 );
                 labourIdsToCheck.push(labour_id);
             }
@@ -341,12 +342,15 @@ router.post('/', authorizeRole(['admin', 'supervisor']), async (req, res) => {
         //     await checkAndRecordBonus(db, lid);
         // }
 
+        const siteRow = await db.get(`SELECT name FROM sites WHERE id = ?`, [site_id]);
+        const siteName = siteRow?.name || `Site #${site_id}`;
+
         await logHistory({
             type: 'attendance',
             action: 'marked',
             reference_id: site_id,
-            name: `Attendance for Site ${site_id} (${date})`,
-            metadata: { records_count: records.length, date, food_provided: !!food_provided },
+            name: `Attendance for ${siteName} (${date})`,
+            metadata: { records_count: records.length, date, food_provided: !!food_provided, site_id, site_name: siteName, site: siteName },
             created_by: req.user ? req.user.id : null
         });
 

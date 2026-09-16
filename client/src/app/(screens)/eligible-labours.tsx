@@ -21,11 +21,14 @@ interface EligibleLabour {
     status: string;
     worked_days_count: number;
     continuous_working_days: number;
+    increment_continuous_days?: number;
     increment_cycle_count: number;
     total_bonus_earned: number;
     bonus_due: number;
     progress_percent: number;
-    eligible_for: 'bonus' | 'increment' | 'none';
+    bonus_progress_percent?: number;
+    increment_progress_percent?: number;
+    eligible_for: 'bonus' | 'increment' | 'both' | 'none';
     is_bonus_eligible: boolean;
     is_increment_eligible: boolean;
 }
@@ -70,45 +73,46 @@ export default function EligibleLaboursScreen() {
         }
     };
 
+    const bonusEligible = labours.filter(l => l.is_bonus_eligible);
     const incrementEligible = labours.filter(l => l.is_increment_eligible);
-    const bonusOnly = labours.filter(l => l.is_bonus_eligible && !l.is_increment_eligible);
 
-    const renderCard = (item: EligibleLabour) => {
-        const continuous = Number(item.continuous_working_days ?? item.worked_days_count ?? 0);
-        const isInc = item.is_increment_eligible;
+    const renderCard = (item: EligibleLabour, section: 'bonus' | 'increment') => {
+        const bonusDays = Number(item.continuous_working_days ?? item.worked_days_count ?? 0);
+        const incDays = Number(item.increment_continuous_days ?? item.continuous_working_days ?? item.worked_days_count ?? 0);
+        const isBonusSection = section === 'bonus';
 
-        // Progress toward next threshold
-        const progressTarget = isInc ? INCREMENT_THRESHOLD : BONUS_THRESHOLD;
-        const progressStart = isInc ? BONUS_THRESHOLD : 0;
-        const progressPct = Math.min(
-            100,
-            Math.round(((continuous - progressStart) / (progressTarget - progressStart)) * 100)
-        );
+        const continuous = isBonusSection ? bonusDays : incDays;
+        const target = isBonusSection ? BONUS_THRESHOLD : INCREMENT_THRESHOLD;
+        const progressPct = Math.min(100, Math.round((continuous / target) * 100));
 
-        const barColor = isInc
-            ? (isDark ? '#81c784' : '#2e7d32')
-            : (isDark ? '#ffb74d' : '#ff9800');
+        const barColor = isBonusSection
+            ? (isDark ? '#ffb74d' : '#ff9800')
+            : (isDark ? '#81c784' : '#2e7d32');
 
-        const pillBg = isInc
-            ? (isDark ? '#1a3b1a' : '#e8f5e9')
-            : (isDark ? '#3d2c00' : '#fff3e0');
-        const pillIconColor = isInc ? (isDark ? '#81c784' : '#2e7d32') : '#fff';
-        const pillTextColor = isInc ? (isDark ? '#81c784' : '#2e7d32') : (isDark ? '#ffb74d' : '#e65100');
+        const pillBg = isBonusSection
+            ? (isDark ? '#3d2c00' : '#fff3e0')
+            : (isDark ? '#1a3b1a' : '#e8f5e9');
+        const pillIconColor = isBonusSection
+            ? (isDark ? '#ffb74d' : '#e65100')
+            : (isDark ? '#81c784' : '#2e7d32');
+        const pillTextColor = isBonusSection
+            ? (isDark ? '#ffb74d' : '#e65100')
+            : (isDark ? '#81c784' : '#2e7d32');
 
         return (
             <TouchableOpacity
-                key={item.id}
-                style={[local.card, isInc && local.cardIncrement]}
+                key={`${section}-${item.id}`}
+                style={[local.card, !isBonusSection && local.cardIncrement]}
                 onPress={() => router.push(`/(screens)/labour-details?id=${item.id}`)}
                 activeOpacity={0.8}
             >
                 {/* Top row */}
                 <View style={local.cardHeader}>
-                    <View style={[local.avatarCircle, isInc && local.avatarCircleInc]}>
+                    <View style={[local.avatarCircle, !isBonusSection && local.avatarCircleInc]}>
                         <Ionicons
                             name="person"
                             size={20}
-                            color={isInc ? (isDark ? '#81c784' : '#2e7d32') : (isDark ? '#64b5f6' : '#0a84ff')}
+                            color={!isBonusSection ? (isDark ? '#81c784' : '#2e7d32') : (isDark ? '#ffb74d' : '#e65100')}
                         />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -117,12 +121,12 @@ export default function EligibleLaboursScreen() {
                     </View>
                     {/* Badge pill */}
                     <View style={[local.bonusPill, { backgroundColor: pillBg }]}>
-                        {isInc
-                            ? <MaterialCommunityIcons name="trending-up" size={14} color={pillIconColor} />
-                            : <MaterialCommunityIcons name="gift" size={14} color={pillIconColor} />
+                        {isBonusSection
+                            ? <MaterialCommunityIcons name="gift" size={14} color={pillIconColor} />
+                            : <MaterialCommunityIcons name="trending-up" size={14} color={pillIconColor} />
                         }
                         <Text style={[local.bonusPillText, { color: pillTextColor }]}>
-                            {isInc ? `${continuous.toFixed(0)}d` : `₹${item.bonus_due.toFixed(2)}`}
+                            {isBonusSection ? `₹${item.bonus_due.toFixed(2)}` : `${incDays.toFixed(0)}d`}
                         </Text>
                     </View>
                 </View>
@@ -131,7 +135,7 @@ export default function EligibleLaboursScreen() {
                 <View style={local.statsRow}>
                     <View style={local.stat}>
                         <Text style={local.statValue}>{continuous.toFixed(1)}</Text>
-                        <Text style={local.statLabel}>Cont. Days</Text>
+                        <Text style={local.statLabel}>{isBonusSection ? 'Bonus Days' : 'Inc. Days'}</Text>
                     </View>
                     <View style={local.statDivider} />
                     <View style={local.stat}>
@@ -158,9 +162,9 @@ export default function EligibleLaboursScreen() {
                 <View style={local.progressContainer}>
                     <View style={local.progressHeader}>
                         <Text style={local.progressLabel}>
-                            {isInc
-                                ? `✓ Increment Eligible (${continuous.toFixed(1)} / ${INCREMENT_THRESHOLD} days)`
-                                : `✓ Bonus Eligible — ${continuous.toFixed(1)} / ${BONUS_THRESHOLD} days`
+                            {isBonusSection
+                                ? `✓ Bonus Eligible — ${bonusDays.toFixed(1)} / ${BONUS_THRESHOLD} days`
+                                : `✓ Increment Eligible (${incDays.toFixed(1)} / ${INCREMENT_THRESHOLD} days)`
                             }
                         </Text>
                         <Text style={[local.progressPct, { color: barColor }]}>{progressPct}%</Text>
@@ -183,6 +187,7 @@ export default function EligibleLaboursScreen() {
         icon: string,
         iconColor: string,
         items: EligibleLabour[],
+        section: 'bonus' | 'increment',
         emptyMessage: string,
         emptySubMessage: string,
     ) => (
@@ -204,7 +209,7 @@ export default function EligibleLaboursScreen() {
                 </View>
             ) : (
                 <View style={{ gap: 10 }}>
-                    {items.map(renderCard)}
+                    {items.map(item => renderCard(item, section))}
                 </View>
             )}
         </View>
@@ -223,7 +228,7 @@ export default function EligibleLaboursScreen() {
                 </View>
                 {!loading && (
                     <View style={local.countBadge}>
-                        <Text style={local.countBadgeText}>{labours.length}</Text>
+                        <Text style={local.countBadgeText}>{bonusEligible.length + incrementEligible.length}</Text>
                     </View>
                 )}
             </View>
@@ -251,26 +256,28 @@ export default function EligibleLaboursScreen() {
                         contentContainerStyle={local.listContent}
                         refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={() => fetchEligible(true)} />}
                     >
-                        {/* Increment Eligible Section — ≥ 300 days */}
+                        {/* Bonus Eligible Section — ≥ 285 days */}
                         {renderSection(
-                            'Increment Eligible',
-                            'trending-up',
-                            isDark ? '#81c784' : '#2e7d32',
-                            incrementEligible,
-                            'No labours have reached 300 continuous days yet.',
-                            'Continue to 300 days to unlock increment eligibility.',
+                            'Bonus Eligible (≥ 285 days)',
+                            'gift',
+                            isDark ? '#ffb74d' : '#e65100',
+                            bonusEligible,
+                            'bonus',
+                            'No labours have reached 285 continuous days yet.',
+                            'Labours with 285+ continuous working days will appear here until bonus is applied.',
                         )}
 
                         <View style={local.sectionDivider} />
 
-                        {/* Bonus Eligible Section — 285–299 days */}
+                        {/* Increment Eligible Section — ≥ 300 days */}
                         {renderSection(
-                            'Bonus Eligible',
-                            'gift',
-                            isDark ? '#ffb74d' : '#e65100',
-                            bonusOnly,
-                            'No labours in the 285–299 day range.',
-                            '15 more days to become increment eligible.',
+                            'Increment Eligible (≥ 300 days)',
+                            'trending-up',
+                            isDark ? '#81c784' : '#2e7d32',
+                            incrementEligible,
+                            'increment',
+                            'No labours have reached 300 continuous days yet.',
+                            'Labours with 300+ continuous working days will appear here until increment is applied.',
                         )}
                     </ScrollView>
                 </>
