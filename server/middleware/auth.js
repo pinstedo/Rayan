@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { openDb } = require('../database');
 const SECRET_KEY = process.env.JWT_SECRET || 'secret_key';
 
 const authenticateToken = (req, res, next) => {
@@ -7,9 +8,37 @@ const authenticateToken = (req, res, next) => {
 
     if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
 
-    jwt.verify(token, SECRET_KEY, (err, user) => {
+    jwt.verify(token, SECRET_KEY, async (err, user) => {
         if (err) return res.status(403).json({ error: 'Invalid token.' });
         req.user = user;
+
+        if (user.password_reset_required) {
+            const path = req.originalUrl || req.url || '';
+            const isAllowed = path.includes('/change-password') || path.includes('/logout');
+            if (!isAllowed) {
+                return res.status(403).json({
+                    error: 'Password reset is required before accessing this resource.',
+                    password_reset_required: true
+                });
+            }
+        }
+
+        if (user.tokenId) {
+            try {
+                const db = await openDb();
+                const session = await db.get(
+                    `SELECT revoked FROM refresh_tokens WHERE id = ?`,
+                    [user.tokenId]
+                );
+                if (session && session.revoked) {
+                    return res.status(401).json({ error: 'Session revoked. Please log in again.', sessionRevoked: true });
+                }
+                db.run(`UPDATE refresh_tokens SET last_active_at = NOW() WHERE id = ? AND revoked = false`, [user.tokenId]).catch(() => {});
+            } catch (e) {
+                // fail-safe continue
+            }
+        }
+
         next();
     });
 };
@@ -24,3 +53,4 @@ const authorizeRole = (roles) => {
 };
 
 module.exports = { authenticateToken, authorizeRole };
+

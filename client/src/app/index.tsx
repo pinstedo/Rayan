@@ -52,7 +52,15 @@ export default function SplashScreen() {
 								await AsyncStorage.setItem("token", data.accessToken);
 								await AsyncStorage.setItem("refreshToken", data.refreshToken);
 
-								const user = JSON.parse(userDataStr);
+								if (data.user) {
+									await AsyncStorage.setItem("userData", JSON.stringify(data.user));
+									if (data.user.password_reset_required) {
+										router.replace("/auth/create-new-password" as any);
+										return;
+									}
+								}
+
+								const user = data.user || JSON.parse(userDataStr);
 								router.replace(getHomeRouteForRole(user.role) as any);
 								return;
 							}

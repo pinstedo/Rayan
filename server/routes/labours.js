@@ -1011,7 +1011,7 @@ router.get('/:id/financial-history', authorizeRole(FIELD_SUPERVISOR_ROLES), asyn
 
 // Add Advance
 router.post('/:id/advance', authorizeRole(ADVANCE_ROLES), async (req, res) => {
-    const { amount, date, notes, created_by } = req.body;
+    let { amount, date, notes, created_by } = req.body;
     const labour_id = req.params.id;
 
     if (!amount || amount <= 0) {
@@ -1019,6 +1019,21 @@ router.post('/:id/advance', authorizeRole(ADVANCE_ROLES), async (req, res) => {
     }
     if (!date) {
         return res.status(400).json({ error: 'Date is required' });
+    }
+
+    // Normalize ISO timestamp string to YYYY-MM-DD (Asia/Kolkata timezone)
+    if (typeof date === 'string' && date.includes('T')) {
+        try {
+            const d = new Date(date);
+            if (!isNaN(d.getTime())) {
+                date = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'Asia/Kolkata',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).format(d);
+            }
+        } catch (e) {}
     }
 
     try {

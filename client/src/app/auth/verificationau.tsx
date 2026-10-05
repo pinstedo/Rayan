@@ -61,7 +61,14 @@ export default function SignInScreen() {
 					router.replace(getHomeRouteForRole(data.user.role) as any);
 				}
 			} else {
-				Alert.alert("Sign In Failed", data.error || "Invalid credentials");
+				if (data.password_reset_expired) {
+					Alert.alert(
+						"Temporary Password Expired",
+						"Your temporary password has expired (valid for 24 hours). Please contact your administrator or supervisor to generate a new password."
+					);
+				} else {
+					Alert.alert("Sign In Failed", data.error || "Invalid credentials");
+				}
 			}
 		} catch (error) {
 			console.error("Sign in error:", error);

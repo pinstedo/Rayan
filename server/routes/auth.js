@@ -18,23 +18,49 @@ const isTemporaryPasswordExpired = (user) => {
     return !Number.isNaN(generatedTime) && Date.now() - generatedTime >= TEMP_PASSWORD_EXPIRES_MS;
 };
 
+const parseDeviceInfo = (req) => {
+    if (!req) return { deviceName: 'Unknown Device', userAgent: '', ipAddress: '' };
+    const userAgent = req.headers['user-agent'] || '';
+    const rawIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '';
+    const ipAddress = rawIp.split(',')[0].trim().replace(/^::ffff:/, '');
+    
+    let deviceName = req.body?.deviceName || req.headers['x-device-name'];
+
+    if (!deviceName) {
+        if (userAgent.includes('iPhone')) deviceName = 'iPhone';
+        else if (userAgent.includes('iPad')) deviceName = 'iPad App';
+        else if (userAgent.includes('Android')) deviceName = 'Android Phone';
+        else if (userAgent.includes('Windows')) deviceName = 'Windows PC';
+        else if (userAgent.includes('Macintosh') || userAgent.includes('Mac OS')) deviceName = 'Mac Computer';
+        else if (userAgent.includes('Linux')) deviceName = 'Linux PC';
+        else if (userAgent.includes('Expo')) deviceName = 'Expo Mobile App';
+        else deviceName = 'Web Browser';
+    }
+
+    return { deviceName, userAgent, ipAddress };
+};
+
 // Generate tokens (for admin/supervisor users in the `users` table)
-const generateTokens = async (user, db, refreshExpiresInDays = 30) => {
+const generateTokens = async (user, db, refreshExpiresInDays = 30, req = null) => {
+    const refreshToken = crypto.randomBytes(40).toString('hex');
+    const expiresAt = new Date(Date.now() + refreshExpiresInDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const { deviceName, userAgent, ipAddress } = parseDeviceInfo(req);
+
+    const result = await db.run(
+        `INSERT INTO refresh_tokens (user_id, token, expires_at, device_name, user_agent, ip_address, last_active_at) VALUES (?, ?, ?, ?, ?, ?, NOW()) RETURNING id`,
+        [user.id, refreshToken, expiresAt, deviceName, userAgent, ipAddress]
+    );
+
+    const tokenId = result.lastID;
+
     const accessToken = jwt.sign(
-        { id: user.id, phone: user.phone, role: user.role },
+        { id: user.id, phone: user.phone, role: user.role, tokenId, password_reset_required: !!user.password_reset_required },
         SECRET_KEY,
         { expiresIn: '24h' }
     );
 
-    const refreshToken = crypto.randomBytes(40).toString('hex');
-    const expiresAt = new Date(Date.now() + refreshExpiresInDays * 24 * 60 * 60 * 1000).toISOString();
-
-    await db.run(
-        `INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`,
-        [user.id, refreshToken, expiresAt]
-    );
-
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, tokenId };
 };
 
 // Signup
@@ -62,7 +88,7 @@ router.post('/signup', async (req, res) => {
         }
 
         const user = { id: result.lastID, name, phone, role: 'admin', status };
-        const tokens = await generateTokens(user, db);
+        const tokens = await generateTokens(user, db, 30, req);
 
         res.status(201).json({ message: 'User created successfully', user, ...tokens });
     } catch (err) {
@@ -118,7 +144,7 @@ router.post('/signin', async (req, res) => {
                 );
             }
 
-            const tokens = await generateTokens(user, db);
+            const tokens = await generateTokens(user, db, 30, req);
             return res.json({
                 message: 'Login successful',
                 ...tokens,
@@ -147,7 +173,7 @@ router.post('/signin', async (req, res) => {
             }
 
             const accessToken = jwt.sign(
-                { id: labour.id, phone: labour.phone, role: 'labour' },
+                { id: labour.id, phone: labour.phone, role: 'labour', password_reset_required: !!labour.password_reset_required },
                 SECRET_KEY,
                 { expiresIn: '15m' }
             );
@@ -221,11 +247,21 @@ router.post('/refresh-token', async (req, res) => {
                 return res.status(403).json({ error: 'User not found or account disabled' });
             }
 
+            if (isTemporaryPasswordExpired(user)) {
+                return res.status(403).json({
+                    error: 'Temporary password expired. Please ask admin to generate a new password.',
+                    password_reset_expired: true
+                });
+            }
+
             // Revoke old token (Rotation)
             await db.run(`UPDATE refresh_tokens SET revoked = true WHERE id = ?`, [storedToken.id]);
 
             const newTokens = await generateTokens(user, db);
-            return res.json(newTokens);
+            return res.json({
+                ...newTokens,
+                user: { id: user.id, name: user.name, phone: user.phone, role: user.role, profile_image: user.profile_image, password_reset_required: !!user.password_reset_required }
+            });
         }
 
         // Check Labour Refresh Tokens
@@ -244,11 +280,18 @@ router.post('/refresh-token', async (req, res) => {
                 return res.status(403).json({ error: 'Labour not found' });
             }
 
+            if (isTemporaryPasswordExpired(labour)) {
+                return res.status(403).json({
+                    error: 'Temporary password expired. Please ask admin to generate a new password.',
+                    password_reset_expired: true
+                });
+            }
+
             // Revoke old token
             await db.run(`UPDATE labour_refresh_tokens SET revoked = true WHERE id = ?`, [storedToken.id]);
 
             const accessToken = jwt.sign(
-                { id: labour.id, phone: labour.phone, role: 'labour' },
+                { id: labour.id, phone: labour.phone, role: 'labour', password_reset_required: !!labour.password_reset_required },
                 SECRET_KEY,
                 { expiresIn: '15m' }
             );
@@ -261,7 +304,11 @@ router.post('/refresh-token', async (req, res) => {
                 [labour.id, newRefreshToken, expiresAt]
             );
 
-            return res.json({ accessToken, refreshToken: newRefreshToken });
+            return res.json({
+                accessToken,
+                refreshToken: newRefreshToken,
+                user: { id: labour.id, name: labour.name, phone: labour.phone, role: 'labour', profile_image: labour.profile_image, password_reset_required: !!labour.password_reset_required }
+            });
         }
 
         return res.status(403).json({ error: 'Invalid refresh token' });
@@ -391,8 +438,25 @@ router.get('/supervisors/:id/advances', authenticateToken, authorizeRole(ADMIN_O
         const grouped = {};
         for (const adv of advances) {
             let monthName = 'Unknown Month';
-            if (adv.date && adv.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const [year, monthStr] = adv.date.split('-');
+            let dateStr = adv.date;
+
+            // If date is ISO string with T, format to YYYY-MM-DD first in Asia/Kolkata timezone
+            if (dateStr && typeof dateStr === 'string' && dateStr.includes('T')) {
+                try {
+                    const d = new Date(dateStr);
+                    if (!isNaN(d.getTime())) {
+                        dateStr = new Intl.DateTimeFormat('en-CA', {
+                            timeZone: 'Asia/Kolkata',
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                        }).format(d);
+                    }
+                } catch (e) {}
+            }
+
+            if (dateStr && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, monthStr] = dateStr.split('-');
                 const monthIdx = parseInt(monthStr, 10) - 1;
                 const months = [
                     "January", "February", "March", "April", "May", "June",
@@ -401,9 +465,9 @@ router.get('/supervisors/:id/advances', authenticateToken, authorizeRole(ADMIN_O
                 if (monthIdx >= 0 && monthIdx < 12) {
                     monthName = `${months[monthIdx]} ${year}`;
                 }
-            } else if (adv.date) {
+            } else if (dateStr) {
                 try {
-                    const d = new Date(adv.date);
+                    const d = new Date(dateStr);
                     if (!isNaN(d.getTime())) {
                         const months = [
                             "January", "February", "March", "April", "May", "June",
@@ -422,7 +486,10 @@ router.get('/supervisors/:id/advances', authenticateToken, authorizeRole(ADMIN_O
                 };
             }
             grouped[monthName].total_amount += adv.amount;
-            grouped[monthName].advances.push(adv);
+            grouped[monthName].advances.push({
+                ...adv,
+                date: dateStr || adv.date
+            });
         }
 
         // Convert the grouped object to an array
@@ -893,4 +960,123 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 });
 
+// GET /api/auth/devices - List active devices for logged-in user
+router.get('/devices', authenticateToken, async (req, res) => {
+    try {
+        const db = await openDb();
+        const userId = req.user.id;
+        const currentTokenId = req.user.tokenId;
+
+        // Fetch active non-revoked refresh tokens ordered by created_at ASC (oldest first = Primary)
+        const rows = await db.all(
+            `SELECT id, user_id, device_name, user_agent, ip_address, created_at, last_active_at, expires_at 
+             FROM refresh_tokens 
+             WHERE user_id = ? AND revoked = false AND expires_at > NOW() 
+             ORDER BY created_at ASC, id ASC`,
+            [userId]
+        );
+
+        if (!rows || rows.length === 0) {
+            return res.json({ devices: [], isCurrentDevicePrimary: false, currentTokenId });
+        }
+
+        const primaryTokenId = rows[0].id;
+        const isCurrentDevicePrimary = (primaryTokenId === currentTokenId);
+
+        const devices = rows.map((row, index) => ({
+            id: row.id,
+            deviceName: row.device_name || 'Web/Mobile Device',
+            userAgent: row.user_agent || '',
+            ipAddress: row.ip_address || '',
+            createdAt: row.created_at,
+            lastActiveAt: row.last_active_at || row.created_at,
+            isPrimary: index === 0,
+            isCurrentDevice: row.id === currentTokenId
+        }));
+
+        res.json({
+            devices,
+            isCurrentDevicePrimary,
+            currentTokenId,
+            primaryTokenId
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/auth/devices/:id - Remove/revoke a specific device session
+router.delete('/devices/:id', authenticateToken, async (req, res) => {
+    try {
+        const db = await openDb();
+        const userId = req.user.id;
+        const currentTokenId = req.user.tokenId;
+        const targetDeviceId = parseInt(req.params.id);
+
+        if (isNaN(targetDeviceId)) {
+            return res.status(400).json({ error: 'Invalid device ID' });
+        }
+
+        // Get active tokens to determine primary device
+        const activeTokens = await db.all(
+            `SELECT id FROM refresh_tokens WHERE user_id = ? AND revoked = false AND expires_at > NOW() ORDER BY created_at ASC, id ASC`,
+            [userId]
+        );
+
+        if (!activeTokens || activeTokens.length === 0) {
+            return res.status(404).json({ error: 'No active sessions found' });
+        }
+
+        const primaryTokenId = activeTokens[0].id;
+        const isPrimary = (currentTokenId === primaryTokenId);
+
+        // Allow if current device is primary OR user is removing their own current device session
+        if (!isPrimary && targetDeviceId !== currentTokenId) {
+            return res.status(403).json({ error: 'Only the primary (first logged-in) device can remove other devices.' });
+        }
+
+        await db.run(
+            `UPDATE refresh_tokens SET revoked = true WHERE id = ? AND user_id = ?`,
+            [targetDeviceId, userId]
+        );
+
+        res.json({ message: 'Device session removed successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/auth/devices/logout-all-others - Log out all devices except the current primary device
+router.post('/devices/logout-all-others', authenticateToken, async (req, res) => {
+    try {
+        const db = await openDb();
+        const userId = req.user.id;
+        const currentTokenId = req.user.tokenId;
+
+        const activeTokens = await db.all(
+            `SELECT id FROM refresh_tokens WHERE user_id = ? AND revoked = false AND expires_at > NOW() ORDER BY created_at ASC, id ASC`,
+            [userId]
+        );
+
+        if (!activeTokens || activeTokens.length === 0) {
+            return res.status(404).json({ error: 'No active sessions found' });
+        }
+
+        const primaryTokenId = activeTokens[0].id;
+        if (currentTokenId !== primaryTokenId) {
+            return res.status(403).json({ error: 'Only the primary (first logged-in) device can log out all other devices.' });
+        }
+
+        const result = await db.run(
+            `UPDATE refresh_tokens SET revoked = true WHERE user_id = ? AND id != ? AND revoked = false`,
+            [userId, currentTokenId]
+        );
+
+        res.json({ message: 'All other devices logged out successfully', count: result.changes });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
+

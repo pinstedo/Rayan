@@ -297,13 +297,23 @@ export default function Profile() {
           <View style={styles.divider} />
 
           {(userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'supervisor') && (
-            <Pressable style={styles.menuItem} onPress={() => setIsPasswordModalVisible(true)}>
-              <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#FFF4ED" }]}>
-                <MaterialIcons name="lock" size={20} color="#F97316" />
-              </View>
-              <Text style={styles.menuText}>Change Password</Text>
-              <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
-            </Pressable>
+            <>
+              <Pressable style={styles.menuItem} onPress={() => setIsPasswordModalVisible(true)}>
+                <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#FFF4ED" }]}>
+                  <MaterialIcons name="lock" size={20} color="#F97316" />
+                </View>
+                <Text style={styles.menuText}>Change Password</Text>
+                <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+              </Pressable>
+              <View style={styles.divider} />
+              <Pressable style={styles.menuItem} onPress={() => router.push("/(screens)/settings/login-devices" as any)}>
+                <View style={[styles.menuIconBg, { backgroundColor: isDark ? "#1E293B" : "#ECFDF5" }]}>
+                  <MaterialIcons name="security" size={20} color="#10B981" />
+                </View>
+                <Text style={styles.menuText}>Login Devices & Security</Text>
+                <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+              </Pressable>
+            </>
           )}
         </View>
 

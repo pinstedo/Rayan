@@ -342,6 +342,25 @@ async function initDb() {
      WHERE COALESCE(total_working_days, 0) = 0 OR COALESCE(continuous_working_days, 0) = 0 OR COALESCE(increment_continuous_days, 0) = 0`
   );
 
+  // Normalize any advances with ISO date strings to YYYY-MM-DD (Asia/Kolkata)
+  try {
+    const isoAdvances = await db.all(`SELECT id, date FROM advances WHERE date LIKE '%T%'`);
+    for (const adv of isoAdvances) {
+      const d = new Date(adv.date);
+      if (!isNaN(d.getTime())) {
+        const formattedDate = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(d);
+        await db.run(`UPDATE advances SET date = ? WHERE id = ?`, [formattedDate, adv.id]);
+      }
+    }
+  } catch (err) {
+    console.error('Error normalizing advances date strings:', err);
+  }
+
   const wageMigration = await db.get(`SELECT value FROM app_settings WHERE key = 'wage_storage_migrated_to_daily'`);
   if (!wageMigration || wageMigration.value !== 'true') {
     const migrationDb = await openTransactionDb();
@@ -408,6 +427,17 @@ async function initDb() {
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS password_reset_required BOOLEAN DEFAULT false`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS password_reset_generated_at TIMESTAMP DEFAULT NULL`);
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS last_password_changed_at TIMESTAMP DEFAULT NULL`);
+
+  // Device tracking columns for refresh_tokens and labour_refresh_tokens
+  await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS device_name TEXT`);
+  await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT`);
+  await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS ip_address TEXT`);
+  await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+
+  await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS device_name TEXT`);
+  await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT`);
+  await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS ip_address TEXT`);
+  await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
 
   // Search Indexes - PostgreSQL doesn't support IF NOT EXISTS for indexes directly in standard CREATE INDEX syntax 
   // without a slightly different query or just catching the error.

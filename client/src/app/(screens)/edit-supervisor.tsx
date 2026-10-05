@@ -167,6 +167,10 @@ export default function EditSupervisorScreen() {
             setAdminPassword("");
             setAdminPasswordModalVisible(false);
             setTempPasswordModalVisible(true);
+            Alert.alert(
+                "Password Reset Successful",
+                "Temporary password generated successfully! Share it with the user to log in."
+            );
         };
 
         const supervisorRole = (params.role as string) || 'supervisor';

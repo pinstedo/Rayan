@@ -412,6 +412,10 @@ export default function LabourDetailsScreen() {
             setAdminPassword("");
             setAdminPasswordModalVisible(false);
             setTempPasswordModalVisible(true);
+            Alert.alert(
+                "Password Reset Successful",
+                "Temporary password generated successfully! Share it with the labour to log in."
+            );
         };
 
         const submitReset = async (verificationToken: string, confirmReplace = false) => {
@@ -501,6 +505,14 @@ export default function LabourDetailsScreen() {
 
     const formatDate = (dateStr: string) => {
         try {
+            if (!dateStr) return '';
+            if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const localDate = new Date(y, m - 1, d);
+                return localDate.toLocaleDateString('en-IN', {
+                    day: '2-digit', month: 'short', year: 'numeric',
+                });
+            }
             return new Date(dateStr).toLocaleDateString('en-IN', {
                 day: '2-digit', month: 'short', year: 'numeric',
             });

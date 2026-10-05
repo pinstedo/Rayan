@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { api } from "../../services/api";
 import { useTheme } from "../../context/ThemeContext";
+import { CustomModal, ModalType } from "../../components/CustomModal";
 
 export default function CreateNewPasswordScreen() {
   const router = useRouter();
@@ -25,17 +26,47 @@ export default function CreateNewPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Custom Modal state for rich success and error feedback
+  const [modalConfig, setModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: ModalType;
+    actions?: any[];
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "default",
+  });
+
+  const showModal = (title: string, message: string, type: ModalType = "error", actions?: any[]) => {
+    setModalConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      actions: actions || [
+        {
+          text: "OK",
+          onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+          style: "default",
+        },
+      ],
+    });
+  };
+
   const handleChangePassword = async () => {
     if (!newPassword.trim()) {
-      Alert.alert("Validation", "Please enter your new password.");
+      showModal("Validation", "Please enter your new password.", "warning");
       return;
     }
     if (newPassword.length < 10) {
-      Alert.alert("Validation", "New password must be at least 10 characters long.");
+      showModal("Validation", "New password must be at least 10 characters long.", "warning");
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Validation", "New passwords do not match.");
+      showModal("Validation", "New passwords do not match.", "warning");
       return;
     }
 
@@ -48,17 +79,27 @@ export default function CreateNewPasswordScreen() {
       if (response.ok) {
         // Clear session and force login with new password
         await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
-        Alert.alert(
-          "Success",
-          "Password set successfully! Please sign in with your new password.",
-          [{ text: "OK", onPress: () => router.replace("/auth/verificationau" as any) }]
+        showModal(
+          "Password Updated Successfully 🎉",
+          "Your new permanent password has been set successfully! Please sign in using your phone number and new password.",
+          "success",
+          [
+            {
+              text: "Sign In Now",
+              onPress: () => {
+                setModalConfig((prev) => ({ ...prev, visible: false }));
+                router.replace("/auth/verificationau" as any);
+              },
+              style: "default",
+            },
+          ]
         );
       } else {
-        Alert.alert("Failed to set password", data.error || "Something went wrong. Please try again.");
+        showModal("Failed to set password", data.error || "Something went wrong. Please try again.", "error");
       }
     } catch (error) {
       console.error("Change password error:", error);
-      Alert.alert("Error", "Unable to connect to server");
+      showModal("Error", "Unable to connect to server", "error");
     } finally {
       setLoading(false);
     }
@@ -132,6 +173,16 @@ export default function CreateNewPasswordScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Render CustomModal for visual feedback */}
+      <CustomModal
+        visible={modalConfig.visible}
+        onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        actions={modalConfig.actions}
+      />
     </KeyboardAvoidingView>
   );
 }
