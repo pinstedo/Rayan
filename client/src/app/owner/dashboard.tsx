@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { useForegroundEffect } from "../../hooks/useForegroundEffect";
 
 interface OwnerDailyData {
   date: string;
@@ -85,6 +86,10 @@ export default function OwnerDashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  useForegroundEffect(() => {
+    fetchDashboard();
+  });
 
   const logout = async () => {
     await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);

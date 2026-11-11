@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { API_URL } from "../../constants";
+import { api } from "../../services/api";
 import { useTheme } from "../../context/ThemeContext";
 
 export default function Profile() {
@@ -65,10 +66,7 @@ export default function Profile() {
 
   const fetchFoodRate = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      const res = await fetch(`${API_URL}/settings/food-allowance-rate`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/settings/food-allowance-rate');
       if (res.ok) {
         const data = await res.json();
         const rate = String(data.rate ?? 70);
@@ -128,17 +126,7 @@ export default function Profile() {
 
     try {
       setIsSavingProfile(true);
-      const token = await AsyncStorage.getItem("token");
-
-      const response = await fetch(`${API_URL}/auth/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: editName, profile_image: editProfileImage }),
-      });
-
+      const response = await api.put('/auth/profile', { name: editName, profile_image: editProfileImage });
       const data = await response.json();
 
       if (response.ok && data.user) {
@@ -173,16 +161,7 @@ export default function Profile() {
 
     try {
       setIsChangingPassword(true);
-      const token = await AsyncStorage.getItem("token");
-
-      const response = await fetch(`${API_URL}/auth/change-password`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
+      const response = await api.put('/auth/change-password', { currentPassword, newPassword });
 
       let data;
       const textResponse = await response.text();
@@ -220,12 +199,7 @@ export default function Profile() {
     }
     try {
       setIsSavingFoodRate(true);
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/settings/food-allowance-rate`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rate: rateNum }),
-      });
+      const response = await api.put('/settings/food-allowance-rate', { rate: rateNum });
       const data = await response.json();
       if (response.ok) {
         setFoodRate(String(rateNum));

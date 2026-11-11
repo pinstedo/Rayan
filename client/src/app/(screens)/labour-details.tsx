@@ -84,6 +84,8 @@ interface FinancialHistoryRecord {
     amount: number;
     worked_days_at_time: number;
     date?: string;
+    is_performance?: boolean;
+    notes?: string;
     created_at: string;
 }
 
@@ -143,6 +145,7 @@ export default function LabourDetailsScreen() {
 
     // Bonus modal
     const [showBonusModal, setShowBonusModal] = useState(false);
+    const [isPerformanceBonus, setIsPerformanceBonus] = useState(false);
     const [bonusAmount, setBonusAmount] = useState("");
     const [bonusNotes, setBonusNotes] = useState("");
     const [savingBonus, setSavingBonus] = useState(false);
@@ -151,6 +154,7 @@ export default function LabourDetailsScreen() {
 
     // Increment modal
     const [showIncrementModal, setShowIncrementModal] = useState(false);
+    const [isPerformanceIncrement, setIsPerformanceIncrement] = useState(false);
     const [incrementAmount, setIncrementAmount] = useState("");
     const [savingIncrement, setSavingIncrement] = useState(false);
     const [incrementDate, setIncrementDate] = useState<Date>(new Date());
@@ -307,13 +311,13 @@ export default function LabourDetailsScreen() {
             Alert.alert("Error", "Please enter a valid amount");
             return;
         }
-        // Client-side eligibility guard
+        // Client-side eligibility guard (only for standard bonus)
         const continuousDays = Number(
             labour?.continuous_working_days !== undefined && labour?.continuous_working_days !== null
                 ? labour?.continuous_working_days
                 : labour?.worked_days_count || 0
         );
-        if (continuousDays < 285) {
+        if (!isPerformanceBonus && continuousDays < 285) {
             Alert.alert(
                 "Not Eligible",
                 `This labour has not reached 285 continuous working days yet.\nCurrent: ${continuousDays.toFixed(1)} days`
@@ -326,6 +330,7 @@ export default function LabourDetailsScreen() {
                 amount: Number(bonusAmount),
                 date: bonusDate.toISOString().split('T')[0],
                 notes: bonusNotes,
+                is_performance: isPerformanceBonus,
             });
             const data = await response.json();
             if (response.ok) {
@@ -333,8 +338,12 @@ export default function LabourDetailsScreen() {
                 setLabour(data as Labour);
                 setFormData(data as Labour);
                 fetchFinancialHistory();
-                Alert.alert("Success", "Bonus recorded successfully. Continuous working days reset to 0.");
+                Alert.alert(
+                    isPerformanceBonus ? "Performance Bonus Recorded" : "Success",
+                    `${isPerformanceBonus ? "Performance bonus" : "Bonus"} recorded successfully. Continuous working days reset to 0.`
+                );
                 setShowBonusModal(false);
+                setIsPerformanceBonus(false);
                 setBonusAmount("");
                 setBonusNotes("");
                 setBonusDate(new Date());
@@ -354,7 +363,7 @@ export default function LabourDetailsScreen() {
             Alert.alert("Error", "Please enter a positive increment amount");
             return;
         }
-        // Client-side eligibility guard
+        // Client-side eligibility guard (only for standard increment)
         const incrementDays = Number(
             labour?.increment_continuous_days !== undefined && labour?.increment_continuous_days !== null
                 ? labour?.increment_continuous_days
@@ -362,7 +371,7 @@ export default function LabourDetailsScreen() {
                     ? labour?.continuous_working_days
                     : labour?.worked_days_count || 0)
         );
-        if (incrementDays < 300) {
+        if (!isPerformanceIncrement && incrementDays < 300) {
             Alert.alert(
                 "Not Eligible",
                 `This labour has not reached 300 continuous working days for increment yet.\nCurrent: ${incrementDays.toFixed(1)} days`
@@ -375,6 +384,7 @@ export default function LabourDetailsScreen() {
                 increment_amount: Number(incrementAmount),
                 date: incrementDate.toISOString().split('T')[0],
                 notes: incrementNotes,
+                is_performance: isPerformanceIncrement,
             });
             const data = await response.json();
             if (response.ok) {
@@ -383,12 +393,13 @@ export default function LabourDetailsScreen() {
                 setFormData(data as Labour);
                 fetchFinancialHistory();
                 setShowIncrementModal(false);
+                setIsPerformanceIncrement(false);
                 setIncrementAmount("");
                 setIncrementNotes("");
                 setIncrementDate(new Date());
                 setShowIncrementDatePicker(false);
                 Alert.alert(
-                    "Increment Applied",
+                    isPerformanceIncrement ? "Performance Increment Applied" : "Increment Applied",
                     `Salary incremented by ₹${incrementAmount}.\nWorked days reset to 0.\nNew daily rate: ₹${data.rate || 0}`
                 );
             } else {
@@ -876,7 +887,7 @@ export default function LabourDetailsScreen() {
                                 <View style={local.actionRow}>
                                     <TouchableOpacity
                                         style={[local.actionBtn, !isBonusEligible && local.actionBtnDisabled]}
-                                        onPress={() => setShowBonusModal(true)}
+                                        onPress={() => { setIsPerformanceBonus(false); setShowBonusModal(true); }}
                                         disabled={!isBonusEligible}
                                     >
                                         <Ionicons name="gift-outline" size={20} color="#fff" />
@@ -884,7 +895,7 @@ export default function LabourDetailsScreen() {
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[local.actionBtn, { backgroundColor: isDark ? '#2e7d32' : '#4CAF50' }, !isIncEligible && local.actionBtnDisabled]}
-                                        onPress={() => { setIncrementAmount(""); setShowIncrementModal(true); }}
+                                        onPress={() => { setIsPerformanceIncrement(false); setIncrementAmount(""); setShowIncrementModal(true); }}
                                         disabled={!isIncEligible}
                                     >
                                         <Ionicons name="trending-up-outline" size={20} color="#fff" />
@@ -905,6 +916,47 @@ export default function LabourDetailsScreen() {
                                         </Text>
                                     )}
                                     {isIncEligible && <View style={{ flex: 1 }} />}
+                                </View>
+
+                                {/* ── Field Excellence Rewards (Anytime) ── */}
+                                <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: isDark ? '#2c2c2e' : '#e5e5ea' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                            <MaterialCommunityIcons name="star-shooting" size={16} color={isDark ? '#ffd54f' : '#d97706'} />
+                                            <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#ffd54f' : '#b45309' }}>
+                                                Field Excellence Rewards
+                                            </Text>
+                                        </View>
+                                        <Text style={{ fontSize: 11, color: isDark ? '#888' : '#777' }}>
+                                            Anytime • No days criteria
+                                        </Text>
+                                    </View>
+                                    <View style={local.actionRow}>
+                                        <TouchableOpacity
+                                            style={[local.actionBtn, { backgroundColor: isDark ? '#8a5000' : '#d97706' }]}
+                                            onPress={() => { setIsPerformanceBonus(true); setShowBonusModal(true); }}
+                                        >
+                                            <MaterialCommunityIcons name="star-outline" size={18} color="#fff" />
+                                            <Text style={local.actionBtnText}>★ Perf. Bonus</Text>
+                                        </TouchableOpacity>
+                                        {userRole === 'admin' ? (
+                                            <TouchableOpacity
+                                                style={[local.actionBtn, { backgroundColor: isDark ? '#1b5e20' : '#15803d' }]}
+                                                onPress={() => { setIsPerformanceIncrement(true); setIncrementAmount(""); setShowIncrementModal(true); }}
+                                            >
+                                                <MaterialCommunityIcons name="trending-up" size={18} color="#fff" />
+                                                <Text style={local.actionBtnText}>★ Perf. Increment</Text>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <TouchableOpacity
+                                                style={[local.actionBtn, local.actionBtnDisabled]}
+                                                disabled={true}
+                                            >
+                                                <MaterialCommunityIcons name="lock-outline" size={18} color="#999" />
+                                                <Text style={[local.actionBtnText, { color: '#999' }]}>Admin Only</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                 </View>
                             </View>
                         </View>
@@ -1265,27 +1317,45 @@ export default function LabourDetailsScreen() {
                                 <View style={local.accordionBody}>
                                     {filteredFinancial.map((rec) => {
                                         const isBonus = rec.type === 'bonus';
+                                        const isPerf = Boolean(rec.is_performance);
                                         return (
                                             <View key={rec.id} style={local.recordRow}>
                                                 <View style={[
                                                     local.historyTypePill,
-                                                    { backgroundColor: isBonus ? (isDark ? '#3d2c00' : '#fff3e0') : (isDark ? '#1b3a1b' : '#e8f5e9') }
+                                                    {
+                                                        backgroundColor: isPerf
+                                                            ? (isBonus ? (isDark ? '#4a3300' : '#fef3c7') : (isDark ? '#06391d' : '#dcfce7'))
+                                                            : (isBonus ? (isDark ? '#3d2c00' : '#fff3e0') : (isDark ? '#1b3a1b' : '#e8f5e9'))
+                                                    }
                                                 ]}>
                                                     <MaterialCommunityIcons
-                                                        name={isBonus ? 'gift' : 'trending-up'}
+                                                        name={isPerf ? 'star-circle' : (isBonus ? 'gift' : 'trending-up')}
                                                         size={14}
-                                                        color={isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32')}
+                                                        color={isPerf
+                                                            ? (isBonus ? (isDark ? '#ffd54f' : '#b45309') : (isDark ? '#4ade80' : '#15803d'))
+                                                            : (isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32'))}
                                                     />
-                                                    <Text style={[local.historyTypeText, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
-                                                        {isBonus ? 'Bonus' : 'Increment'}
+                                                    <Text style={[local.historyTypeText, {
+                                                        color: isPerf
+                                                            ? (isBonus ? (isDark ? '#ffd54f' : '#b45309') : (isDark ? '#4ade80' : '#15803d'))
+                                                            : (isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32'))
+                                                    }]}>
+                                                        {isPerf ? (isBonus ? '★ Perf. Bonus' : '★ Perf. Inc') : (isBonus ? 'Bonus' : 'Increment')}
                                                     </Text>
                                                 </View>
                                                 <View style={local.recordLeft}>
                                                     <Text style={local.recordDate}>{formatDate(rec.date || rec.created_at)}</Text>
-                                                    <Text style={local.recordSub}>{rec.worked_days_at_time} worked days</Text>
+                                                    <Text style={local.recordSub}>
+                                                        {rec.worked_days_at_time} worked days
+                                                        {rec.notes ? ` • ${rec.notes}` : ''}
+                                                    </Text>
                                                 </View>
                                                 {userRole !== 'supervisor' && (
-                                                    <Text style={[local.recordPrimary, { color: isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32') }]}>
+                                                    <Text style={[local.recordPrimary, {
+                                                        color: isPerf
+                                                            ? (isBonus ? (isDark ? '#ffd54f' : '#b45309') : (isDark ? '#4ade80' : '#15803d'))
+                                                            : (isBonus ? (isDark ? '#ffb74d' : '#e65100') : (isDark ? '#81c784' : '#2e7d32'))
+                                                    }]}>
                                                         ₹{Number(rec.amount).toFixed(2)}
                                                     </Text>
                                                 )}
@@ -1304,14 +1374,22 @@ export default function LabourDetailsScreen() {
             {/* ── Bonus Modal ── */}
             <CustomModal
                 visible={showBonusModal}
-                onClose={() => setShowBonusModal(false)}
-                title="Record Bonus"
+                onClose={() => { setShowBonusModal(false); setIsPerformanceBonus(false); }}
+                title={isPerformanceBonus ? "★ Record Performance Bonus" : "Record Bonus"}
                 actions={[
-                    { text: "Cancel", onPress: () => setShowBonusModal(false), style: "cancel" },
-                    { text: savingBonus ? "Saving…" : "Save Bonus", onPress: handleSaveBonus, style: "default" },
+                    { text: "Cancel", onPress: () => { setShowBonusModal(false); setIsPerformanceBonus(false); }, style: "cancel" },
+                    { text: savingBonus ? "Saving…" : (isPerformanceBonus ? "Save Perf. Bonus" : "Save Bonus"), onPress: handleSaveBonus, style: "default" },
                 ]}
             >
                 <View style={local.modalForm}>
+                    {isPerformanceBonus && (
+                        <View style={{ backgroundColor: isDark ? '#3d2c00' : '#fef3c7', padding: 10, borderRadius: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <MaterialCommunityIcons name="star-shooting" size={20} color={isDark ? '#ffd54f' : '#d97706'} />
+                            <Text style={{ flex: 1, fontSize: 12, color: isDark ? '#ffd54f' : '#92400e', fontWeight: '600' }}>
+                                Field Performance Reward — Awarded for exceptional field performance. Available anytime without waiting for 285 days.
+                            </Text>
+                        </View>
+                    )}
                     <View style={local.incrementInfoRow}>
                         <MaterialCommunityIcons name="calendar-check" size={18} color={isDark ? '#ffb74d' : '#e65100'} />
                         <Text style={local.incrementInfoText}>Bonus continuous days: {Number(labour?.continuous_working_days !== undefined && labour?.continuous_working_days !== null ? labour?.continuous_working_days : labour?.worked_days_count || 0).toFixed(1)} (resets to 0 upon saving)</Text>
@@ -1352,7 +1430,7 @@ export default function LabourDetailsScreen() {
                         <Text style={local.label}>Notes</Text>
                         <TextInput
                             style={[local.input, { height: 80, textAlignVertical: 'top' }]}
-                            placeholder="Optional notes"
+                            placeholder={isPerformanceBonus ? "Reason for field excellence (e.g. Exceptional output on site)" : "Optional notes"}
                             value={bonusNotes}
                             onChangeText={setBonusNotes}
                             multiline
@@ -1366,14 +1444,22 @@ export default function LabourDetailsScreen() {
             {/* ── Increment Modal ── */}
             <CustomModal
                 visible={showIncrementModal}
-                onClose={() => setShowIncrementModal(false)}
-                title="Apply Salary Increment"
+                onClose={() => { setShowIncrementModal(false); setIsPerformanceIncrement(false); }}
+                title={isPerformanceIncrement ? "★ Apply Performance Increment" : "Apply Salary Increment"}
                 actions={[
-                    { text: "Cancel", onPress: () => setShowIncrementModal(false), style: "cancel" },
-                    { text: savingIncrement ? "Applying…" : "Apply Increment", onPress: handleSaveIncrement, style: "default" },
+                    { text: "Cancel", onPress: () => { setShowIncrementModal(false); setIsPerformanceIncrement(false); }, style: "cancel" },
+                    { text: savingIncrement ? "Applying…" : (isPerformanceIncrement ? "Apply Perf. Increment" : "Apply Increment"), onPress: handleSaveIncrement, style: "default" },
                 ]}
             >
                 <View style={local.modalForm}>
+                    {isPerformanceIncrement && (
+                        <View style={{ backgroundColor: isDark ? '#06391d' : '#dcfce7', padding: 10, borderRadius: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <MaterialCommunityIcons name="star-shooting" size={20} color={isDark ? '#4ade80' : '#15803d'} />
+                            <Text style={{ flex: 1, fontSize: 12, color: isDark ? '#4ade80' : '#166534', fontWeight: '600' }}>
+                                Field Performance Reward — Awarded for exceptional field performance. Available anytime without waiting for 300 days.
+                            </Text>
+                        </View>
+                    )}
                     <View style={local.incrementInfoRow}>
                         <MaterialCommunityIcons name="cash" size={18} color={isDark ? '#64b5f6' : '#0a84ff'} />
                         <Text style={local.incrementInfoText}>Current daily rate: ₹{labour?.rate || 0}</Text>
@@ -1427,8 +1513,7 @@ export default function LabourDetailsScreen() {
                                     <Text style={local.incrementEffectiveText}>
                                         {isFirstOfMonth
                                             ? `Increment starting on 1st: the entire month from ${dateStr} onwards will calculate with the new rate.`
-                                            : `New rate will apply starting on ${dateStr}. Days before ${dateStr} use the previous rate.`
-                                        }
+                                            : `New rate will apply starting on ${dateStr}. Days before ${dateStr} use the previous rate.`}
                                     </Text>
                                 </View>
                             );
@@ -1438,7 +1523,7 @@ export default function LabourDetailsScreen() {
                         <Text style={local.label}>Notes</Text>
                         <TextInput
                             style={[local.input, { height: 80, textAlignVertical: 'top' }]}
-                            placeholder="Optional notes"
+                            placeholder={isPerformanceIncrement ? "Reason for field excellence (e.g. Exceptional efficiency and technical skill)" : "Optional notes"}
                             value={incrementNotes}
                             onChangeText={setIncrementNotes}
                             multiline

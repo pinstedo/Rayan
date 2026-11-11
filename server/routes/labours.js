@@ -827,15 +827,16 @@ router.put('/:id/status', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
     }
 });
 
-// Add Bonus
+// Add Bonus (Standard or Performance)
 router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
-    const { amount, date, notes } = req.body;
+    const { amount, date, notes, is_performance } = req.body;
     const labour_id = req.params.id;
 
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         return res.status(400).json({ error: 'Valid amount is required' });
     }
     const bonusDate = date || new Date().toISOString().split('T')[0];
+    const isPerformance = Boolean(is_performance);
 
     const db = await openTransactionDb();
     try {
@@ -849,8 +850,8 @@ router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res
 
         const continuousDaysAtTime = Number(labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0);
 
-        // Eligibility guard: must have >= 285 continuous working days
-        if (continuousDaysAtTime < 285) {
+        // Eligibility guard: must have >= 285 continuous working days unless it's a performance bonus
+        if (!isPerformance && continuousDaysAtTime < 285) {
             await db.run('ROLLBACK');
             return res.status(400).json({
                 error: `Labour is not yet eligible for a bonus. Requires 285 continuous working days (current: ${continuousDaysAtTime.toFixed(1)}).`
@@ -859,14 +860,14 @@ router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res
 
         // 1. Insert into legacy bonus_payments
         const result = await db.run(
-            `INSERT INTO bonus_payments (labour_id, amount, date, notes, created_by) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-            [labour_id, Number(amount), bonusDate, notes || null, req.user ? req.user.id : null]
+            `INSERT INTO bonus_payments (labour_id, amount, date, notes, is_performance, created_by) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+            [labour_id, Number(amount), bonusDate, notes || null, isPerformance, req.user ? req.user.id : null]
         );
 
         // 2. Insert into labour_financial_history
         await db.run(
-            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date) VALUES (?, 'bonus', ?, ?, ?)`,
-            [labour_id, Number(amount), continuousDaysAtTime, bonusDate]
+            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date, is_performance, notes) VALUES (?, 'bonus', ?, ?, ?, ?, ?)`,
+            [labour_id, Number(amount), continuousDaysAtTime, bonusDate, isPerformance, notes || null]
         );
 
         // 3. Reset continuous_working_days to 0, preserve total_working_days, and update total_bonus_earned
@@ -883,10 +884,10 @@ router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res
 
         await logHistory({
             type: 'labour',
-            action: 'bonus_applied',
+            action: isPerformance ? 'performance_bonus_applied' : 'bonus_applied',
             reference_id: labour_id,
             name: labour.name,
-            metadata: { amount: Number(amount), date: bonusDate, continuous_days_reset: continuousDaysAtTime },
+            metadata: { amount: Number(amount), date: bonusDate, continuous_days_reset: continuousDaysAtTime, is_performance: isPerformance, notes: notes || null },
             created_by: req.user ? req.user.id : null
         });
 
@@ -900,9 +901,9 @@ router.post('/:id/bonus', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res
     }
 });
 
-// Apply manual increment to labour salary
+// Apply manual increment to labour salary (Standard or Performance)
 router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
-    const { increment_amount, date, notes } = req.body;
+    const { increment_amount, date, notes, is_performance } = req.body;
     const labour_id = req.params.id;
 
     if (!increment_amount || isNaN(Number(increment_amount)) || Number(increment_amount) <= 0) {
@@ -911,6 +912,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
 
     const incrementAmt = Number(increment_amount);
     const incrementDate = date || new Date().toISOString().split('T')[0];
+    const isPerformance = Boolean(is_performance);
     const db = await openTransactionDb();
 
     try {
@@ -932,8 +934,8 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
                 : (labour.continuous_working_days !== null && labour.continuous_working_days !== undefined ? labour.continuous_working_days : labour.worked_days_count || 0)
         );
 
-        // Eligibility guard: must have >= 300 continuous working days for increment
-        if (incrementDaysAtTime < 300) {
+        // Eligibility guard: must have >= 300 continuous working days for increment unless it's performance increment
+        if (!isPerformance && incrementDaysAtTime < 300) {
             await db.run('ROLLBACK');
             return res.status(400).json({
                 error: `Labour is not yet eligible for an increment. Requires 300 continuous working days (current: ${incrementDaysAtTime.toFixed(1)}).`
@@ -951,7 +953,7 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
 
         // Record history with daily wage as source of truth and legacy hourly backup.
         await db.run(
-            `INSERT INTO salary_history (labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, previous_hourly_rate_backup, new_hourly_rate_backup, date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO salary_history (labour_id, previous_rate, new_rate, previous_daily_wage, new_daily_wage, previous_hourly_rate_backup, new_hourly_rate_backup, date, is_performance, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 labour_id,
                 hourlyFromDailyWage(currentDailyRate),
@@ -961,14 +963,16 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
                 hourlyFromDailyWage(currentDailyRate),
                 newHourlyRate,
                 incrementDate,
+                isPerformance,
+                notes || null,
                 req.user ? req.user.id : null
             ]
         );
 
         // Record in consolidated financial history table
         await db.run(
-            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date) VALUES (?, 'increment', ?, ?, ?)`,
-            [labour_id, incrementAmt, incrementDaysAtTime, incrementDate]
+            `INSERT INTO labour_financial_history (labour_id, type, amount, worked_days_at_time, date, is_performance, notes) VALUES (?, 'increment', ?, ?, ?, ?, ?)`,
+            [labour_id, incrementAmt, incrementDaysAtTime, incrementDate, isPerformance, notes || null]
         );
 
         // Sync existing overtime records from incrementDate onwards
@@ -978,10 +982,10 @@ router.post('/:id/increment', authorizeRole(['admin']), async (req, res) => {
 
         await logHistory({
             type: 'labour',
-            action: 'increment_applied',
+            action: isPerformance ? 'performance_increment_applied' : 'increment_applied',
             reference_id: labour_id,
             name: labour.name,
-            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, continuous_days_reset: incrementDaysAtTime, date: incrementDate, notes },
+            metadata: { increment_amount: incrementAmt, new_daily_rate: newDailyRate, continuous_days_reset: incrementDaysAtTime, date: incrementDate, is_performance: isPerformance, notes: notes || null },
             created_by: req.user ? req.user.id : null
         });
 

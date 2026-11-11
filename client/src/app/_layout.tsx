@@ -1,12 +1,42 @@
-import { Stack } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Stack, useRouter } from "expo-router";
 import Head from "expo-router/head";
-import React from "react";
+import React, { useEffect } from "react";
+import { AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ThemeProvider } from "../context/ThemeContext";
-import { ResponsiveContainer } from "../components/ResponsiveContainer";
 import { PWASetup } from "../components/PWASetup";
+import { ResponsiveContainer } from "../components/ResponsiveContainer";
+import { ThemeProvider } from "../context/ThemeContext";
+import { onSessionExpired, refreshSession } from "../services/api";
 
 export default function RootLayout() {
+	const router = useRouter();
+
+	useEffect(() => {
+		// Listen for session expiration events and redirect cleanly
+		const unsubscribe = onSessionExpired(() => {
+			router.replace("/auth/verificationau" as any);
+		});
+
+		// When app returns to foreground from background, silently verify/refresh session
+		let lastState = AppState.currentState;
+		const appStateSub = AppState.addEventListener("change", (nextState) => {
+			if (lastState.match(/inactive|background/) && nextState === "active") {
+				AsyncStorage.getItem("token").then((token) => {
+					if (token) {
+						refreshSession().catch(() => {});
+					}
+				});
+			}
+			lastState = nextState;
+		});
+
+		return () => {
+			unsubscribe();
+			appStateSub.remove();
+		};
+	}, [router]);
+
 	return (
 		<ThemeProvider>
 			<Head>

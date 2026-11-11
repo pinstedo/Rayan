@@ -226,6 +226,7 @@ async function initDb() {
       amount REAL NOT NULL,
       date TEXT NOT NULL,
       notes TEXT,
+      is_performance BOOLEAN DEFAULT false,
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -240,6 +241,8 @@ async function initDb() {
       previous_hourly_rate_backup REAL,
       new_hourly_rate_backup REAL,
       date TEXT NOT NULL,
+      is_performance BOOLEAN DEFAULT false,
+      notes TEXT,
       created_by INTEGER REFERENCES users(id),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -277,6 +280,8 @@ async function initDb() {
       amount NUMERIC NOT NULL,
       worked_days_at_time NUMERIC DEFAULT 0,
       date TEXT,
+      is_performance BOOLEAN DEFAULT false,
+      notes TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -332,6 +337,11 @@ async function initDb() {
   await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS previous_hourly_rate_backup REAL`);
   await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS new_hourly_rate_backup REAL`);
   await alterSafe(`ALTER TABLE labour_financial_history ADD COLUMN IF NOT EXISTS date TEXT`);
+  await alterSafe(`ALTER TABLE labour_financial_history ADD COLUMN IF NOT EXISTS is_performance BOOLEAN DEFAULT false`);
+  await alterSafe(`ALTER TABLE labour_financial_history ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await alterSafe(`ALTER TABLE bonus_payments ADD COLUMN IF NOT EXISTS is_performance BOOLEAN DEFAULT false`);
+  await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS is_performance BOOLEAN DEFAULT false`);
+  await alterSafe(`ALTER TABLE salary_history ADD COLUMN IF NOT EXISTS notes TEXT`);
 
   // Backfill worked days count to new columns for existing data
   await db.run(
@@ -433,11 +443,15 @@ async function initDb() {
   await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT`);
   await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS ip_address TEXT`);
   await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP DEFAULT NULL`);
+  await alterSafe(`ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS replaced_by_token TEXT DEFAULT NULL`);
 
   await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS device_name TEXT`);
   await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS user_agent TEXT`);
   await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS ip_address TEXT`);
   await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP DEFAULT NULL`);
+  await alterSafe(`ALTER TABLE labour_refresh_tokens ADD COLUMN IF NOT EXISTS replaced_by_token TEXT DEFAULT NULL`);
 
   // Search Indexes - PostgreSQL doesn't support IF NOT EXISTS for indexes directly in standard CREATE INDEX syntax 
   // without a slightly different query or just catching the error.

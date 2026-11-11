@@ -15,6 +15,7 @@ import GlobalSearch from "../../components/GlobalSearch";
 import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
 import { api } from "../../services/api";
+import { useForegroundEffect } from "../../hooks/useForegroundEffect";
 
 export default function HomeScreen() {
 	const router = useRouter();
@@ -178,6 +179,10 @@ export default function HomeScreen() {
 			fetchData();
 		}, [])
 	);
+
+	useForegroundEffect(() => {
+		fetchData();
+	});
 
 	const onRefresh = () => {
 		setRefreshing(true);

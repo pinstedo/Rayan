@@ -31,19 +31,36 @@ const getSelectedFiltersLabel = (filters: SortFilterType[]) => {
     return filters.map(f => SORT_OPTIONS.find(opt => opt.value === f)?.label || "").filter(Boolean).join(", ");
 };
 
+const toAmount = (value: unknown) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : 0;
+};
+
+const isLabourActiveInPeriod = (item: any) => {
+    if (item?.status === 'leave') return false;
+    const fullDays = toAmount(item?.current_full_days);
+    const halfDays = toAmount(item?.current_half_days);
+    return (fullDays + halfDays > 0);
+};
+
+const isLabourInactiveInPeriod = (item: any) => {
+    if (item?.status === 'leave') return false;
+    return !isLabourActiveInPeriod(item);
+};
+
 const matchLabourFilters = (item: any, selectedFilters: SortFilterType[]) => {
     if (selectedFilters.length === 0) return true;
     for (const filter of selectedFilters) {
         if (filter === 'active') {
-            if (item.status !== 'active') return false;
+            if (!isLabourActiveInPeriod(item)) return false;
         } else if (filter === 'inactive') {
-            if (item.status === 'active' || item.status === 'leave') return false;
+            if (!isLabourInactiveInPeriod(item)) return false;
         } else if (filter === 'leave') {
-            if (item.status !== 'leave') return false;
+            if (item?.status !== 'leave') return false;
         } else if (filter === 'paid') {
-            if (toAmount(item.salary_paid) <= 0) return false;
+            if (toAmount(item?.salary_paid) <= 0) return false;
         } else if (filter === 'unpaid') {
-            if (toAmount(item.salary_paid) > 0) return false;
+            if (toAmount(item?.salary_paid) > 0) return false;
         }
     }
     return true;
@@ -119,11 +136,6 @@ const parseDateInput = (value: string) => {
 const getRangeLabel = (range: { startDate: string; endDate: string }) => (
     `${formatReportDate(range.startDate)} to ${formatReportDate(range.endDate)}`
 );
-
-const toAmount = (value: unknown) => {
-    const amount = Number(value);
-    return Number.isFinite(amount) ? amount : 0;
-};
 
 const formatCurrencyValue = (value: unknown) => {
     return toAmount(value).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
@@ -1477,51 +1489,74 @@ export default function WageReportScreen() {
 
 
 
-                    {filteredAndSortedData.map((item, index) => (
-                        <TouchableOpacity
-                            key={item.id.toString() + index}
-                            style={local.labourCard}
-                            onPress={() => generateIndividualBillsPDF([item])}
-                        >
-                            <View style={local.labourRow}>
-                                <Text style={local.labourName}>{item.name}</Text>
-                                <View style={local.balanceBadge}>
-                                    <Text style={local.balanceLabel}>Closing Balance</Text>
-                                    <Text style={local.balanceValue}>₹{formatCurrency(item.closing_balance)}</Text>
-                                </View>
-                            </View>
-                            <View style={local.labourStatsRow}>
-                                <View style={local.labourStat}>
-                                    <Text style={local.labourStatLabel}>Wage</Text>
-                                    <Text style={local.labourStatValue}>₹{formatCurrency(item.current_wage)}</Text>
-                                </View>
-                                {toAmount(item.current_overtime_amount) > 0 && (
-                                    <View style={[local.labourStat, local.labourStatOt]}>
-                                        <Text style={local.labourStatLabel}>Overtime</Text>
-                                        <Text style={local.labourStatOtValue}>{formatCountValue(item.current_overtime_hours)} hrs (₹{formatCurrency(item.current_overtime_amount)})</Text>
+                    {filteredAndSortedData.length === 0 ? (
+                        <View style={local.emptyContainer}>
+                            <MaterialIcons name="person-off" size={48} color={isDark ? "#555" : "#bbb"} />
+                            <Text style={local.emptyTitle}>No Labours Found</Text>
+                            <Text style={local.emptySubtitle}>
+                                {selectedFilters.length > 0 || searchText
+                                    ? `No labours match the selected criteria (${getSelectedFiltersLabel(selectedFilters)}${searchText ? ` · "${searchText}"` : ''})`
+                                    : "No labours available for this salary period."}
+                            </Text>
+                        </View>
+                    ) : (
+                        filteredAndSortedData.map((item, index) => (
+                            <TouchableOpacity
+                                key={item.id.toString() + index}
+                                style={local.labourCard}
+                                onPress={() => generateIndividualBillsPDF([item])}
+                            >
+                                <View style={local.labourRow}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8, flexWrap: 'wrap' }}>
+                                        <Text style={local.labourName}>{item.name}</Text>
+                                        {item.status === 'leave' ? (
+                                            <View style={local.statusBadgeLeave}>
+                                                <Text style={local.statusBadgeTextLeave}>On Leave</Text>
+                                            </View>
+                                        ) : isLabourInactiveInPeriod(item) ? (
+                                            <View style={local.statusBadgeInactive}>
+                                                <Text style={local.statusBadgeTextInactive}>Inactive</Text>
+                                            </View>
+                                        ) : null}
                                     </View>
-                                )}
-                                <View style={local.labourStat}>
-                                    <Text style={local.labourStatLabel}>Attendance</Text>
-                                    <Text style={local.labourStatValue}>{item.current_full_days}F / {item.current_half_days}H</Text>
+                                    <View style={local.balanceBadge}>
+                                        <Text style={local.balanceLabel}>Closing Balance</Text>
+                                        <Text style={local.balanceValue}>₹{formatCurrency(item.closing_balance)}</Text>
+                                    </View>
                                 </View>
-                            </View>
-                            <View style={[local.labourRow, { marginTop: 10 }]}>
-                                <View>
-                                    <Text style={local.smallLabel}>Paid by Cutoff: <Text style={{ color: isDark ? '#81C784' : '#388E3C', fontWeight: 'bold' }}>₹{formatCurrency(item.salary_paid)}</Text></Text>
+                                <View style={local.labourStatsRow}>
+                                    <View style={local.labourStat}>
+                                        <Text style={local.labourStatLabel}>Wage</Text>
+                                        <Text style={local.labourStatValue}>₹{formatCurrency(item.current_wage)}</Text>
+                                    </View>
+                                    {toAmount(item.current_overtime_amount) > 0 && (
+                                        <View style={[local.labourStat, local.labourStatOt]}>
+                                            <Text style={local.labourStatLabel}>Overtime</Text>
+                                            <Text style={local.labourStatOtValue}>{formatCountValue(item.current_overtime_hours)} hrs (₹{formatCurrency(item.current_overtime_amount)})</Text>
+                                        </View>
+                                    )}
+                                    <View style={local.labourStat}>
+                                        <Text style={local.labourStatLabel}>Attendance</Text>
+                                        <Text style={local.labourStatValue}>{item.current_full_days}F / {item.current_half_days}H</Text>
+                                    </View>
                                 </View>
-                                <TouchableOpacity
-                                    style={local.payBtn}
-                                    onPress={() => {
-                                        setSelectedLabour(item);
-                                        setModalVisible(true);
-                                    }}
-                                >
-                                    <Text style={local.payBtnText}>Record Payment</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
+                                <View style={[local.labourRow, { marginTop: 10 }]}>
+                                    <View>
+                                        <Text style={local.smallLabel}>Paid by Cutoff: <Text style={{ color: isDark ? '#81C784' : '#388E3C', fontWeight: 'bold' }}>₹{formatCurrency(item.salary_paid)}</Text></Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        style={local.payBtn}
+                                        onPress={() => {
+                                            setSelectedLabour(item);
+                                            setModalVisible(true);
+                                        }}
+                                    >
+                                        <Text style={local.payBtnText}>Record Payment</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    )}
                 </ScrollView>
             )}
 
@@ -1917,5 +1952,45 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
         fontWeight: '700',
         color: isDark ? '#FFB74D' : '#E65100',
         marginTop: 2,
+    },
+    statusBadgeLeave: {
+        backgroundColor: '#ff9800',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusBadgeTextLeave: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    statusBadgeInactive: {
+        backgroundColor: isDark ? '#444' : '#e0e0e0',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusBadgeTextInactive: {
+        color: isDark ? '#aaa' : '#666',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    emptyContainer: {
+        paddingVertical: 40,
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: isDark ? '#fff' : '#333',
+        marginTop: 12,
+        marginBottom: 6,
+    },
+    emptySubtitle: {
+        fontSize: 13,
+        color: isDark ? '#aaa' : '#777',
+        textAlign: 'center',
     },
 });

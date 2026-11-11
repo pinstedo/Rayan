@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Style
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppRefreshControl, TopRefreshLoader } from "../../../components/RefreshFeedback";
 import { API_URL } from "../../../constants";
+import { api } from "../../../services/api";
 import { useTheme } from "../../../context/ThemeContext";
 
 export default function SupervisorProfile() {
@@ -56,16 +57,7 @@ export default function SupervisorProfile() {
 
         try {
             setIsChangingPassword(true);
-            const token = await AsyncStorage.getItem("token");
-
-            const response = await fetch(`${API_URL}/auth/change-password`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ currentPassword, newPassword }),
-            });
+            const response = await api.put('/auth/change-password', { currentPassword, newPassword });
 
             let data;
             const textResponse = await response.text();

@@ -8,6 +8,7 @@ import GlobalSearch from "../../../components/GlobalSearch";
 import { AppRefreshControl, TopRefreshLoader } from "../../../components/RefreshFeedback";
 import { useTheme } from "../../../context/ThemeContext";
 import { api } from "../../../services/api";
+import { useForegroundEffect } from "../../../hooks/useForegroundEffect";
 import { sortByName } from "../../../utils/sort";
 
 interface Site {
@@ -108,6 +109,10 @@ export default function SupervisorHome(): JSX.Element {
             fetchAssignedSites();
         }, [])
     );
+
+    useForegroundEffect(() => {
+        fetchAssignedSites();
+    });
 
     const onPress = (key: string) => {
         if (key === "attendance") {

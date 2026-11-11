@@ -27,11 +27,14 @@ const authenticateToken = (req, res, next) => {
             try {
                 const db = await openDb();
                 const session = await db.get(
-                    `SELECT revoked FROM refresh_tokens WHERE id = ?`,
+                    `SELECT revoked, replaced_by_token FROM refresh_tokens WHERE id = ?`,
                     [user.tokenId]
                 );
                 if (session && session.revoked) {
-                    return res.status(401).json({ error: 'Session revoked. Please log in again.', sessionRevoked: true });
+                    if (!session.replaced_by_token) {
+                        return res.status(401).json({ error: 'Session revoked. Please log in again.', sessionRevoked: true });
+                    }
+                    return res.status(401).json({ error: 'Token expired.', tokenExpired: true });
                 }
                 db.run(`UPDATE refresh_tokens SET last_active_at = NOW() WHERE id = ? AND revoked = false`, [user.tokenId]).catch(() => {});
             } catch (e) {
@@ -53,4 +56,3 @@ const authorizeRole = (roles) => {
 };
 
 module.exports = { authenticateToken, authorizeRole };
-

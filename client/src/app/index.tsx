@@ -63,16 +63,21 @@ export default function SplashScreen() {
 								const user = data.user || JSON.parse(userDataStr);
 								router.replace(getHomeRouteForRole(user.role) as any);
 								return;
+							} else if (response.status === 401 || response.status === 403) {
+								// Session explicitly revoked or expired
+								console.warn("Session revoked during splash check, redirecting to login");
+								await AsyncStorage.multiRemove(["token", "refreshToken", "userData"]);
+								router.replace("/auth/verificationau" as any);
+								return;
 							}
 						} catch (e) {
-							console.log("Failed to refresh token", e);
+							console.log("Failed to refresh token (network issue), continuing with cached session", e);
 						}
-					} else {
-						// Fallback if only access token exists (legacy?)
-						const user = JSON.parse(userDataStr);
-						router.replace(getHomeRouteForRole(user.role) as any);
-						return;
 					}
+
+					// Fallback: If network is offline or reconnecting, allow entry with cached credentials
+					router.replace(getHomeRouteForRole(user.role) as any);
+					return;
 				}
 			} catch (e) {
 				console.error("Error checking login status", e);

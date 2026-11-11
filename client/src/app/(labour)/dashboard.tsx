@@ -19,6 +19,8 @@ import {
 } from "react-native";
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { API_URL } from "../../constants";
+import { api } from "../../services/api";
+import { useForegroundEffect } from "../../hooks/useForegroundEffect";
 import { useTheme } from "../../context/ThemeContext";
 import { getDailyWage } from "../../utils/wages";
 import { EditProfileModal } from "../components/EditProfileModal";
@@ -81,38 +83,30 @@ const LabourDashboard = () => {
             }
 
             // Fetch Labour Details
-            const labourRes = await fetch(`${API_URL}/labours/me`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const labourRes = await api.get('/labours/me');
             const labourData = await labourRes.json();
 
             if (labourRes.ok) {
                 setLabour(labourData);
             } else {
-                if (labourData.password_reset_required) {
+                if (labourData && labourData.password_reset_required) {
                     router.replace("/auth/create-new-password" as any);
                     return;
                 }
-                if (labourRes.status === 401 || labourRes.status === 403) {
-                    await handleLogout();
-                    return;
-                }
-                const errorMessage = labourData.error || "Failed to fetch labour details";
+                const errorMessage = (labourData && labourData.error) || "Failed to fetch labour details";
                 console.log("Fetch error:", errorMessage);
                 setError(errorMessage);
                 return;
             }
 
             // Fetch Attendance
-            const attRes = await fetch(`${API_URL}/attendance/my-attendance`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const attRes = await api.get('/attendance/my-attendance');
             const attData = await attRes.json();
 
             if (attRes.ok) {
                 setAttendance(attData);
             } else {
-                console.error("Failed to fetch attendance:", attData.error);
+                console.error("Failed to fetch attendance:", attData?.error);
             }
 
         } catch (error: any) {
@@ -128,6 +122,10 @@ const LabourDashboard = () => {
         fetchData();
     }, []);
 
+    useForegroundEffect(() => {
+        fetchData();
+    });
+
     const onRefresh = () => {
         setRefreshing(true);
         fetchData();
@@ -140,15 +138,7 @@ const LabourDashboard = () => {
 
     const handleUpdateProfile = async (updatedData: any) => {
         try {
-            const token = await AsyncStorage.getItem("token");
-            const response = await fetch(`${API_URL}/labours/me`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(updatedData)
-            });
+            const response = await api.put('/labours/me', updatedData);
 
             if (response.ok) {
                 const updatedLabour = await response.json();
@@ -172,15 +162,7 @@ const LabourDashboard = () => {
 
         try {
             setIsSubmittingReport(true);
-            const token = await AsyncStorage.getItem("token");
-            const response = await fetch(`${API_URL}/reports/complaints`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({ complaint: complaintText })
-            });
+            const response = await api.post('/reports/complaints', { complaint: complaintText });
 
             if (response.ok) {
                 Alert.alert("Success", "Your grievance has been reported to the admin.");

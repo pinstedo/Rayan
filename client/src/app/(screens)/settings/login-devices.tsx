@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { AppRefreshControl } from '../../../components/RefreshFeedback';
 import { API_URL } from '../../../constants';
+import { api } from '../../../services/api';
 import { useTheme } from '../../../context/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -48,21 +49,12 @@ export default function LoginDevicesScreen() {
         return;
       }
 
-      const res = await fetch(`${API_URL}/auth/devices`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await api.get('/auth/devices');
 
       if (res.ok) {
         const data = await res.json();
         setDevices(data.devices || []);
         setIsCurrentDevicePrimary(!!data.isCurrentDevicePrimary);
-      } else if (res.status === 401) {
-        const errData = await res.json();
-        Alert.alert('Session Expired', errData.error || 'Your session has ended.');
-        await AsyncStorage.clear();
-        router.replace('/auth/authentication');
       } else {
         const errData = await res.json();
         Alert.alert('Error', errData.error || 'Failed to fetch active devices.');
@@ -104,13 +96,7 @@ export default function LoginDevicesScreen() {
           onPress: async () => {
             try {
               setActionLoading(device.id);
-              const token = await AsyncStorage.getItem('token');
-              const res = await fetch(`${API_URL}/auth/devices/${device.id}`, {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
+              const res = await api.delete(`/auth/devices/${device.id}`);
 
               const data = await res.json();
               if (res.ok) {
@@ -158,13 +144,7 @@ export default function LoginDevicesScreen() {
           onPress: async () => {
             try {
               setLogoutAllLoading(true);
-              const token = await AsyncStorage.getItem('token');
-              const res = await fetch(`${API_URL}/auth/devices/logout-all-others`, {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
+              const res = await api.post('/auth/devices/logout-all-others');
 
               const data = await res.json();
               if (res.ok) {

@@ -139,7 +139,7 @@ router.post('/signin', async (req, res) => {
             // Single Session Enforcement for Supervisors
             if (user.role === ROLES.SUPERVISOR || user.role === ROLES.SPECIAL_SUPERVISOR) {
                 await db.run(
-                    `UPDATE refresh_tokens SET revoked = true WHERE user_id = ? AND revoked = false`,
+                    `UPDATE refresh_tokens SET revoked = true, revoked_at = NOW() WHERE user_id = ? AND revoked = false`,
                     [user.id]
                 );
             }
@@ -175,11 +175,11 @@ router.post('/signin', async (req, res) => {
             const accessToken = jwt.sign(
                 { id: labour.id, phone: labour.phone, role: 'labour', password_reset_required: !!labour.password_reset_required },
                 SECRET_KEY,
-                { expiresIn: '15m' }
+                { expiresIn: '24h' }
             );
 
             const refreshToken = crypto.randomBytes(40).toString('hex');
-            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
             await db.run(
                 `INSERT INTO labour_refresh_tokens (labour_id, token, expires_at) VALUES (?, ?, ?)`,
@@ -231,13 +231,43 @@ router.post('/refresh-token', async (req, res) => {
     try {
         const db = await openDb();
 
-        // Check User Refresh Tokens
+        // 1. Check User Refresh Tokens
         let storedToken = await db.get(
-            `SELECT * FROM refresh_tokens WHERE token = ? AND revoked = false`,
+            `SELECT * FROM refresh_tokens WHERE token = ?`,
             [refreshToken]
         );
 
         if (storedToken) {
+            // Handle Grace Period for concurrent requests during token rotation
+            if (storedToken.revoked) {
+                const revokedTime = storedToken.revoked_at ? new Date(storedToken.revoked_at).getTime() : 0;
+                const isWithinGrace = (Date.now() - revokedTime) < 30000;
+
+                if (isWithinGrace && storedToken.replaced_by_token) {
+                    const activeReplacement = await db.get(
+                        `SELECT * FROM refresh_tokens WHERE token = ? AND revoked = false`,
+                        [storedToken.replaced_by_token]
+                    );
+                    if (activeReplacement && new Date(activeReplacement.expires_at) >= new Date()) {
+                        const user = await db.get(`SELECT * FROM users WHERE id = ?`, [activeReplacement.user_id]);
+                        if (user && !user.is_deleted && !isTemporaryPasswordExpired(user)) {
+                            const accessToken = jwt.sign(
+                                { id: user.id, phone: user.phone, role: user.role, tokenId: activeReplacement.id, password_reset_required: !!user.password_reset_required },
+                                SECRET_KEY,
+                                { expiresIn: '24h' }
+                            );
+                            return res.json({
+                                accessToken,
+                                refreshToken: activeReplacement.token,
+                                tokenId: activeReplacement.id,
+                                user: { id: user.id, name: user.name, phone: user.phone, role: user.role, profile_image: user.profile_image, password_reset_required: !!user.password_reset_required }
+                            });
+                        }
+                    }
+                }
+                return res.status(403).json({ error: 'Refresh token has been revoked' });
+            }
+
             if (new Date(storedToken.expires_at) < new Date()) {
                 return res.status(403).json({ error: 'Refresh token expired' });
             }
@@ -254,23 +284,56 @@ router.post('/refresh-token', async (req, res) => {
                 });
             }
 
-            // Revoke old token (Rotation)
-            await db.run(`UPDATE refresh_tokens SET revoked = true WHERE id = ?`, [storedToken.id]);
+            const newTokens = await generateTokens(user, db, 30, req);
 
-            const newTokens = await generateTokens(user, db);
+            // Revoke old token with grace timestamp and pointer to the new replacement
+            await db.run(
+                `UPDATE refresh_tokens SET revoked = true, revoked_at = NOW(), replaced_by_token = ? WHERE id = ?`,
+                [newTokens.refreshToken, storedToken.id]
+            );
+
             return res.json({
                 ...newTokens,
                 user: { id: user.id, name: user.name, phone: user.phone, role: user.role, profile_image: user.profile_image, password_reset_required: !!user.password_reset_required }
             });
         }
 
-        // Check Labour Refresh Tokens
+        // 2. Check Labour Refresh Tokens
         storedToken = await db.get(
-            `SELECT * FROM labour_refresh_tokens WHERE token = ? AND revoked = false`,
+            `SELECT * FROM labour_refresh_tokens WHERE token = ?`,
             [refreshToken]
         );
 
         if (storedToken) {
+            // Handle Grace Period for Labour tokens
+            if (storedToken.revoked) {
+                const revokedTime = storedToken.revoked_at ? new Date(storedToken.revoked_at).getTime() : 0;
+                const isWithinGrace = (Date.now() - revokedTime) < 30000;
+
+                if (isWithinGrace && storedToken.replaced_by_token) {
+                    const activeReplacement = await db.get(
+                        `SELECT * FROM labour_refresh_tokens WHERE token = ? AND revoked = false`,
+                        [storedToken.replaced_by_token]
+                    );
+                    if (activeReplacement && new Date(activeReplacement.expires_at) >= new Date()) {
+                        const labour = await db.get(`SELECT * FROM labours WHERE id = ?`, [activeReplacement.labour_id]);
+                        if (labour && !isTemporaryPasswordExpired(labour)) {
+                            const accessToken = jwt.sign(
+                                { id: labour.id, phone: labour.phone, role: 'labour', password_reset_required: !!labour.password_reset_required },
+                                SECRET_KEY,
+                                { expiresIn: '24h' }
+                            );
+                            return res.json({
+                                accessToken,
+                                refreshToken: activeReplacement.token,
+                                user: { id: labour.id, name: labour.name, phone: labour.phone, role: 'labour', profile_image: labour.profile_image, password_reset_required: !!labour.password_reset_required }
+                            });
+                        }
+                    }
+                }
+                return res.status(403).json({ error: 'Refresh token has been revoked' });
+            }
+
             if (new Date(storedToken.expires_at) < new Date()) {
                 return res.status(403).json({ error: 'Refresh token expired' });
             }
@@ -287,21 +350,24 @@ router.post('/refresh-token', async (req, res) => {
                 });
             }
 
-            // Revoke old token
-            await db.run(`UPDATE labour_refresh_tokens SET revoked = true WHERE id = ?`, [storedToken.id]);
-
             const accessToken = jwt.sign(
                 { id: labour.id, phone: labour.phone, role: 'labour', password_reset_required: !!labour.password_reset_required },
                 SECRET_KEY,
-                { expiresIn: '15m' }
+                { expiresIn: '24h' }
             );
 
             const newRefreshToken = crypto.randomBytes(40).toString('hex');
-            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
             await db.run(
                 `INSERT INTO labour_refresh_tokens (labour_id, token, expires_at) VALUES (?, ?, ?)`,
                 [labour.id, newRefreshToken, expiresAt]
+            );
+
+            // Revoke old token with grace timestamp and pointer to the new replacement
+            await db.run(
+                `UPDATE labour_refresh_tokens SET revoked = true, revoked_at = NOW(), replaced_by_token = ? WHERE id = ?`,
+                [newRefreshToken, storedToken.id]
             );
 
             return res.json({
