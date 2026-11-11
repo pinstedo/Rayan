@@ -37,10 +37,13 @@ const toAmount = (value: unknown) => {
 };
 
 const isLabourActiveInPeriod = (item: any) => {
-    if (item?.status === 'leave') return false;
     const fullDays = toAmount(item?.current_full_days);
     const halfDays = toAmount(item?.current_half_days);
     return (fullDays + halfDays > 0);
+};
+
+const isLabourLeaveInPeriod = (item: any) => {
+    return item?.status === 'leave' && !isLabourActiveInPeriod(item);
 };
 
 const isLabourInactiveInPeriod = (item: any) => {
@@ -56,7 +59,7 @@ const matchLabourFilters = (item: any, selectedFilters: SortFilterType[]) => {
         } else if (filter === 'inactive') {
             if (!isLabourInactiveInPeriod(item)) return false;
         } else if (filter === 'leave') {
-            if (item?.status !== 'leave') return false;
+            if (!isLabourLeaveInPeriod(item)) return false;
         } else if (filter === 'paid') {
             if (toAmount(item?.salary_paid) <= 0) return false;
         } else if (filter === 'unpaid') {
@@ -1509,7 +1512,7 @@ export default function WageReportScreen() {
                                 <View style={local.labourRow}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8, flexWrap: 'wrap' }}>
                                         <Text style={local.labourName}>{item.name}</Text>
-                                        {item.status === 'leave' ? (
+                                        {isLabourLeaveInPeriod(item) ? (
                                             <View style={local.statusBadgeLeave}>
                                                 <Text style={local.statusBadgeTextLeave}>On Leave</Text>
                                             </View>
