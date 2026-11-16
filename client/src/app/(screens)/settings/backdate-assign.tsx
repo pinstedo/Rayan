@@ -17,6 +17,7 @@ import { Calendar } from "../../../components/Calendar";
 import { CustomModal } from "../../../components/CustomModal";
 import { SearchBar } from "../../../components/list";
 import { useTheme } from "../../../context/ThemeContext";
+import { useSafeBack } from "../../../hooks/useSafeBack";
 import { useListManager } from "../../../hooks/useListManager";
 import { api } from "../../../services/api";
 import { sortByName } from "../../../utils/sort";
@@ -37,6 +38,7 @@ interface Labour {
 
 export default function BackdateAssign() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(tabs)/manage");
     const { isDark } = useTheme();
     const styles = getStyles(isDark);
 
@@ -298,7 +300,7 @@ export default function BackdateAssign() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Pressable onPress={() => router.back()} style={styles.backBtn}>
+                <Pressable onPress={handleBack} style={styles.backBtn}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#F1F5F9" : "#0F172A"} />
                 </Pressable>
                 <Text style={styles.title}>Historic Assignment</Text>

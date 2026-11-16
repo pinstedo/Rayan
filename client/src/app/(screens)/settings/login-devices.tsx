@@ -15,6 +15,7 @@ import { AppRefreshControl } from '../../../components/RefreshFeedback';
 import { API_URL } from '../../../constants';
 import { api } from '../../../services/api';
 import { useTheme } from '../../../context/ThemeContext';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useFocusEffect } from '@react-navigation/native';
 
 interface DeviceItem {
@@ -30,6 +31,7 @@ interface DeviceItem {
 
 export default function LoginDevicesScreen() {
   const router = useRouter();
+  const handleBack = useSafeBack("/(tabs)/manage");
   const { isDark } = useTheme();
   const styles = getStyles(isDark);
 
@@ -299,7 +301,7 @@ export default function LoginDevicesScreen() {
     <View style={styles.container}>
       {/* Top Header */}
       <View style={styles.topNav}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={handleBack}>
           <MaterialIcons name="arrow-back" size={24} color={isDark ? '#F1F5F9' : '#0F172A'} />
         </Pressable>
         <Text style={styles.navTitle}>Login Devices & Security</Text>

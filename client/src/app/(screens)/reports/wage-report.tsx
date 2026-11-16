@@ -10,6 +10,7 @@ import { AppRefreshControl, TopRefreshLoader } from '../../../components/Refresh
 import { SalaryPaymentModal } from '../../../components/SalaryPaymentModal';
 import { SearchBar } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { api } from '../../../services/api'; // Adjust path as needed
 import { getDailyWage } from '../../../utils/wages';
 
@@ -290,6 +291,7 @@ const printReportHtml = async (html: string) => {
 
 export default function WageReportScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(tabs)/home");
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [loading, setLoading] = useState(false);
@@ -499,10 +501,11 @@ export default function WageReportScreen() {
                 ot: acc.ot + toAmount(curr.current_overtime_amount),
                 otHours: acc.otHours + toAmount(curr.current_overtime_hours),
                 food: acc.food + toAmount(curr.current_food_allowance_amount),
+                esi: acc.esi + toAmount(curr.current_esi_amount),
                 adv: acc.adv + toAmount(curr.current_advance_amount),
                 paid: acc.paid + toAmount(curr.salary_paid),
                 closing: acc.closing + toAmount(curr.closing_balance)
-            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, otHours: 0, food: 0, adv: 0, paid: 0, closing: 0 });
+            }), { labours: 0, fullDays: 0, halfDays: 0, previousBalance: 0, wage: 0, ot: 0, otHours: 0, food: 0, esi: 0, adv: 0, paid: 0, closing: 0 });
 
             const generatedAt = new Date().toLocaleString(undefined, {
                 day: '2-digit',
@@ -732,6 +735,11 @@ export default function WageReportScreen() {
                                         <div class="detail-label">Food Allow</div>
                                         <div class="detail-value">${formatCurrencyHtml(item.current_food_allowance_amount)}</div>
                                     </div>
+                                    ${toAmount(item.current_esi_amount) > 0 ? `
+                                    <div class="detail">
+                                        <div class="detail-label">ESI</div>
+                                        <div class="detail-value deduct">${formatDeductionCurrencyHtml(item.current_esi_amount)}</div>
+                                    </div>` : ''}
                                     <div class="detail">
                                         <div class="detail-label">Advance</div>
                                         <div class="detail-value deduct">${formatDeductionCurrencyHtml(item.current_advance_amount)}</div>
@@ -1210,6 +1218,11 @@ export default function WageReportScreen() {
                                         <td>Food Allowance</td>
                                         <td class="amount">${formatCurrency(foodAmount)}</td>
                                     </tr>` : ''}
+                                    ${toAmount(item.current_esi_amount) > 0 ? `
+                                    <tr style="background-color: #fff9f9;">
+                                        <td>Less: ESI Contribution</td>
+                                        <td class="amount text-red">-₹${formatCurrency(item.current_esi_amount)}</td>
+                                    </tr>` : ''}
                                     
                                     <tr style="background-color: #fff9f9;">
                                         <td>Less: Advances till Cutoff</td>
@@ -1281,7 +1294,7 @@ export default function WageReportScreen() {
     return (
         <View style={local.container}>
             <View style={local.headerRow}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
+                <TouchableOpacity onPress={handleBack} style={local.backBtn}>
                     <Text style={local.backText}>← Back</Text>
                 </TouchableOpacity>
                 <Text style={local.headerTitle}>Wage Reports</Text>
@@ -1532,6 +1545,12 @@ export default function WageReportScreen() {
                                         <Text style={local.labourStatLabel}>Wage</Text>
                                         <Text style={local.labourStatValue}>₹{formatCurrency(item.current_wage)}</Text>
                                     </View>
+                                    {toAmount(item.current_esi_amount) > 0 && (
+                                        <View style={local.labourStat}>
+                                            <Text style={local.labourStatLabel}>ESI</Text>
+                                            <Text style={[local.labourStatValue, { color: '#EF4444' }]}>-₹{formatCurrency(item.current_esi_amount)}</Text>
+                                        </View>
+                                    )}
                                     {toAmount(item.current_overtime_amount) > 0 && (
                                         <View style={[local.labourStat, local.labourStatOt]}>
                                             <Text style={local.labourStatLabel}>Overtime</Text>

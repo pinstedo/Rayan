@@ -475,12 +475,19 @@ router.put('/supervisors/:id', authenticateToken, authorizeRole(ADMIN_ROLES), as
     }
 });
 
-// Get advances given by a supervisor (Admin/Owner only)
-router.get('/supervisors/:id/advances', authenticateToken, authorizeRole(ADMIN_OR_OWNER_ROLES), async (req, res) => {
+// Get advances given by a supervisor (Admin/Owner, or the Supervisor themselves)
+router.get('/supervisors/:id/advances', authenticateToken, authorizeRole([...ADMIN_OR_OWNER_ROLES, ROLES.SUPERVISOR, ROLES.SPECIAL_SUPERVISOR]), async (req, res) => {
     const { id } = req.params;
     try {
         const db = await openDb();
         
+        // Supervisors can only access their own advance records
+        if (req.user.role === ROLES.SUPERVISOR || req.user.role === ROLES.SPECIAL_SUPERVISOR) {
+            if (Number(req.user.id) !== Number(id)) {
+                return res.status(403).json({ error: 'You are only authorized to view your own advances.' });
+            }
+        }
+
         // First verify that the supervisor exists and is a supervisor/special_supervisor
         const supervisor = await db.get(
             `SELECT id, name, phone, role FROM users WHERE id = ? AND role IN ('supervisor', 'special_supervisor') AND is_deleted = false`,
@@ -492,9 +499,12 @@ router.get('/supervisors/:id/advances', authenticateToken, authorizeRole(ADMIN_O
 
         // Fetch advances given by this supervisor
         const advances = await db.all(
-            `SELECT a.id, a.amount, a.date, a.notes, a.labour_id, l.name AS labour_name
+            `SELECT a.id, a.amount, a.date, a.notes, a.labour_id,
+                    l.name AS labour_name, l.phone AS labour_phone,
+                    COALESCE(s.name, l.site, 'Unassigned') AS site_name
              FROM advances a
              JOIN labours l ON a.labour_id = l.id
+             LEFT JOIN sites s ON l.site_id = s.id
              WHERE a.created_by = ?
              ORDER BY a.date DESC, a.created_at DESC`,
             [id]

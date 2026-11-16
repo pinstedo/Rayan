@@ -17,9 +17,8 @@ import {
   View,
 } from "react-native";
 import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
-import { API_URL } from "../../constants";
-import { api } from "../../services/api";
 import { useTheme } from "../../context/ThemeContext";
+import { api } from "../../services/api";
 
 export default function Profile() {
   const router = useRouter();
@@ -51,6 +50,9 @@ export default function Profile() {
   const [editFoodRate, setEditFoodRate] = useState('70');
   const [isSavingFoodRate, setIsSavingFoodRate] = useState(false);
 
+  // ESI Rate State
+  const [esiRate, setEsiRate] = useState('0.75');
+
   const fetchUser = async (isRefresh = false) => {
     try {
       const userData = await AsyncStorage.getItem("userData");
@@ -76,10 +78,21 @@ export default function Profile() {
     } catch { /* ignore */ }
   };
 
+  const fetchEsiRate = async () => {
+    try {
+      const res = await api.get('/settings/esi');
+      if (res.ok) {
+        const data = await res.json();
+        setEsiRate(String(data.percentage ?? 0.75));
+      }
+    } catch { /* ignore */ }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchUser();
       fetchFoodRate();
+      fetchEsiRate();
     }, [])
   );
 
@@ -355,6 +368,19 @@ export default function Profile() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.menuText}>Food Allowance Rate</Text>
                   <Text style={{ fontSize: 12, color: isDark ? '#64748B' : '#94A3B8', marginTop: 2 }}>₹{foodRate} per day (default)</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+              </Pressable>
+              <View style={styles.divider} />
+              <Pressable style={styles.menuItem} onPress={() => router.push("/(screens)/settings/esi" as any)}>
+                <View style={[styles.menuIconBg, { backgroundColor: isDark ? '#172554' : '#eff6ff' }]}>
+                  <MaterialIcons name="health-and-safety" size={20} color="#3B82F6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuText}>ESI (Employee State Insurance)</Text>
+                  <Text style={{ fontSize: 12, color: isDark ? '#64748B' : '#94A3B8', marginTop: 2 }}>
+                    {esiRate}% of wage • Manage labours
+                  </Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
               </Pressable>

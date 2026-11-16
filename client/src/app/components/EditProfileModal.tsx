@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
+import { formatLocalDate } from '../../utils/date';
 import {
     ActivityIndicator,
     Image,
@@ -64,7 +65,7 @@ export const EditProfileModal = ({ visible, onClose, labour, onSave }: EditProfi
         try {
             await onSave({
                 profile_image: image,
-                date_of_birth: dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : null,
+                date_of_birth: dateOfBirth ? formatLocalDate(dateOfBirth) : null,
                 emergency_phone: emergencyPhone
             });
             onClose();
@@ -112,8 +113,8 @@ export const EditProfileModal = ({ visible, onClose, labour, onSave }: EditProfi
                     {Platform.OS === 'web' ? (
                         <input
                             type="date"
-                            max={new Date().toISOString().split('T')[0]}
-                            value={dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : ''}
+                            max={formatLocalDate(new Date())}
+                            value={dateOfBirth ? formatLocalDate(dateOfBirth) : ''}
                             onChange={(e) => {
                                 const val = e.target.value;
                                 setDateOfBirth(val ? new Date(val + 'T00:00:00') : null);

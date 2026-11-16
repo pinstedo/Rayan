@@ -11,6 +11,7 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
@@ -19,8 +20,10 @@ import {
 import { Calendar } from "../../components/Calendar";
 import { CustomModal } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
+import { safeBack, useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 import { getDailyWage } from "../../utils/wages";
+import { formatLocalDate } from "../../utils/date";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +37,7 @@ interface Labour {
     site: string;
     site_id: number;
     status: 'active' | 'unassigned' | 'leave' | 'pending';
+    esi_enabled?: boolean;
     profile_image?: string;
     date_of_birth?: string;
     emergency_phone?: string;
@@ -93,6 +97,7 @@ interface FinancialHistoryRecord {
 
 export default function LabourDetailsScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/labours");
     const { id } = useLocalSearchParams();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
@@ -196,12 +201,12 @@ export default function LabourDetailsScreen() {
                 setFormData(data);
             } else {
                 Alert.alert("Error", "Failed to fetch labour details");
-                router.back();
+                safeBack(router, "/(screens)/labours");
             }
         } catch (error) {
             console.error("Error fetching labour:", error);
             Alert.alert("Error", "Unable to connect to server");
-            router.back();
+            safeBack(router, "/(screens)/labours");
         } finally {
             setLoading(false);
         }
@@ -328,7 +333,7 @@ export default function LabourDetailsScreen() {
             setSavingBonus(true);
             const response = await api.post(`/labours/${id}/bonus`, {
                 amount: Number(bonusAmount),
-                date: bonusDate.toISOString().split('T')[0],
+                date: formatLocalDate(bonusDate),
                 notes: bonusNotes,
                 is_performance: isPerformanceBonus,
             });
@@ -382,7 +387,7 @@ export default function LabourDetailsScreen() {
             setSavingIncrement(true);
             const response = await api.post(`/labours/${id}/increment`, {
                 increment_amount: Number(incrementAmount),
-                date: incrementDate.toISOString().split('T')[0],
+                date: formatLocalDate(incrementDate),
                 notes: incrementNotes,
                 is_performance: isPerformanceIncrement,
             });
@@ -737,7 +742,7 @@ export default function LabourDetailsScreen() {
 
                 {/* ── Header ── */}
                 <View style={local.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
+                    <TouchableOpacity onPress={handleBack} style={local.backButton}>
                         <Ionicons name="arrow-back" size={24} color={isDark ? "#fff" : "#333"} />
                     </TouchableOpacity>
                     <Text style={local.title}>Labour Details</Text>
@@ -1018,6 +1023,26 @@ export default function LabourDetailsScreen() {
                             {renderDetailItem({ label: "Daily Rate (₹)", value: String(labour.rate || 0), field: "rate", icon: "cash-outline", isEditable: true, keyboardType: "numeric" })}
                             {renderDetailItem({ label: "Current Site", value: labour.site, field: "site", icon: "location-outline", isEditable: true })}
                             {renderDetailItem({ label: "Status", value: labour.status, icon: "flag-outline", isEditable: false })}
+
+                            <View style={local.inputGroup}>
+                                <Text style={local.label}>ESI (Employee State Insurance)</Text>
+                                <View style={[local.inputContainer, !isEditing && local.readOnlyContainer, { justifyContent: 'space-between' }]}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                        <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? "#aaa" : "#666"} style={local.inputIcon} />
+                                        <Text style={local.inputText}>
+                                            {(isEditing ? Boolean(formData.esi_enabled) : Boolean(labour.esi_enabled)) ? "Enrolled (Deduction applies)" : "Not Enrolled"}
+                                        </Text>
+                                    </View>
+                                    {isEditing && (
+                                        <Switch
+                                            value={Boolean(formData.esi_enabled)}
+                                            onValueChange={(val) => setFormData(prev => ({ ...prev, esi_enabled: val }))}
+                                            trackColor={{ false: isDark ? "#444" : "#ddd", true: "#0a84ff" }}
+                                            thumbColor={formData.esi_enabled ? "#fff" : isDark ? "#888" : "#ccc"}
+                                        />
+                                    )}
+                                </View>
+                            </View>
 
                             <View style={local.divider} />
                             {renderDetailItem({ label: "Notes", value: labour.notes, field: "notes", icon: "document-text-outline", isEditable: true })}
@@ -1409,7 +1434,7 @@ export default function LabourDetailsScreen() {
                         <Text style={local.label}>Date</Text>
                         <TouchableOpacity style={[local.input, { justifyContent: 'center' }]} onPress={() => setShowBonusDatePicker(!showBonusDatePicker)}>
                             <Text style={{ color: isDark ? "#fff" : "#333", fontSize: 16, paddingVertical: 4 }}>
-                                {formatDate(bonusDate.toISOString())}
+                                {formatDate(formatLocalDate(bonusDate))}
                             </Text>
                         </TouchableOpacity>
                         {showBonusDatePicker && (
@@ -1483,7 +1508,7 @@ export default function LabourDetailsScreen() {
                         <Text style={local.label}>Date (Increment Applied On)</Text>
                         <TouchableOpacity style={[local.input, { justifyContent: 'center' }]} onPress={() => setShowIncrementDatePicker(!showIncrementDatePicker)}>
                             <Text style={{ color: isDark ? "#fff" : "#333", fontSize: 16, paddingVertical: 4 }}>
-                                {formatDate(incrementDate.toISOString())}
+                                {formatDate(formatLocalDate(incrementDate))}
                             </Text>
                         </TouchableOpacity>
                         {showIncrementDatePicker && (
@@ -1501,7 +1526,7 @@ export default function LabourDetailsScreen() {
                         )}
                         {/* Effective-date notice */}
                         {(() => {
-                            const dateStr = incrementDate.toISOString().split('T')[0];
+                            const dateStr = formatLocalDate(incrementDate);
                             const isFirstOfMonth = incrementDate.getDate() === 1;
                             return (
                                 <View style={local.incrementEffectiveNotice}>

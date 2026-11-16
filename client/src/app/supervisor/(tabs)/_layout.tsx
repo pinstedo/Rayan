@@ -12,6 +12,7 @@ export default function SupervisorRemoteLayout() {
 
     const SUPERVISOR_MENU = [
         { name: "home", title: "Home", icon: "home-outline", iconActive: "home", route: "/supervisor/(tabs)/home" as any },
+        { name: "advances", title: "Advances", icon: "wallet-outline", iconActive: "wallet", route: "/supervisor/(tabs)/advances" as any },
         { name: "profile", title: "Profile", icon: "person-outline", iconActive: "person", route: "/supervisor/(tabs)/profile" as any },
     ];
 
@@ -37,6 +38,15 @@ export default function SupervisorRemoteLayout() {
                     title: "Home",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="home-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="advances"
+                options={{
+                    title: "Advances",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="wallet-outline" size={size} color={color} />
                     ),
                 }}
             />

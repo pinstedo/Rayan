@@ -20,6 +20,7 @@ interface Site {
 const options = [
     { key: "attendance", icon: "check-circle", title: "Attendance", desc: "Record and view attendance" },
     { key: "labours", icon: "group", title: "Labours", desc: "View assigned labours" },
+    { key: "advances", icon: "payments", title: "Advances", desc: "Track advances given to labours" },
 ];
 
 export default function SupervisorHome(): JSX.Element {
@@ -44,10 +45,54 @@ export default function SupervisorHome(): JSX.Element {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [userName, setUserName] = useState("Supervisor");
+    const [advanceSummary, setAdvanceSummary] = useState<{
+        thisMonthTotal: number;
+        count: number;
+        laboursCount: number;
+        monthName: string;
+    } | null>(null);
     // Tracks whether the user has explicitly chosen a site, so re-fetching on
     // screen focus doesn't reset their selection back to the first site.
     const hasUserSelectedSite = useRef(false);
     const selectedSiteRef = useRef<Site | null>(null);
+
+    const fetchAdvanceSummary = async () => {
+        try {
+            const userDataStr = await AsyncStorage.getItem("userData");
+            if (!userDataStr) return;
+            const userData = JSON.parse(userDataStr);
+            const response = await api.get(`/auth/supervisors/${userData.id}/advances`);
+            if (response.ok) {
+                const data = await response.json();
+                const now = new Date();
+                const months = [
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                ];
+                const currentMonthName = `${months[now.getMonth()]} ${now.getFullYear()}`;
+                const currentMonthGroup = Array.isArray(data) ? data.find((g: any) => g.month === currentMonthName) : null;
+
+                if (currentMonthGroup) {
+                    const uniqueLabourIds = new Set((currentMonthGroup.advances || []).map((a: any) => a.labour_id));
+                    setAdvanceSummary({
+                        thisMonthTotal: currentMonthGroup.total_amount || 0,
+                        count: currentMonthGroup.advances?.length || 0,
+                        laboursCount: uniqueLabourIds.size,
+                        monthName: months[now.getMonth()],
+                    });
+                } else {
+                    setAdvanceSummary({
+                        thisMonthTotal: 0,
+                        count: 0,
+                        laboursCount: 0,
+                        monthName: months[now.getMonth()],
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Fetch advance summary error:", error);
+        }
+    };
 
     const fetchAssignedSites = async (isRefresh = false) => {
         try {
@@ -102,16 +147,19 @@ export default function SupervisorHome(): JSX.Element {
 
     const onRefresh = () => {
         fetchAssignedSites(true);
+        fetchAdvanceSummary();
     };
 
     useFocusEffect(
         useCallback(() => {
             fetchAssignedSites();
+            fetchAdvanceSummary();
         }, [])
     );
 
     useForegroundEffect(() => {
         fetchAssignedSites();
+        fetchAdvanceSummary();
     });
 
     const onPress = (key: string) => {
@@ -127,6 +175,11 @@ export default function SupervisorHome(): JSX.Element {
         if (key === "labours") {
             // Navigate to shared labours screen, it will handle fetching based on role/id
             router.push("/(screens)/labours?view=flat");
+            return;
+        }
+
+        if (key === "advances") {
+            router.push("/supervisor/(tabs)/advances" as any);
             return;
         }
         // navigate to dedicated management screen (ensure routes exist or create them)
@@ -193,6 +246,41 @@ export default function SupervisorHome(): JSX.Element {
                         <Text style={styles.noSitesSubtext}>Contact your admin to get assigned to a site.</Text>
                     </View>
                 )}
+
+                {/* Advance Summary Widget */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.advanceHeaderRow}>
+                        <Text style={styles.sectionHeaderNoPad}>Advance Summary</Text>
+                        <Pressable onPress={() => router.push("/supervisor/(tabs)/advances" as any)}>
+                            <Text style={styles.viewAllText}>View All ›</Text>
+                        </Pressable>
+                    </View>
+
+                    <Pressable
+                        style={styles.advanceCard}
+                        onPress={() => router.push("/supervisor/(tabs)/advances" as any)}
+                        accessibilityRole="button"
+                        accessibilityLabel="View advance tracker"
+                    >
+                        <View style={styles.advanceCardLeft}>
+                            <View style={styles.advanceIconWrap}>
+                                <MaterialIcons name="account-balance-wallet" size={26} color="#10B981" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.advanceCardLabel}>
+                                    {advanceSummary?.monthName || "This Month"}'s Advances Given
+                                </Text>
+                                <Text style={styles.advanceCardAmount}>
+                                    ₹{(advanceSummary?.thisMonthTotal || 0).toLocaleString('en-IN')}
+                                </Text>
+                                <Text style={styles.advanceCardSubtext}>
+                                    {advanceSummary?.count || 0} advance{(advanceSummary?.count || 0) === 1 ? '' : 's'} to {advanceSummary?.laboursCount || 0} labour{(advanceSummary?.laboursCount || 0) === 1 ? '' : 's'}
+                                </Text>
+                            </View>
+                        </View>
+                        <MaterialIcons name="chevron-right" size={24} color={isDark ? "#64748B" : "#94A3B8"} />
+                    </Pressable>
+                </View>
 
                 <Text style={[styles.sectionHeader, { paddingHorizontal: 20 }]}>Quick Actions</Text>
                 <View style={styles.grid}>
@@ -360,5 +448,68 @@ const getLocalStyles = (isDark: boolean) => StyleSheet.create({
         color: isDark ? "#64748B" : "#94A3B8",
         marginTop: 6,
         textAlign: "center",
+    },
+    advanceHeaderRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: 20,
+        marginBottom: 12,
+    },
+    sectionHeaderNoPad: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: isDark ? "#F1F5F9" : "#0F172A",
+    },
+    viewAllText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#3B82F6",
+    },
+    advanceCard: {
+        marginHorizontal: 20,
+        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+        borderRadius: 20,
+        padding: 18,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        borderWidth: 1,
+        borderColor: isDark ? "#334155" : "#E2E8F0",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.2 : 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    advanceCardLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        flex: 1,
+    },
+    advanceIconWrap: {
+        width: 50,
+        height: 50,
+        borderRadius: 16,
+        backgroundColor: isDark ? "rgba(16, 185, 129, 0.15)" : "#ECFDF5",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    advanceCardLabel: {
+        fontSize: 13,
+        fontWeight: "500",
+        color: isDark ? "#94A3B8" : "#64748B",
+        marginBottom: 2,
+    },
+    advanceCardAmount: {
+        fontSize: 22,
+        fontWeight: "800",
+        color: isDark ? "#34D399" : "#059669",
+        marginBottom: 2,
+    },
+    advanceCardSubtext: {
+        fontSize: 12,
+        color: isDark ? "#94A3B8" : "#64748B",
     },
 });

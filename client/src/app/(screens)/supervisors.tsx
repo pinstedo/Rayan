@@ -12,6 +12,7 @@ import {
     View
 } from "react-native";
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 import { sortByName } from "../../utils/sort";
 
@@ -24,6 +25,7 @@ interface Supervisor {
 
 export default function SupervisorsScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack();
     const { isDark } = useTheme();
     const styles = getStyles(isDark);
     const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
@@ -101,7 +103,7 @@ export default function SupervisorsScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Supervisors</Text>

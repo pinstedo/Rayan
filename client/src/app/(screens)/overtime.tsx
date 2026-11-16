@@ -5,12 +5,14 @@ import React, { useEffect, useState } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 import { getDailyWage, getHourlyRate } from "../../utils/wages";
 import { sortByName } from "../../utils/sort";
+import { formatLocalDate } from "../../utils/date";
 
 // Helper for date formatting
-const formatDate = (date: Date) => date.toISOString().split('T')[0];
+const formatDate = (date: Date) => formatLocalDate(date);
 
 interface Labour {
 	id: number;
@@ -32,6 +34,7 @@ interface OvertimeRecord {
 
 export default function OvertimeScreen() {
 	const router = useRouter();
+	const handleBack = useSafeBack("/(tabs)/home");
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
 	const { siteId, siteName } = useLocalSearchParams();
@@ -269,7 +272,7 @@ export default function OvertimeScreen() {
 	return (
 		<View style={local.container}>
 			<View style={local.header}>
-				<Pressable onPress={() => router.back()} style={local.backBtn}>
+				<Pressable onPress={handleBack} style={local.backBtn}>
 					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#333"} />
 				</Pressable>
 				<Text style={local.headerTitle}>Overtime</Text>

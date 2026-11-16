@@ -14,11 +14,13 @@ import {
     Clipboard,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
+import { safeBack, useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 
 export default function EditSupervisorScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/supervisors");
     const params = useLocalSearchParams();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
@@ -89,7 +91,7 @@ export default function EditSupervisorScreen() {
                         text: "OK", 
                         onPress: () => {
                             setModalVisible(false);
-                            router.back();
+                            safeBack(router, "/(screens)/supervisors");
                         },
                         style: "default"
                     },
@@ -259,7 +261,7 @@ export default function EditSupervisorScreen() {
             <ScrollView contentContainerStyle={local.scrollContent}>
                 <View style={local.header}>
                     <TouchableOpacity
-                        onPress={() => router.back()}
+                        onPress={handleBack}
                         style={local.backButton}
                     >
                         <Ionicons name="arrow-back" size={24} color={isDark ? "#fff" : "#333"} />

@@ -15,10 +15,12 @@ import {
 } from "react-native";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
+import { safeBack, useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 
 export default function AddSite() {
   const router = useRouter();
+  const handleBack = useSafeBack("/(screens)/sites");
   const { isDark } = useTheme();
   const local = getStyles(isDark);
 
@@ -79,7 +81,7 @@ export default function AddSite() {
         } else {
           Alert.alert("Success", successMsg);
         }
-        router.back();
+        safeBack(router, "/(screens)/sites");
       } else {
         const errorData = await response.json();
         showModal("Error", errorData.error || "Failed to add site", "error");
@@ -107,7 +109,7 @@ export default function AddSite() {
           {/* Top Header */}
           <View style={local.headerRow}>
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={handleBack}
               style={local.backBtn}
               activeOpacity={0.7}
             >
@@ -248,7 +250,7 @@ export default function AddSite() {
           <View style={local.actionsWrap}>
             <TouchableOpacity
               style={local.cancelBtn}
-              onPress={() => router.back()}
+              onPress={handleBack}
               activeOpacity={0.7}
               disabled={loading}
             >

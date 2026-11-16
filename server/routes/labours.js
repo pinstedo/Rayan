@@ -116,7 +116,7 @@ router.get('/', authorizeRole(ASSIGNMENT_ROLES), async (req, res) => {
 
 // Add new labour
 router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
-    const { name, phone, password, aadhaar, site, site_id, notes, date_of_birth } = req.body;
+    const { name, phone, password, aadhaar, site, site_id, notes, date_of_birth, esi_enabled } = req.body;
     const dailyWage = dailyWageFromPayload(req.body);
     const openingWorkingDays = req.body.opening_working_days === undefined || req.body.opening_working_days === null || req.body.opening_working_days === ''
         ? 0
@@ -179,9 +179,11 @@ router.post('/', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
 
         const legacyHourlyRate = dailyWage === null ? null : hourlyFromDailyWage(dailyWage);
 
+        const isEsiEnabled = Boolean(esi_enabled === true || esi_enabled === 'true' || esi_enabled === 1 || esi_enabled === '1');
+
         const result = await db.run(
-            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, daily_wage, opening_balance, worked_days_count, notes, date_of_birth, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-            [name, phone, password_hash, aadhaar, site, site_id, legacyHourlyRate, dailyWage, openingBalance, openingWorkingDays, notes, date_of_birth, initialStatus]
+            `INSERT INTO labours (name, phone, password_hash, aadhaar, site, site_id, rate, daily_wage, opening_balance, worked_days_count, notes, date_of_birth, status, esi_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+            [name, phone, password_hash, aadhaar, site, site_id, legacyHourlyRate, dailyWage, openingBalance, openingWorkingDays, notes, date_of_birth, initialStatus, isEsiEnabled]
         );
 
         const newLabour = withWageCompatibility(await db.get(`SELECT * FROM labours WHERE id = ?`, [result.lastID]));
@@ -680,7 +682,7 @@ router.get('/debug-me', (req, res) => {
 
 // Update labour
 router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
-    const { name, phone, aadhaar, site, site_id, notes, profile_image, date_of_birth, emergency_phone } = req.body;
+    const { name, phone, aadhaar, site, site_id, notes, profile_image, date_of_birth, emergency_phone, esi_enabled } = req.body;
     const dailyWage = dailyWageFromPayload(req.body);
 
     try {
@@ -723,9 +725,13 @@ router.put('/:id', authorizeRole(FIELD_SUPERVISOR_ROLES), async (req, res) => {
             }
         }
 
+        const nextEsiEnabled = esi_enabled !== undefined
+            ? Boolean(esi_enabled === true || esi_enabled === 'true' || esi_enabled === 1 || esi_enabled === '1')
+            : Boolean(currentLabour.esi_enabled);
+
         await db.run(
-            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, daily_wage = ?, notes = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ? WHERE id = ?`,
-            [name, phone, aadhaar, site, site_id, legacyHourlyRate, nextDailyWage, notes, profile_image, date_of_birth, emergency_phone, newStatus, req.params.id]
+            `UPDATE labours SET name = ?, phone = ?, aadhaar = ?, site = ?, site_id = ?, rate = ?, daily_wage = ?, notes = ?, profile_image = ?, date_of_birth = ?, emergency_phone = ?, status = ?, esi_enabled = ? WHERE id = ?`,
+            [name, phone, aadhaar, site, site_id, legacyHourlyRate, nextDailyWage, notes, profile_image, date_of_birth, emergency_phone, newStatus, nextEsiEnabled, req.params.id]
         );
 
         if (site_id != currentLabour.site_id) {

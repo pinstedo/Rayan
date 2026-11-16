@@ -13,10 +13,12 @@ import {
     View,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 
 export default function SupervisorDetailsScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/supervisors");
     const params = useLocalSearchParams();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
@@ -143,7 +145,7 @@ export default function SupervisorDetailsScreen() {
                 <View style={local.header}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', }}>
                         <TouchableOpacity
-                            onPress={() => router.back()}
+                            onPress={handleBack}
                             style={local.backButton}
                         >
                             <Ionicons name="arrow-back" size={24} color={isDark ? "#fff" : "#333"} />

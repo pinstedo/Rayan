@@ -14,6 +14,7 @@ import {
 import { Calendar } from "../../../components/Calendar";
 import { CustomModal } from "../../../components/CustomModal";
 import { useTheme } from "../../../context/ThemeContext";
+import { useSafeBack } from "../../../hooks/useSafeBack";
 import { api } from "../../../services/api";
 import { sortByName } from "../../../utils/sort";
 
@@ -29,6 +30,7 @@ interface SiteReport {
 
 export default function SiteAttendanceReport() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(tabs)/home");
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [loading, setLoading] = useState(true);
@@ -102,7 +104,7 @@ export default function SiteAttendanceReport() {
         <View style={local.container}>
             
             <View style={local.headerRow}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backBtnText}>
+                <TouchableOpacity onPress={handleBack} style={local.backBtnText}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={local.headerTitle}>Site Attendance Report</Text>

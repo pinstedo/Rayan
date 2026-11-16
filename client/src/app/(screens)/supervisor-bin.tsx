@@ -13,6 +13,7 @@ import {
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 
 interface DeletedSupervisor {
@@ -24,6 +25,7 @@ interface DeletedSupervisor {
 
 export default function SupervisorBinScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/supervisors");
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [supervisors, setSupervisors] = useState<DeletedSupervisor[]>([]);
@@ -192,7 +194,7 @@ export default function SupervisorBinScreen() {
     return (
         <View style={local.container}>
             <View style={local.header}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
+                <TouchableOpacity onPress={handleBack} style={local.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={local.title}>Supervisor Bin</Text>

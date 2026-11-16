@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from '../../components/RefreshFeedback';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeBack } from '../../hooks/useSafeBack';
 import { api } from '../../services/api';
 
 interface EligibleLabour {
@@ -38,6 +39,7 @@ const INCREMENT_THRESHOLD = 300;
 
 export default function EligibleLaboursScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/labours");
     const { isDark } = useTheme();
     const local = getStyles(isDark);
 
@@ -219,7 +221,7 @@ export default function EligibleLaboursScreen() {
         <View style={local.container}>
             {/* Header */}
             <View style={local.header}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
+                <TouchableOpacity onPress={handleBack} style={local.backBtn}>
                     <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#333'} />
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>

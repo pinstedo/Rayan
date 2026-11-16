@@ -5,6 +5,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from '../../../components/RefreshFeedback';
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from '../../../components/list';
 import { useTheme } from '../../../context/ThemeContext';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useListManager } from '../../../hooks/useListManager';
 
 interface HistoryLog {
@@ -40,6 +41,7 @@ const filterOptions: FilterOption[] = [
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const handleBack = useSafeBack("/(tabs)/manage");
   const { isDark } = useTheme();
   const styles = getStyles(isDark);
   const [refreshing, setRefreshing] = useState(false);
@@ -144,7 +146,7 @@ export default function HistoryScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={handleBack} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color={isDark ? "#F1F5F9" : "#0F172A"} />
         </Pressable>
         <Text style={styles.title}>System History</Text>

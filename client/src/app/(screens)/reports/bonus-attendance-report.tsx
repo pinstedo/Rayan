@@ -6,10 +6,12 @@ import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, Touch
 import { CustomModal } from '../../../components/CustomModal';
 import { AppRefreshControl, TopRefreshLoader } from '../../../components/RefreshFeedback';
 import { useTheme } from '../../../context/ThemeContext';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { api } from '../../../services/api';
 
 export default function BonusAttendanceReportScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(tabs)/home");
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [loading, setLoading] = useState(false);
@@ -357,7 +359,7 @@ export default function BonusAttendanceReportScreen() {
     return (
         <View style={local.container}>
             <View style={local.headerRow}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
+                <TouchableOpacity onPress={handleBack} style={local.backBtn}>
                     <Text style={local.backText}>← Back</Text>
                 </TouchableOpacity>
                 <Text style={local.headerTitle}>Bonus & Increment Report</Text>

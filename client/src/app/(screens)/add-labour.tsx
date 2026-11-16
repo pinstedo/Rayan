@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -18,6 +19,7 @@ import {
 } from "react-native";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
+import { safeBack, useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 
 interface Site {
@@ -28,6 +30,7 @@ interface Site {
 
 export default function AddLabour() {
   const router = useRouter();
+  const handleBack = useSafeBack("/(screens)/labours");
   const { isDark } = useTheme();
   const local = getStyles(isDark);
   const params = useLocalSearchParams<{ siteId?: string; siteName?: string }>();
@@ -40,6 +43,7 @@ export default function AddLabour() {
   const [aadhaar, setAadhaar] = useState("");
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [rate, setRate] = useState("");
+  const [esiEnabled, setEsiEnabled] = useState(false);
   const [openingWorkingDays, setOpeningWorkingDays] = useState("");
   const [openingBalance, setOpeningBalance] = useState("");
   const [notes, setNotes] = useState("");
@@ -214,6 +218,7 @@ export default function AddLabour() {
         site: selectedSite?.name || "",
         site_id: selectedSite?.id || null,
         daily_wage: rate ? parseFloat(rate) : null,
+        esi_enabled: esiEnabled,
         opening_working_days: openingWorkingDays ? parseFloat(openingWorkingDays) : 0,
         opening_balance: openingBalance ? parseFloat(openingBalance) : 0,
         notes: notes.trim(),
@@ -233,7 +238,7 @@ export default function AddLabour() {
         } else {
           Alert.alert("Success", successMsg);
         }
-        router.back();
+        safeBack(router, "/(screens)/labours");
       } else {
         const errorData = await response.json();
         showModal("Error", errorData.error || "Failed to add labour", "error");
@@ -261,7 +266,7 @@ export default function AddLabour() {
           {/* Top Header */}
           <View style={local.headerRow}>
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={handleBack}
               style={local.backBtn}
               activeOpacity={0.7}
             >
@@ -655,6 +660,28 @@ export default function AddLabour() {
                 <Text style={local.helperText}>Base salary paid per full working day</Text>
               </View>
             )}
+
+            {userRole !== "supervisor" && (
+              <View style={[local.fieldGroup, { marginTop: 12 }]}>
+                <View style={local.esiToggleRow}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={local.label}>Enroll in ESI</Text>
+                      <View style={local.esiBadge}>
+                        <Text style={local.esiBadgeText}>Insurance</Text>
+                      </View>
+                    </View>
+                    <Text style={local.helperText}>Deducts ESI percentage from labour wage for healthcare & insurance</Text>
+                  </View>
+                  <Switch
+                    value={esiEnabled}
+                    onValueChange={setEsiEnabled}
+                    trackColor={{ false: isDark ? "#3f3f46" : "#e4e4e7", true: "#3b82f6" }}
+                    thumbColor={esiEnabled ? "#ffffff" : isDark ? "#71717a" : "#d1d5db"}
+                  />
+                </View>
+              </View>
+            )}
           </View>
 
           {/* SECTION 4: Opening Balances & Historical Data */}
@@ -768,7 +795,7 @@ export default function AddLabour() {
           <View style={local.actionsWrap}>
             <TouchableOpacity
               style={local.cancelBtn}
-              onPress={() => router.back()}
+              onPress={handleBack}
               activeOpacity={0.7}
               disabled={loading}
             >
@@ -1099,6 +1126,27 @@ const getStyles = (isDark: boolean) =>
       color: isDark ? "#71717a" : "#94a3b8",
       marginTop: 4,
       marginLeft: 2,
+    },
+    esiToggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: isDark ? "#27272a" : "#f8fafc",
+      borderWidth: 1,
+      borderColor: isDark ? "#3f3f46" : "#e2e8f0",
+    },
+    esiBadge: {
+      backgroundColor: isDark ? "rgba(59, 130, 246, 0.2)" : "#dbeafe",
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 10,
+    },
+    esiBadgeText: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: "#2563eb",
     },
     charCounter: {
       fontSize: 12,

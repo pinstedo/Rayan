@@ -125,6 +125,7 @@ async function initDb() {
       trade TEXT,
       date_of_birth TEXT,
       emergency_phone TEXT,
+      esi_enabled BOOLEAN DEFAULT false,
       status TEXT DEFAULT 'active',
       profile_image TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -300,6 +301,12 @@ async function initDb() {
      ON CONFLICT (key) DO NOTHING`
   );
 
+  // Seed default ESI percentage if not set
+  await db.run(
+    `INSERT INTO app_settings (key, value) VALUES ('esi_percentage', '0.75')
+     ON CONFLICT (key) DO NOTHING`
+  );
+
   // Site status migration — safe for existing deployments
   const alterSafe = async (sql) => {
     try { await db.exec(sql); } catch (e) {
@@ -321,6 +328,9 @@ async function initDb() {
 
   // Food allowance per-labour migration — additive
   await alterSafe(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS food_allowance BOOLEAN DEFAULT false`);
+
+  // ESI tracking migration — additive
+  await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS esi_enabled BOOLEAN DEFAULT false`);
 
   // Labour financial tracking columns
   await alterSafe(`ALTER TABLE labours ADD COLUMN IF NOT EXISTS worked_days_count NUMERIC DEFAULT 0`);
@@ -527,6 +537,22 @@ async function initDb() {
     `);
   } catch (e) {
     console.error('Error backfilling history_logs site names:', e);
+  }
+
+  // Fix timezone shift in salary_history dates where end-of-month was stored instead of 1st of month
+  try {
+    await db.run(`
+      UPDATE salary_history 
+      SET date = '2026-06-01' 
+      WHERE labour_id = 20 AND date = '2026-05-31'
+    `);
+    await db.run(`
+      UPDATE salary_history 
+      SET date = '2026-07-01' 
+      WHERE labour_id = 10 AND date = '2026-06-30'
+    `);
+  } catch (e) {
+    console.error('Error fixing salary_history timezone shift:', e);
   }
 
   console.log('Database initialized.');

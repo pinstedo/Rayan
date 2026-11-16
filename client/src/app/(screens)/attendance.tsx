@@ -8,6 +8,7 @@ import { CustomModal, ModalType } from "../../components/CustomModal";
 import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { useListManager } from "../../hooks/useListManager";
 import { api } from "../../services/api";
 import { getHourlyRate } from "../../utils/wages";
@@ -43,6 +44,7 @@ const filterOptions: FilterOption[] = [
 
 export default function AttendanceScreen() {
 	const router = useRouter();
+	const handleBack = useSafeBack("/(tabs)/home");
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
 	const { siteId, siteName, dateStr } = useLocalSearchParams();
@@ -764,7 +766,7 @@ export default function AttendanceScreen() {
 			refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
 		>
 			<View style={local.headerRow}>
-				<TouchableOpacity onPress={() => router.back()} style={local.backButton}>
+				<TouchableOpacity onPress={handleBack} style={local.backButton}>
 					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
 				</TouchableOpacity>
 				<Text style={local.headerTitle}>{isGlobalView ? "All Attendance" : "Mark Attendance"}</Text>

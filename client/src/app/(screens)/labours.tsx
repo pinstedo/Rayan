@@ -16,6 +16,7 @@ import { CustomModal, ModalType } from "../../components/CustomModal";
 import { AppRefreshControl, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { FilterOption, FilterPanel, SearchBar, SortOption, SortSelector } from "../../components/list";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { useListManager } from "../../hooks/useListManager";
 import { api } from "../../services/api";
 import { sortByName } from "../../utils/sort";
@@ -60,6 +61,7 @@ const filterOptions: FilterOption[] = [
 
 export default function Labours() {
 	const router = useRouter();
+	const handleBack = useSafeBack();
 	const { isDark } = useTheme();
 	const local = getStyles(isDark);
 	const routeParams = useLocalSearchParams();
@@ -339,7 +341,7 @@ export default function Labours() {
 		>
 			<TopRefreshLoader visible={refreshing} />
 			<View style={local.headerRow}>
-				<TouchableOpacity onPress={() => router.back()} style={local.backBtn}>
+				<TouchableOpacity onPress={handleBack} style={local.backBtn}>
 					<MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
 				</TouchableOpacity>
 				<Text style={local.header}>

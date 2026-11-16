@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 import { sortByName } from "../../utils/sort";
 
@@ -45,6 +46,7 @@ interface SiteDetails {
 
 export default function SiteDetailsScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/sites");
     const { id } = useLocalSearchParams<{ id: string }>();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
@@ -441,7 +443,7 @@ export default function SiteDetailsScreen() {
     return (
         <View style={local.container}>
             <View style={local.header}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
+                <TouchableOpacity onPress={handleBack} style={local.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={local.title}>Site Details</Text>

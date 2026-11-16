@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { AppRefreshControl, LoadingScreen, TopRefreshLoader } from "../../components/RefreshFeedback";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 
 interface PendingAdmin {
@@ -23,6 +24,7 @@ interface PendingAdmin {
 
 export default function PendingAdminsScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack();
     const { isDark } = useTheme();
     const local = getStyles(isDark);
     const [admins, setAdmins] = useState<PendingAdmin[]>([]);
@@ -143,7 +145,7 @@ export default function PendingAdminsScreen() {
     return (
         <View style={local.container}>
             <View style={local.header}>
-                <TouchableOpacity onPress={() => router.back()} style={local.backButton}>
+                <TouchableOpacity onPress={handleBack} style={local.backButton}>
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? "#fff" : "#000"} />
                 </TouchableOpacity>
                 <Text style={local.title}>Pending Approvals</Text>

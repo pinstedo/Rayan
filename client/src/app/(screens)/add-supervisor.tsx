@@ -14,11 +14,13 @@ import {
 } from "react-native";
 import { CustomModal, ModalType } from "../../components/CustomModal";
 import { useTheme } from "../../context/ThemeContext";
+import { safeBack, useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 import { ROLES, getRoleLabel } from "../../utils/roles";
 
 export default function AddSupervisorScreen() {
     const router = useRouter();
+    const handleBack = useSafeBack("/(screens)/supervisors");
     const { isDark } = useTheme();
     const local = getStyles(isDark);
 
@@ -106,7 +108,7 @@ export default function AddSupervisorScreen() {
                             text: "OK",
                             onPress: () => {
                                 setModalVisible(false);
-                                router.back();
+                                safeBack(router, "/(screens)/supervisors");
                             },
                             style: "default",
                         },
@@ -132,7 +134,7 @@ export default function AddSupervisorScreen() {
             <ScrollView contentContainerStyle={local.scrollContent}>
                 <View style={local.header}>
                     <TouchableOpacity
-                        onPress={() => router.back()}
+                        onPress={handleBack}
                         style={local.backButton}
                     >
                         <Ionicons name="arrow-back" size={24} color={isDark ? "#fff" : "#333"} />

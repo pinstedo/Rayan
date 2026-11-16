@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'rea
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../services/api';
 import { CustomModal } from './CustomModal';
+import { formatLocalDate } from '../utils/date';
 
 interface SalaryPaymentModalProps {
     visible: boolean;
@@ -58,7 +59,7 @@ export const SalaryPaymentModal: React.FC<SalaryPaymentModalProps> = ({
             const body = {
                 labour_id: labourId,
                 amount: numAmount,
-                date: paymentDate || new Date().toISOString().split('T')[0],
+                date: paymentDate || formatLocalDate(new Date()),
                 month_reference: monthReference,
                 payment_method: paymentMethod,
                 notes: notes,

@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { api } from "../../services/api";
 
 interface AdminAccount {
@@ -18,6 +19,7 @@ const emptyForm = { id: 0, name: "", phone: "", password: "" };
 
 export default function OwnerAdmins() {
   const router = useRouter();
+  const handleBack = useSafeBack("/owner/dashboard");
   const { isDark, colors } = useTheme();
   const local = getStyles(isDark, colors);
   const [admins, setAdmins] = useState<AdminAccount[]>([]);
@@ -164,7 +166,7 @@ export default function OwnerAdmins() {
   return (
     <View style={local.container}>
       <View style={local.header}>
-        <TouchableOpacity onPress={() => router.back()} style={local.iconButton}>
+        <TouchableOpacity onPress={handleBack} style={local.iconButton}>
           <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={local.title}>Admin Management</Text>

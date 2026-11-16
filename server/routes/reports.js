@@ -74,6 +74,10 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
         const rateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'food_allowance_rate'`);
         const globalFoodRate = rateRow ? parseFloat(rateRow.value) : 70;
 
+        // Fetch global ESI rate
+        const esiRateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'esi_percentage'`);
+        const globalEsiRate = esiRateRow ? parseFloat(esiRateRow.value) : 0.75;
+
         let labourQuery = `SELECT * FROM labours`;
         const labourParams = [];
 
@@ -274,7 +278,9 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
             // Calculation
             const hourlyRate = getLabourHourlyRate(labour); // Legacy compatibility value
             const dailyWage = getLabourDailyWage(labour);
-            const netPayable = wage + overtimeAmount + siteLevelFoodAmount - advanceAmount;
+            const isEsi = Boolean(labour.esi_enabled === true || labour.esi_enabled === 't' || labour.esi_enabled === 1 || labour.esi_enabled === 'true');
+            const esiAmount = isEsi && wage > 0 ? Number(((wage * globalEsiRate) / 100).toFixed(2)) : 0;
+            const netPayable = wage + overtimeAmount + siteLevelFoodAmount - advanceAmount - esiAmount;
 
             reports.push({
                 id: labour.id,
@@ -282,6 +288,8 @@ router.post('/labour-summary', authorizeRole(['admin', 'supervisor']), async (re
                 status: labour.status,
                 rate: hourlyRate,
                 daily_wage: dailyWage,
+                esi_enabled: isEsi,
+                esi_amount: esiAmount,
                 full_days: fullDays,
                 half_days: halfDays,
                 absent_days: absentDays,
@@ -444,6 +452,10 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
         // 3. Fetch global food allowance rate
         const rateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'food_allowance_rate'`);
         const globalFoodRate = rateRow ? parseFloat(rateRow.value) : 70;
+
+        // Fetch global ESI rate
+        const esiRateRow = await db.get(`SELECT value FROM app_settings WHERE key = 'esi_percentage'`);
+        const globalEsiRate = esiRateRow ? parseFloat(esiRateRow.value) : 0.75;
 
         // --- OPTIMIZED BULK FETCH ---
         const labourIds = labours.map(l => l.id);
@@ -622,6 +634,9 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 };
             });
 
+            const isEsi = Boolean(labour.esi_enabled === true || labour.esi_enabled === 't' || labour.esi_enabled === 1 || labour.esi_enabled === 'true');
+            const esiAmount = isEsi && wage > 0 ? Number(((wage * globalEsiRate) / 100).toFixed(2)) : 0;
+
             return {
                 wage,
                 wageBreakdown,
@@ -633,13 +648,15 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 paidAmount,
                 fullDays,
                 halfDays,
+                esiAmount,
                 net: isPrevious
-                    ? (wage + otAmount + foodAllowanceAmount - advAmount - paidAmount)
-                    : (wage + otAmount + foodAllowanceAmount - advAmount)
+                    ? (wage + otAmount + foodAllowanceAmount - advAmount - esiAmount - paidAmount)
+                    : (wage + otAmount + foodAllowanceAmount - advAmount - esiAmount)
             };
         };
 
         const reports = labours.map(labour => {
+            const isEsi = Boolean(labour.esi_enabled === true || labour.esi_enabled === 't' || labour.esi_enabled === 1 || labour.esi_enabled === 'true');
             const prevStats = calculateStats(labour, true);
             const currStats = calculateStats(labour, false);
 
@@ -655,6 +672,8 @@ router.post('/wage-month', authorizeRole(['admin', 'supervisor']), async (req, r
                 daily_wage: getLabourDailyWage(labour),
                 site_id: labour.site_id,
                 status: labour.status,
+                esi_enabled: isEsi,
+                current_esi_amount: currStats.esiAmount,
                 previous_balance: previous_balance,
                 current_wage: currStats.wage,
                 wage_breakdown: currStats.wageBreakdown,
